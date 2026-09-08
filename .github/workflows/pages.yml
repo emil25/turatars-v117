@@ -29,7 +29,7 @@ jobs:
           cp index.html manifest.webmanifest sw.js .nojekyll _site/
           cp assets/*.css _site/assets/
           cp icons/* _site/icons/
-          cat .deploy/index-js.part* > _site/assets/index-D5bd_1gX.js
+          cat .deploy/index-js.part* > _site/assets/index-hK_TCQP8.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true
