@@ -1,0 +1,690 @@
+       im.onerror=function(){ toast("A fotó nem olvasható","🖼️"); }; im.src=rd.result; }; rd.readAsDataURL(f); }; }
+    const mem=document.getElementById('tm2-mem');
+  if(mem) mem.onclick=function(){ if(window.openMemoryEditor){ window.openMemoryEditor(Store.getTour(t.id)); } else toast("Az memoria szerkesztőért menj a teljesitett túráid fülre","📖"); };
+};
+window.__V45MODULE=1;
+})();
+
+/* ==== v46 ==== */
+/* ========= V46 — 📥 INBOX 2.0 : minden túraötlet egy helyen =========
+   Típusok: link / esemény / kép / jegyzet / túraötlet / hely.
+   Helyi AI-felismerés beillesztett szövegből (kitalált adat NINCS).
+   Egy lépés: ⭐ Bakancslista · 🗓️ Túraterv — duplikáció-védelem, forrás megmarad. */
+(function(){
+"use strict";
+var IB_T={link:["🔗","Link"],event:["📅","Esemény"],photo:["📸","Kép"],note:["📝","Jegyzet"],tour:["🥾","Túraötlet"],place:["📍","Hely"]};
+var ibQ="", ibCat="", ibSort="uj";
+function X(s){ return esc(s==null?"":String(s)); }
+function ibHost(u){ return String(u||"").replace(/^https?:\\/\\//,"").replace(/^www\\./,"").split("/")[0].slice(0,26); }
+function ibGuessType(u){ u=String(u||"").toLowerCase();
+  if(/facebook\\.com|fb\\.com|fb\\.me|events|event\\?/.test(u)) return "event";
+  if(/maps\\.google|goo\\.gl\\/maps|osm\\.org|\\d{2,3}\\.\\d{3,}[, ]+\\d{2,3}\\.\\d{3,}|@-?\\d/.test(u)) return "place";
+  if(/wikiloc|komoot|termeszetjaro|termeszetjaro|turistak|\\.gpx|tasz\\.hu/.test(u)) return "tour";
+  return "link"; }
+function ibNorm(x){ if(!x.id) x.id=Store.uid("ib");
+  if(!x.created_at) x.created_at=x.at||new Date().toISOString();
+  if(x.source_url===undefined) x.source_url=x.url||null;
+  if(x.host===undefined) x.host=x.url?ibHost(x.url):null;
+  if(x.image===undefined) x.image=x.img||null;
+  if(x.location===undefined) x.location=x.place||null;
+  if(!x.status) x.status=x.linkedTourId?"trip":(x.linkedWishId?"wish":(x.read?"read":"new"));
+  return x; }
+function ibAll(){ var d=Store.myData(); if(!d.inbox) d.inbox=[]; d.inbox.forEach(ibNorm); return d.inbox; }
+function ibGet(id){ return ibAll().find(function(x){return x.id===id;}); }
+function ibSave(it){ var d=Store.myData(); if(!d.inbox) d.inbox=[];
+  it.updated_at=new Date().toISOString();
+  var i=d.inbox.findIndex(function(y){return y.id===it.id;});
+  if(i>-1) d.inbox[i]=Object.assign(d.inbox[i],it); else d.inbox.unshift(it);
+  Store.save(); }
+function ibStatus(it){ return it.linkedTourId?"trip":(it.linkedWishId?"wish":(it.read?"read":"new")); }
+function ibDedup(url,title){ var n=String(title||"").trim().toLowerCase();
+  return ibAll().find(function(x){ return (url && x.source_url===url) || (n && String(x.title||"").trim().toLowerCase()===n); }); }
+
+/* ---------- Helyi AI: szöveg → mezők. Amit nem lát, azt ÜRESEN hagyja. ---------- */
+function ibParse(str){ str=String(str||""); var F={};
+  var mo={jan:1,feb:2,mar:3,apr:4,maj:5,jun:6,jul:7,aug:8,sze:9,sep:9,okt:10,nov:11,dec:12};
+  var d1=str.match(/\\b(20\\d{2})[.\\/\\- ](\\d{1,2})[.\\/\\- ](\\d{1,2})\\b/);
+  if(d1) F.date=d1[1]+"-"+("0"+(+d1[2])).slice(-2)+"-"+("0"+(+d1[3])).slice(-2);
+  else { var d2=str.match(/\\b(20\\d{2})\\.?\\s*(jan\\w*|feb\\w*|m[aá]rc\\w*|mar\\w*|apr\\w*|m[aá]j\\w*|jun\\w*|j[uú]l\\w*|aug\\w*|szep\\w*|okt\\w*|nov\\w*|dec\\w*)\\.?,?\\s*(\\d{1,2})/i);
+    if(d2){ var k0=d2[2].toLowerCase().slice(0,3).normalize("NFD").replace(/[^a-z]/g,""); if(mo[k0]) F.date=d2[1]+"-"+("0"+mo[k0]).slice(-2)+"-"+("0"+(+d2[3])).slice(-2); } }
+  var tm=str.match(/\\b([01]?\\d|2[0-3]):(\\d{2})\\b/); if(tm) F.time=("0"+(+tm[1])).slice(-2)+":"+tm[2];
+  var lo=str.match(/(?:helysz[íi]n|hely|tal[áa]lkoz[áa]s|location|where)[\\s:=-]+([^\\n,;·|]{3,60})/i); if(lo) F.location=lo[1].trim();
+  var org=str.match(/(?:szervez[\\u00f6\\u0151o][\\u00e9e]k|szervez[\\u00f6\\u0151o]?|organizer)[\\s:=-]+([^\\n,;\\u00b7|]{2,50})/i); if(org) F.organizer=org[1].trim();
+  var di=str.match(/(\\d+(?:[.,]\\d+)?)\\s*km\\b/i); if(di) F.distance_km=di[1].replace(",",".");
+  var el=str.match(/szint[\\w]*\\s*[:=-]?\\s*(\\d{2,4})\\s*m\\b/i); if(el) F.elevation_gain=el[1];
+  var du=str.match(/(\\d+(?:[.,]\\d+)?)\\s*(?:[óo]r[áa]*|hours?|[h])\\b/i); if(du) F.duration=du[1].replace(",",".");
+  var df=str.match(/\\b(k[öo]nny[úu]|easy|k[öo]zepes|medium|neh[ée]z|hard)\\b/i);
+  if(df){ var q=df[1].toLowerCase(); F.difficulty=/k[öo]nny|easy/.test(q)?"Könnyű":/k[öo]zep|medium/.test(q)?"Közepes":"Nehéz"; }
+  var first=(str.split(/\\n/).filter(function(x){return x.trim();})[0]||"").trim();
+  if(first && !/^https?:\\/\\//.test(first)){ var seg=first.length>90 ? first.split(/\\s[—–]\\s|\\s-\\s/)[0].trim() : first; if(seg&&seg.length<=90) F.title=seg.replace(/^(esem[ée]ny|t[úu]ra|hely|in memoriam|eml[ée]k)['\\s:=-]*/i,"").trim(); }
+  var des=str.match(/(?:le[íi]r[áa]s|program|description|inf[óo])[\\s:=-]+([\\s\\S]{6,220})/i); if(des) F.description=des[1].trim();
+  return F; }
+var IB_DETECT=["title","date","time","location","organizer","distance_km","elevation_gain","duration","difficulty"];
+
+/* ---------------- Composer ---------------- */
+function ibFields(type){ var M={
+  link:[["title","Cím (ha van)"],["date","Dátum","date"],["time","Időpont","time"],["location","Helyszín"],["organizer","Szervező"],["distance_km","Táv (km, op.)","num"],["elevation_gain","Szint (m, op.)","num"],["duration","Időtartam (óra, op.)","num"],["difficulty","Nehézség","dif"],["note","Mi ez, miért jó?"]],
+  event:[["title","Esemény neve *"],["date","Dátum","date"],["time","Idő","time"],["location","Helyszín"],["organizer","Szervező"],["description","Leírás / program"]],
+  photo:[["title","Ami a képen van (cím)"],["date","Dátum (ha látszik)","date"],["time","Idő (ha látszik)","time"],["location","Hely (ha látszik)"],["organizer","Szervező (ha van)"],["description","A képről beillesztett/másolt szöveg"]],
+  note:[["title","Cím (opcionális)"],["note","Jegyzet *"]],
+  tour:[["title","Túra neve *"],["location","Helyszín / régió *"],["date","Dátum (opcionális)","date"],["distance_km","Táv (km, op.)","num"],["elevation_gain","Szint (m, op.)","num"],["duration","Időtartam (óra, op.)","num"],["difficulty","Nehézség","dif"],["description","Mit tudunk róla?"]],
+  place:[["title","Hely neve *"],["location","Régió / pontos hely"],["description","Mit érdemes tudni"],["note","Miért akarom megnézni?"]] };
+  return M[type]||M.note; }
+function ibFieldHTML(st){ var h="";
+  ibFields(st.type).forEach(function(F){ var k=F[0],lb=F[1],kd=F[2],v=st[k]==null?"":String(st[k]);
+    h+='<div class="ib26-fld"><label class="f">'+lb+"</label>";
+    if(kd==="dif") h+='<select class="input" id="ib26f_'+k+'"><option value="">—</option>'+["Könnyű","Közepes","Nehéz"].map(function(x){return "<option"+(v===x?" selected":"")+">"+x+"</option>";}).join("")+"</select>";
+    else if(kd==="num") h+='<input class="input" id="ib26f_'+k+'" type="number" min="0" step="0.1" value="'+X(v)+'">';
+    else if(kd==="date"||kd==="time") h+='<input class="input" id="ib26f_'+k+'" type="'+kd+'" value="'+X(v)+'">';
+    else if(k==="note"||k==="description") h+='<textarea class="input" id="ib26f_'+k+'" rows="2">'+X(v)+"</textarea>";
+    else h+='<input class="input" id="ib26f_'+k+'" value="'+X(v)+'">';
+    h+="</div>"; });
+  return h; }
+function ibCollect(m,st){ m.querySelectorAll("[id^='ib26f_']").forEach(function(el){ var k=el.id.slice(6),v=(el.value||"").trim();
+  if(v) st[k]=v; else delete st[k]; }); }
+function ibComposer(type, existing){
+  var st = existing ? Object.assign({},existing) : {type:type||"link"};
+  st.type = st.type||"link";
+  var found=null;
+  function frame(){
+    var tbar='<div class="ib26-types">'+Object.keys(IB_T).map(function(k){
+      return '<button class="ib26-type'+(st.type===k?" on":"")+'" data-bt="'+k+'">'+IB_T[k][0]+" "+IB_T[k][1]+"</button>"; }).join("")+"</div>";
+    var urlLine='<div class="ib26-fld"><label class="f">🔗 Forrás link (opcionális)</label><input class="input" id="ib26f_url" value="'+X(st.url||"")+'" placeholder="https://m.facebook.com/events/…"></div>';
+    var raw=(st.type==="link"||st.type==="event"||st.type==="photo")
+      ?'<div><label class="f">🤖 Ebből ismerjem fel az adatokat (illeszd be a szöveget)</label><textarea class="input" id="ib26-raw" rows="3" placeholder="Esemény: Hargita őszi túra — 2026.10.10. 09:00, helyszín: Gyergyó, szervező: CsEKE, táv: 14 km, szint: 780 m">'+X(st._raw||"")+"</textarea></div>":"";
+    var ai=(st.type==="link"||st.type==="event"||st.type==="photo")
+      ?'<div class="ib26-airow"><button class="btn btn-soft btn-sm" id="ib26-det">🔍 Feldolgozom</button>'
+       +(st.type==="photo"?'<label class="btn btn-ghost btn-sm"><span>📸 Fájl</span><input type="file" accept="image/*" id="ib26-ph"></label>':"")+"</div>":"";
+    var ffound=found? '<div class="ib26-found"><b>🤖 Ezt találtam:</b> '+found.map(function(k){var lbl={date:"📅",time:"🕐",location:"📍",organizer:"👤",distance_km:"📏",elevation_gain:"⛰️",duration:"⏱",difficulty:"★",title:"🥾"}[k];return lbl+" "+X(st[k]);}).join(" &middot; ")
+       +'<br><span class="small muted">Minden felismert mező szerkeszthető — [✓] a mentés gomb.</span></div>':"";
+    var img=st.image?'<div class="ib26-imgbox"><img src="'+X(st.image)+'"><button class="btn btn-ghost btn-sm" id="ib26-im">✕</button></div>':"";
+    var saveBtn='<button class="btn btn-primary btn-block btn-lg" id="ib26-save" style="margin-top:.8rem">'+(found?"✓ Így mentem":"💾 Mentés az Inboxba")+"</button>";
+    var ocr=st.type==="photo"?'<p class="small muted" style="margin-top:.4rem">OCR automatikus felismerés jelenleg nem elérhető — a képet elmentjük, a szöveget kézzel is beírhatod.</p>':"";
+    var linked=(st.linkedTourId||st.linkedWishId)?'<p class="small muted" style="margin-top:.4rem">'+(st.linkedTourId?"🗓️ ezzel már van terved · ":"")+(st.linkedWishId?"⭐ már a bakancslistádon":"")+"</p>":"";
+    return tbar+urlLine+raw+ai+img+ffound+'<div class="ib26-grid">'+ibFieldHTML(st)+"</div>"+saveBtn+ocr+linked; }
+  openModal({ title:"📥 Új mentés az Inboxba", body:'<div id="ib26-wrap">'+frame()+"</div>", footer:"",
+    onOpen:function(m){
+      function repaint(){ var r=m.querySelector("#ib26-wrap"); if(r) r.innerHTML=frame(); wire(m); }
+      function wire(mm){
+        mm.querySelectorAll("[data-bt]").forEach(function(b){ b.onclick=function(){ ibCollect(mm,st); var r=mm.querySelector("#ib26-raw"); if(r) st._raw=r.value; st.type=b.dataset.bt; found=null; repaint(); }; });
+        var det=mm.querySelector("#ib26-det"); if(det) det.onclick=function(){ ibCollect(mm,st); var r=mm.querySelector("#ib26-raw"); if(r) st._raw=r.value;
+          var P=ibParse((st._raw||"")+" "+(st.url||"")); found=[];
+          IB_DETECT.forEach(function(k){ if(P[k]){ st[k]=P[k]; found.push(k); } });
+          if(P.description) st.description=P.description;
+          if(!found.length) toast("Nem találtam biztos adatot — a mezőket kézzel is kitöltheted","ℹ️");
+          else if(st.type==="link" && !st.title) st.title=ibHost(st.url);
+          repaint(); };
+        var ph=mm.querySelector("#ib26-ph"); if(ph) ph.onchange=function(){ var f=ph.files[0]; if(!f) return; var rd=new FileReader();
+          rd.onload=function(){ var im=new Image(); im.onload=function(){ try{ var c=document.createElement("canvas"); var sc=Math.min(1,760/im.width);
+            c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+            st.image=c.toDataURL("image/jpeg",0.55); st.type="photo"; toast("Kép csatolva","📸"); repaint(); }catch(e){ toast("Kép-feldolgozási hiba","🖼️"); } };
+            im.onerror=function(){ toast("A fájl nem kép","🖼️"); }; im.src=rd.result; }; rd.readAsDataURL(f); };
+        var ix=mm.querySelector("#ib26-im"); if(ix) ix.onclick=function(){ delete st.image; repaint(); };
+        var sv=mm.querySelector("#ib26-save"); if(sv) sv.onclick=function(){ ibCollect(mm,st);
+          var r=mm.querySelector("#ib26-raw"); if(r) st._raw=r.value;
+          if(st.type==="link" && !(st.url||"").trim()){ toast("Adj meg linket","🔗"); return; }
+          if(st.type==="note" && !(st.note||st.title||"").trim()){ toast("Írj valamit a jegyzetbe","📝"); return; }
+          /* V51-fix: title származtatás (V46 viselkedés visszakapcsolása) */ if(!String(st.title||"").trim()){ if(st.note) st.title=String(st.note).trim().split(/\\n/)[0].slice(0,60); else if(st.location) st.title=String(st.location); else if(st.description) st.title=String(st.description).slice(0,60); }
+          if(!(st.title||st.note||st.url||st.image||st.location||st.description||st.date)) { toast("A mentéshez legyen legalább egy adat","ℹ️"); return; }
+          if(!st.id) { var du=ibDedup(st.url,st.title); if(du){ toast("Ez már van a postafiókban — megnyitom","📥"); closeModal(); ibComposer(du.type, du); return; } }
+          var it={ id:st.id||Store.uid("ib"), type:st.type,
+            title:String(st.title||""), url:(st.url||"").trim()||null, source_url:(st.url||"").trim()||null,
+            source_type: st.type, host:(st.url?ibHost(st.url):null),
+            date:st.date||null, time:st.time||null, location:st.location||null, organizer:st.organizer||null,
+            description:st.description||null, distance_km:st.distance_km||null, elevation_gain:st.elevation_gain||null,
+            duration:st.duration||null, difficulty:st.difficulty||null, image:st.image||null,
+            note:String(st.note||""), at:st.at||new Date().toISOString(), created_at:st.created_at||st.at||new Date().toISOString(),
+            read: it_readDefault(st,found), status:st.status||(st.linkedTourId?"trip":(st.linkedWishId?"wish":"new")),
+            linkedWishId:st.linkedWishId||null, linkedTourId:st.linkedTourId||null };
+          ibSave(it); closeModal();
+          toast(found&&found.length?"Mentve a felismert adatokkal — ✓ felismerve 📥":"Mentve az Inboxba 📥","✓");
+          ibRepaint(); }; }
+      wire(m); } }); }
+function it_readDefault(st,found){ return !!st.read; }
+
+/* ---------------- Lista nézet ---------------- */
+function ibChip(st){ var H={new:["🆕","Új","chip-sand"],wish:["⭐","Bakancslistán","chip-green"],trip:["🗓️","Terv készült","chip-blue"],read:["✓","Feldolgozva","chip-pine"]}[st];
+  return '<span class="chip '+H[2]+'">'+H[0]+" "+H[1]+"</span>"; }
+function ibCardHTML(it){ var T=IB_T[it.type]||IB_T.link;
+  var meta=[it.date?X(it.date):"", it.time?X(it.time):"", it.location?X(it.location):"",
+    it.distance_km?X(it.distance_km)+" km":"", it.elevation_gain?X(it.elevation_gain)+" m":""].filter(Boolean).join(" · ");
+  var line=meta? '<p class="small muted" style="margin:.2rem 0 0">'+meta+"</p>":"";
+  var org=it.organizer?'<p class="small muted" style="margin:.15rem 0 0">👤 '+X(it.organizer)+"</p>":"";
+  var desc=it.description? '<p class="ib26-desc">'+X(it.description).slice(0,170)+"</p>":"";
+  var img=it.image?'<img class="ib26-kiskep" src="'+X(it.image)+'" alt="inbox kép">':"";
+  var src=it.url? '<a class="ib26-src" href="'+X(it.url)+'" target="_blank" rel="noopener nofollow">🔗 '+X(it.host||ibHost(it.url))+'</a>':"";
+  var triplink=it.linkedTourId&&Store.getTour(it.linkedTourId)? ' <a class="ib26-src" href="#/tura/'+X(it.linkedTourId)+'">🗓️ Terv →</a>':"";
+  var newb=ibStatus(it)==="new"?" ib26-new":"";
+  return '<article class="card ib26-card'+newb+'">'+
+    '<div class="ib26-icon" aria-hidden="true">'+T[0]+"</div>"+
+    '<div class="ib26-main"><div class="ib26-row1">'+
+      "<b>"+(X(it.title)||"(címetlen)")+"</b>"+ibChip(ibStatus(it))+"</div>"+
+      '<div class="small" style="color:#8b8578">'+X(T[1])+"."+src+triplink+"</div>"+line+org+desc+img+
+      '<div class="ib26-acts">'+
+        (it.linkedWishId?'<span class="ib26-mini">⭐ Bakacslista</span>':'<button class="btn btn-ghost btn-sm" data-ib2w="'+X(it.id)+'">⭐ Bakancslistára teszem</button>')+
+        (it.linkedTourId?'<span class="ib26-mini">🗓️ van terv</span>':'<button class="btn btn-ember btn-sm" data-ib2t="'+X(it.id)+'">🗓️ Túratervet készítek</button>')+
+        '<button class="btn btn-soft btn-sm" data-ib2e="'+X(it.id)+'">✏️</button>'+
+        '<button class="btn btn-ghost btn-sm" data-ib2r="'+X(it.id)+'" title="Feldolgozottnak jelöl">☑</button>'+
+        '<button class="btn btn-ghost btn-sm" data-ib2gpx="'+X(it.id)+'" title="GPX hozzáadása">🗺️ GPX</button>'+ '<button class="btn btn-ghost btn-sm" data-ib2d="'+X(it.id)+'">🗑</button>'+
+      "</div></div></article>"; }
+function ibFiltered(){ var L=ibAll().slice();
+  if(ibCat) L=L.filter(function(x){return x.type===ibCat;});
+  if(ibQ){ var q=ibQ.toLowerCase(); L=L.filter(function(x){
+    return (String(x.title||"")+" "+String(x.location||"")+" "+String(x.organizer||"")+" "+String(x.note||"")+" "+String(x.url||"")+" "+String(x.description||"")).toLowerCase().indexOf(q)>-1; }); }
+  if(ibSort==="uj") L.sort(function(a,b){return String(b.created_at||b.at||"").localeCompare(String(a.created_at||a.at||""));});
+  else if(ibSort==="regi") L.sort(function(a,b){return String(a.created_at||a.at||"").localeCompare(String(b.created_at||b.at||""));});
+  else if(ibSort==="date") L.sort(function(a,b){return String(a.date||"ZZZZ").localeCompare(String(b.date||"ZZZZ"));});
+  else if(ibSort==="type") L.sort(function(a,b){return String(a.type).localeCompare(String(b.type))||String(b.created_at||"").localeCompare(String(a.created_at||""));});
+  return L; }
+function ibRepaint(){ var box=document.getElementById("ib26-list"); if(!box) { ibRefresh(); return; }
+  var L=ibFiltered(), had=ibAll().length;
+  box.innerHTML = L.length? L.map(ibCardHTML).join("") :
+    (had? '<div class="empty"><span class="em-ico">🔍</span><h3>Nincs találat</h3><p class="muted">Lazíts a keresésen vagy a szűrőn.</p></div>'
+       : '<div class="empty"><span class="em-ico">📥</span><h3>Még üres az Inboxod</h3><p>Ments ide túrákat, eseményeket és helyeket, hogy később könnyen megtervezhesd őket.</p><button class="btn btn-primary" id="ib26-first">＋ Első mentés</button></div>');
+  var fs=document.getElementById("ib26-first"); if(fs) fs.onclick=function(){ ibComposer("link"); }; }
+function ibRefresh(){ if(typeof render!=="undefined") render(); else if(typeof App!=="undefined"&&App.render) App.render(); }
+
+/* ---------------- Akciók ---------------- */
+function ibWish(id){ var it=ibGet(id); if(!it||it.linkedWishId) return; var d=Store.myData(); var ref="inbox_"+it.id;
+  if(d.wishlist.some(function(w){return w.ref===ref;})) { it.linkedWishId=true; ibSave(it); toast("Megtaláltam a bakancslistán","⭐"); ibRefresh(); return; }
+  var w={ id:Store.uid("w"), ref:ref, name:it.title||it.location||it.note||"Inbox-ötletem", cat: it.type==="place"&&it.location?it.location:(it.type==="tour"?"Túraötlet":"Inbox"),
+    place:it.location||it.host||"Inbox", diff:"—", img: it.image||null, addedAt:Store.todayISO() };
+  d.wishlist.push(w); Store.save(); it.linkedWishId=w.id; it.read=true; it.status=it.linkedTourId?"trip":"wish"; ibSave(it);
+  toast("Rakerült a bakancslistára ⭐ (a kapcsolat megmaradt)","⭐"); ibRefresh(); }
+function ibTrip(id){ var it=ibGet(id); if(!it) return;
+  if(it.linkedTourId){ var ex=Store.getTour(it.linkedTourId);
+    if(ex){ toast("Ebből az ötletből már van terved — megnyitom","🗓️"); NAV.to("#/tura/"+it.linkedTourId); return; } }
+  var t=Store.newTourFromDraft({ title:(it.title||it.note||"Inbox-ötletem").slice(0,80),
+    place:it.location||it.host||"", date:it.date||"", status:"ötlet",
+    difficulty:it.difficulty||"Közepes", lengthKm:+it.distance_km||0, ascent:+it.elevation_gain||0,
+    durationH:+it.duration||0, img: it.image||null,
+    desc:String(it.description||it.note||"").slice(0,380), coords:null,
+    notes:"Forrás: Inbox"+(it.url?" · "+it.url:"")+(it.organizer?" · Szervező: "+it.organizer:"")+(it.time?" · Találkozó: "+it.time:""),
+    tags:["inbox"] });
+  it.linkedTourId=t.id; it.read=true; it.status=it.linkedWishId?"trip":"trip"; ibSave(it);
+  toast("Túraterv létrejött — adatok átvitve, V43 planner/V44 review elérhetők","🗓️");
+  NAV.to("#/tura/"+t.id); }
+function ibMark(id){ var it=ibGet(id); if(!it) return; it.read=true; if(!it.linkedTourId&&!it.linkedWishId) it.status="read"; ibSave(it); ibRefresh(); }
+function ibDel(id){ var it=ibGet(id); if(!it) return;
+  confirmDlg('Törlöd: "'+(it.title||it.note||"elem")+'"? Az ebből készült túraprojekt nem törlődik!','Törlés',function(){
+    var d=Store.myData(); var keepTour=it.linkedTourId;
+    d.inbox=(d.inbox||[]).filter(function(x){return x.id!==id;});
+    if(keepTour){ toast("Inbox-elem törölve — túraprojekt megmaradt ✓","🗑"); } else { toast("Inbox-elem törölve","🗑"); }
+    Store.save(); ibRefresh(); }); }
+
+/* ---------------- Nézet + drótozás ---------------- */
+VIEWS.inbox = function(){ var n=ibAll().filter(function(x){return ibStatus(x)==="new";}).length;
+  return dash("#/inbox")('<div class="ib26-page" style="padding-top:6px">'+
+    '<div class="ib26-headcard"><div><h1 style="margin:0">📥 Inbox</h1>'+
+    '<p class="small muted" style="margin:.2rem 0 0">Ide mentheted el a túrákkal kapcsolatos ötleteidet, linkjeidet és eseményeidet — innen egy lépés a ⭐ bakancslista vagy a 🗓️ túraterv.</p></div>'+
+    '<button class="btn btn-primary" id="ib26-new">＋ Új mentés'+(n?' <span class="badge">'+n+"</span>":"")+"</button></div>"+
+    '<div class="ib26-tools"><input class="input" id="ib26-q" placeholder="🔍 Keresés: cím, hely, szervező, szöveg" value="'+X(ibQ)+'">'+
+    '<select class="input" id="ib26-sort"><option value="uj">Legújabb</option><option value="regi">Legrégebbi</option><option value="date">Túra dátuma</option><option value="type">Típus</option></select></div>'+
+    '<div class="ib26-filters">'+[""  ,"link","event","photo","note","tour","place"].map(function(k){
+      return '<button class="f-pill'+(ibCat===k?" on":"")+'" data-cat="'+k+'">'+(k?IB_T[k][0]+" "+IB_T[k][1]:"Mind")+"</button>"; }).join("")+"</div>"+
+    '<div id="ib26-list"></div>'+
+    '<p class="small muted center" style="margin:1.2rem 0 1rem;opacity:.8">Az adataid csak ebben a böngészőben tárolódnak — nem hagyják el a készüléket.</p>'+
+    "</div>"); };
+VIEWS.inbox.after = function(root){ ibRepaint();
+  var nb=root.querySelector("#ib26-new"); if(nb) nb.onclick=function(){ ibComposer("link"); };
+  var q=root.querySelector("#ib26-q"); if(q) q.oninput=function(){ ibQ=q.value; ibRepaint(); };
+  var so=root.querySelector("#ib26-sort"); if(so){ so.value=ibSort; so.onchange=function(){ ibSort=so.value; ibRepaint(); }; }
+  root.querySelectorAll("[data-cat]").forEach(function(b){ b.onclick=function(){ ibCat=b.dataset.cat;
+    root.querySelectorAll("[data-cat]").forEach(function(z){ z.classList.toggle("on", z.dataset.cat===ibCat); }); ibRepaint(); }; });
+  root.addEventListener("click", function(ev0){ var b=ev0.target.closest("[data-ib2w],[data-ib2t],[data-ib2e],[data-ib2r],[data-ib2d],[data-ib2gpx]"); if(!b) return;
+    var idw=b.getAttribute("data-ib2w"), idt=b.getAttribute("data-ib2t"), ide=b.getAttribute("data-ib2e"), idr=b.getAttribute("data-ib2r"), idd=b.getAttribute("data-ib2d");
+    if(idw) ibWish(idw); if(idt) ibTrip(idt); if(ide){ var x=ibGet(ide); if(x) ibComposer(x.type,x); } if(idr) ibMark(idr); if(idd) ibDel(idd);
+    var idg=b.getAttribute("data-ib2gpx"); if(idg){ try{ window.openGPXImport({inboxId:idg, tripId:(ibGet(idg)||{}).linkedTourId||null}); }catch(e){ toast("A GPX Modul nem érhető el","🗺️"); } } }); };
+VIEWS.inbox.after = (function(orig){ return function(root){ orig&&orig(root);   var lst=root.querySelector("#ib26-list");
+  if(lst) lst.addEventListener("click", function(ev0){ var b=ev0.target.closest("[data-ib2w],[data-ib2t],[data-ib2e],[data-ib2r],[data-ib2d],[data-ib2gpx]"); if(!b) return;
+    var idw=b.getAttribute("data-ib2w"), idt=b.getAttribute("data-ib2t"), ide=b.getAttribute("data-ib2e"), idr=b.getAttribute("data-ib2r"), idd=b.getAttribute("data-ib2d");
+    if(idw) ibWish(idw); if(idt) ibTrip(idt); if(ide){ var x=ibGet(ide); if(x) ibComposer(x.type,x); } if(idr) ibMark(idr); if(idd) ibDel(idd);
+    var idg=b.getAttribute("data-ib2gpx"); if(idg){ try{ window.openGPXImport({inboxId:idg, tripId:(ibGet(idg)||{}).linkedTourId||null}); }catch(e){ toast("A GPX Modul nem érhető el","🗺️"); } } });
+ }; })(VIEWS.inbox.after);
+window.__V46=1; window.__v46dbg={ parse:ibParse, fields:typeof fieldsFor!=='undefined'?null:null };
+})();
+
+/* ==== v47 ==== */
+/* ============ V47 — 🗺️ GPX IMPORT + ÚTVONALKEZELÉS (a Trip Project részeként) ============ */
+(function(){
+"use strict";
+
+/* ---------- segédek ---------- */
+function n0(v){ return v==null?0:(+v||0); }
+function escA(x){ return esc(x==null?"":String(x)); }
+function haversine(a,b){ var R=6371000,p=Math.PI/180,dLat=(b[0]-a[0]),dLon=(b[1]-a[1]);
+  var f=function(d){return d*p/2;}; var s=Math.sin(f(dLat))*Math.sin(f(dLat))+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(f(dLon))*Math.sin(f(dLon));
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s))); }
+function downsample(arr,max){ if(arr.length<=max) return arr.slice(); var out=[],i,step=arr.length/(max-1);
+  for(i=0;i<max-1;i++) out.push(arr[Math.floor(i*step)]); out.push(arr[arr.length-1]); return out; }
+
+/* ---------- GPX parser (valódi XML; nem talál ki adatot) ---------- */
+function parseGPX(text){
+  var doc; try{ doc=new DOMParser().parseFromString(String(text||""),"application/xml"); }catch(e){ return {err:"xml"}; }
+  if(!doc||doc.getElementsByTagName("parsererror").length) return {err:"xml"};
+  var all=[], wpts=[], name=null;
+  var trk=doc.getElementsByTagName("trk");
+  if(trk.length){ var nm=trk[0].getElementsByTagName("name"); if(nm.length&&nm[0].textContent) name=nm[0].textContent.trim().slice(0,80); }
+  var meta=doc.getElementsByTagName("metadata"); if(!name&&meta.length){ var mn=meta[0].getElementsByTagName("name"); if(mn.length&&mn[0].textContent) name=mn[0].textContent.trim().slice(0,80); }
+  var tp=doc.getElementsByTagName("trkpt");
+  for(var i=0;i<tp.length;i++){
+    var lat=parseFloat(tp[i].getAttribute("lat")), lng=parseFloat(tp[i].getAttribute("lon"));
+    if(isNaN(lat)||isNaN(lng)) continue;
+    var ele=[], tm=[];
+    try{ ele=tp[i].getElementsByTagName("ele"); tm=tp[i].getElementsByTagName("time"); }catch(e){}
+    var e=ele.length?parseFloat(ele[0].textContent):null; if(isNaN(e)) e=null;
+    all.push([lat,lng,e, tm.length?String(tm[0].textContent||"").trim():null]);
+  }
+  var wp=doc.getElementsByTagName("wpt");
+  for(var j=0;j<wp.length;j++){
+    var wl=parseFloat(wp[j].getAttribute("lat")), wg=parseFloat(wp[j].getAttribute("lon"));
+    if(isNaN(wl)||isNaN(wg)) continue;
+    var wn=wp[j].getElementsByTagName("name"), we=wp[j].getElementsByTagName("ele");
+    var wel=we.length?parseFloat(we[0].textContent):null; if(isNaN(wel)) wel=null;
+    wpts.push({lat:wl,lng:wg,name:(wn.length?String(wn[0].textContent||"").trim().slice(0,60):"wp"+(j+1)),ele:wel});
+  }
+  if(!all.length&&wpts.length) return {err:"notrack",wpts:wpts,name:name};
+  if(!all.length) return {err:"notrack",wpts:wpts,name:name};
+  return {pts:all,wpts:wpts,name:name};
+}
+
+/* ---------- statisztikák a track pontokból ---------- */
+function routeStats(pts){
+  var i,dm=0; for(i=1;i<pts.length;i++) dm+=haversine([pts[i-1][0],pts[i-1][1]],[pts[i][0],pts[i][1]]);
+  var els=[]; for(i=0;i<pts.length;i++) if(pts[i][2]!=null) els.push(pts[i][2]);
+  var gain=0, loss=0;
+  if(els.length>1){ var anchor=els[0], BAND=8;
+    for(i=1;i<els.length;i++){ var dd=els[i]-anchor; if(Math.abs(dd)>=BAND){ if(dd>0)gain+=dd; else loss-=dd; anchor=els[i]; } } }
+  var mn=els.length?Math.ceil(Math.min.apply(null,els)):null, mx=els.length?Math.floor(Math.max.apply(null,els)):null;
+  return { n:pts.length, km:dm/1000, gain:Math.round(gain), loss:Math.round(loss),
+    max:mx, min:mn, hasEle:els.length>1,
+    start:{lat:pts[0][0],lng:pts[0][1]},
+    finish:{lat:pts[pts.length-1][0],lng:pts[pts.length-1][1]} };
+}
+function fpOf(name,st,size){ return [String(name||"").trim().toLowerCase(), st.n,
+  String(st.start.lat.toFixed(5)), String(st.start.lng.toFixed(5)),
+  String(st.finish.lat.toFixed(5)), String(st.finish.lng.toFixed(5)), Math.round(size/4096)].join("|"); }
+
+/* ---------- tárolás (d.routes, query-safe) ---------- */
+function rAll(){ var d=Store.myData(); if(!d.routes) d.routes=[]; return d.routes; }
+function rGet(id){ id=String(id); return rAll().find(function(x){ return x.id===id; }); }
+function rFindFp(fp){ return rAll().find(function(x){ return x.fp===fp; }); }
+function rSave(r){ var d=Store.myData(); if(!d.routes) d.routes=[]; r.updated_at=new Date().toISOString();
+  var i=d.routes.findIndex(function(y){ return y.id===r.id; });
+  if(i>-1) d.routes[i]=Object.assign(d.routes[i],r); else d.routes.unshift(r);
+  try{ Store.save(); }catch(e){ var raw=r.raw; delete r.raw; try{ Store.save(); }catch(e2){ if(raw)r.raw=raw; toast("A könyvtár tele — törölj régi útvonalakat","🗺️"); return false; } }
+  return true; }
+function rDelete(id){ var d=Store.myData(); id=String(id);
+  (d.tours||[]).forEach(function(t){ if(t.routeId===id){ t.routeId=null; } });
+  d.routes=(d.routes||[]).filter(function(x){ return x.id!==id; }); Store.save(); }
+
+/* ---------- formázás ---------- */
+function fKm(x){ return (Math.round(x*10)/10).toFixed(1).replace(".", ",")+" km"; }
+function fM(x){ return String(Math.round(x)).replace(/\\B(?=(\\d{3})+(?!\\d))/g," "); }
+
+/* ---------- térkép + profil ---------- */
+function profileSVG(track){ var vals=[]; for(var i=0;i<track.length;i++) if(track[i][2]!=null) vals.push(track[i][2]);
+  if(vals.length<3) return '<p class="small muted mt0 mb0">⛰️ Magassági profilhoz elevation kell — nem becsüljük meg.</p>';
+  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), W=560, H=110;
+  var sm=downsample(vals,220), pts=sm.map(function(v,i){ var x=8+(i/(sm.length-1))*(W-16), y=H-((v-mn)/((mx-mn)||1))*(H-20)-8; return x.toFixed(1)+","+y.toFixed(1); }).join(" ");
+  return '<div class="rt-prof"><svg viewBox="0 0 '+W+' '+(H+26)+'" style="width:100%;height:auto" role="img" aria-label="magassági profil">'+
+    '<polygon points="'+pts+' '+(W-8)+','+(H+2)+' 8,'+(H+2)+'" fill="#E7F0E2"/>'+
+    '<polyline points="'+pts+'" fill="none" stroke="#2F6B4A" stroke-width="2.5"/></svg>'+
+    '<div class="small muted" style="display:flex;justify-content:space-between"><span>🟢 '+fM(mn)+' m</span><span>🔝 '+fM(mx)+' m</span><span>🏁</span></div></div>'; }
+function mapInto(el, r){ try{ if(!el) return false; var map=(typeof MapKit!=="undefined"&&MapKit.make)?MapKit.make(el,{zoom:11}):null; if(!map) return false;
+  var t=r.track||[]; if(!t.length) return false; var ll=t.map(function(p){return [p[0],p[1]];});
+  if(typeof L!=="undefined"){ if(ll.length>1) L.polyline(ll,{color:"#2C6E9B",weight:4,opacity:.9}).addTo(map);
+    L.circleMarker(ll[0],{radius:6,color:"#1C4A36",fillColor:"#2F6B4A",fillOpacity:1}).addTo(map).bindTooltip("🟢 Start");
+    L.circleMarker(ll[ll.length-1],{radius:6,color:"#8C3B24",fillColor:"#B3372A",fillOpacity:1}).addTo(map).bindTooltip("🏁 Cél");
+    (r.wpts||[]).slice(0,60).forEach(function(w){ L.circleMarker([w.lat,w.lng],{radius:4,fillOpacity:1,opacity:1,color:"#E07A2F"}).addTo(map).bindTooltip(w.name||""); }); }
+  return true; }catch(e){ return false; } }
+
+/* ---------- előnézet + mentés ---------- */
+function previewModal(pr,ctx){ // pr={name,stats,wpts,raw,fp,file,sizePts,track}
+  var st=pr.stats;
+  var html='<div class="rt-pv">'+
+    '<label class="f" for="rt-name">'+escA("Útvonal neve")+'</label><input class="input" id="rt-name" value="'+escA(pr.name||"Importált útvonal").slice(0,80)+'">'+
+    '<div class="rt-stats">'+
+    '<span class="rt-stat">📏 <b>'+fKm(st.km)+'</b></span>'+
+    '<span class="rt-stat">⛰️ <b>'+(st.hasEle?"+"+fM(st.gain)+" m":"nincs elevation")+'</b></span>'+
+    '<span class="rt-stat">⬇️ <b>'+(st.hasEle?"-"+fM(st.loss)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">🔝 <b>'+(st.hasEle?fM(st.max)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">🔻 <b>'+(st.hasEle?fM(st.min)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">📍 <b>'+st.n+' pont</b></span></div>'+
+    '<p class="small muted mb0">🟢 Start: '+st.start.lat.toFixed(5)+", "+st.start.lng.toFixed(5)+' &middot; 🏁 Cél: '+st.finish.lat.toFixed(5)+", "+st.finish.lng.toFixed(5)+'</p>'+
+    (pr.wpts&&pr.wpts.length?'<p class="small mb0">📌 Waypointok: '+pr.wpts.length+(pr.wpts[0].name?(' — '+escA(pr.wpts.slice(0,3).map(function(w){return w.name;}).filter(Boolean).join(', '))+(pr.wpts.length>3?'…':'')):'')+'</p>':"")+
+    (st.hasEle?profileSVG(downsample(pr.track,800)):"")+
+    '<div class="rt-map" id="rt-pv-map"></div>'+
+    '<p class="small muted" style="margin:.3rem 0 0">🔒 Privátnak jelölt útvonal — csak nálad látszik.</p>'+
+    '<div class="rt-btns">'+
+      '<button class="btn btn-primary" id="rt-keep">'+escA("✓ Mentés az útvonalaim közé")+'</button>'+
+      (ctx&&ctx.inboxId?'<button class="btn btn-soft" id="rt-to-inbox">📥 Inbox-elemhez</button>':"")+
+      (ctx&&ctx.tripId?'<button class="btn btn-ember" id="rt-to-trip">🥾 A túrához adom</button>'
+        :'<button class="btn btn-ember" id="rt-new-trip">🗓️ Új túrát készítek belőle</button>'+
+         '<button class="btn btn-soft" id="rt-to-trip2">📥 Hozzáad meglévő túrához</button>')+
+      '<button class="btn btn-ghost" data-close>🗑️ Elvetem</button>'+
+    '</div></div>';
+  openModal({ title:"🗺️ Útvonal előnézet", body:html, footer:"",
+    onOpen:function(m){ var nm=m.querySelector("#rt-name");
+      m.querySelector("#rt-keep").onclick=function(){ var r=commitRoute(pr,nm); if(r){ closeModal(); toast((r.name||"")+" a saját útvonalaid között (privát)","🗺️"); routesRefresh(); } };
+      var ni=m.querySelector("#rt-to-inbox"); if(ni) ni.onclick=function(){ var r=commitRoute(pr,nm,true); if(!r) return; var it=(Store.myData().inbox||[]).find(function(x){return x.id===ctx.inboxId;});
+        if(it){ it.routeId=r.id; it.read=true; Store.save(); } closeModal(); toast("GPX hozzáadva az Inbox-elemhez 🗺️","📥"); routesRefresh(); };
+      var nb=m.querySelector("#rt-new-trip"); if(nb) nb.onclick=function(){ var r=commitRoute(pr,nm,true); if(!r) return; if(r.linkedTripId&&Store.getTour(r.linkedTripId)){ closeModal(); NAV.to("#/tura/"+r.linkedTripId); toast("Ehhez az útvonalhoz már van terved","🗓️"); return; }
+        var name=(nm.value.trim()||r.name); var t=Store.newTourFromDraft({title:name, place:"", region:"", date:"", status:"tervezés",
+          lengthKm:r.distance_km, ascent:r.elevation_gain_m, durationH:0, coords:(r.start&&r.start.lat)?{lat:r.start.lat,lng:r.start.lng}:null,
+          desc:"Importált GPX: "+fKm(r.distance_km)+(r.elevation_gain_m?" · ⛰️ +"+r.elevation_gain_m+" m":""), notes:"Forrás: GPX import", tags:["gpx"] });
+        t.routeId=r.id; t.descent=r.elevation_loss_m; Store.save(); r.linkedTripId=t.id; rSave(r);
+        closeModal(); toast("Túraprojekt a GPX adataival","🗓️"); NAV.to("#/tura/"+t.id); routesRefresh(); };
+      var at=m.querySelector("#rt-to-trip")||m.querySelector("#rt-to-trip2"); if(at) at.onclick=function(){ var tripId=ctx&&ctx.tripId;
+        var go=function(tid){ var r=commitRoute(pr,nm,true); if(!r) return; attachToTrip(r,tid); };
+        if(tripId) go(tripId); else routesPickTrip(go); };
+      if(typeof MapKit!=="undefined") mapInto(m.querySelector("#rt-pv-map"), pr.routeForMap||{track:pr.track,wpts:pr.wpts}); } });
+}
+function commitRoute(pr, nmEl, attachMode){ var name=((nmEl&&nmEl.value)||pr.name||"Importált útvonal").trim().slice(0,80)||"Importált útvonal";
+  var dup=rFindFp(pr.fp); if(dup){ if(attachMode){ toast("Ez az útvonal már megvan — azt kapcsoljuk hozzá","🗺️"); return dup; }
+    toast("Ez az útvonal már szerepel a saját útvonalaid között","🗺️");
+    setTimeout(function(){ window.__rtopen&&window.__rtopen(dup.id,true); },400); return null; }
+  var track=downsample(pr.track,6000);
+  var r={ id:Store.uid("rt"), name:name, source:"gpx-import", source_file:pr.file||null, fp:pr.fp,
+    distance_km:Math.round(pr.stats.km*10)/10, elevation_gain_m:pr.stats.hasEle?pr.stats.gain:null, elevation_loss_m:pr.stats.hasEle?pr.stats.loss:null,
+    max_elevation_m:pr.stats.hasEle?pr.stats.max:null, min_elevation_m:pr.stats.hasEle?pr.stats.min:null,
+    start:{lat:pr.stats.start.lat,lng:pr.stats.start.lng}, finish:{lat:pr.stats.finish.lat,lng:pr.stats.finish.lng},
+    track:track, nPts:pr.stats.n, wpts:(pr.wpts||[]).slice(0,120), raw:(pr.raw!=null&&pr.raw.length<700000)?pr.raw:null, created_at:new Date().toISOString() };
+  if(!rSave(r)) return null; window.__rtopen&&window.__rtopen(r.id,true); return r; }
+function attachToTrip(r, tripId){ var trip=Store.getTour(tripId); if(!trip) return; 
+  var hasManual=(n0(trip.lengthKm)>0&&trip.lengthKm!==r.distance_km)||(n0(trip.ascent)>0&&trip.ascent!==r.elevation_gain_m);
+  function apply(overwrite){ trip.routeId=r.id; r.linkedTripId=tripId;
+    if(overwrite){ trip.lengthKm=r.distance_km; trip.ascent=r.elevation_gain_m||0; trip.descent=r.elevation_loss_m||0;
+      if((!trip.coords||!trip.coords.lat)&&r.start&&r.start.lat) trip.coords={lat:r.start.lat,lng:r.start.lng}; trip.notes=(trip.notes?trip.notes+" · ":"")+"GPX: "+r.name; }
+    rSave(r); Store.save(); closeModal(); toast("GPX a túraprojekthez kapcsolva — friss a readiness","🥾"); NAV.to("#/tura/"+tripId); }
+  if(hasManual){ openModal({ title:"A GPX adataival frissítsük?", body:'<p class="muted mt0">Ehhez a túrához már van kézzel megadott táv vagy szint. A GPX: <b>'+fKm(r.distance_km)+' · ⛰️ +'+(r.elevation_gain_m||0)+' m</b>. Mit tartsunk?</p>',
+    footer:'<button class="btn btn-ghost" id="rt-keep-manual">Megtartom a kézit</button> <button class="btn btn-primary" id="rt-overwrite">Frissítem a GPX-sel</button>',
+    onOpen:function(m){ m.querySelector("#rt-overwrite").onclick=function(){ apply(true); }; m.querySelector("#rt-keep-manual").onclick=function(){ apply(false); }; } }); }
+  else apply(true); }
+function routesPickTrip(cb){ var list=(Store.myData().tours||[]); if(!list.length){ toast("Nincs még túraprojekted — hozzát létre egyet","🥾"); return; }
+  openModal({ title:"🥾 Válassz túraprojektet", body:'<div class="rt-trips">'+list.map(function(t){ return '<button class="rt-trip" data-tid="'+t.id+'"><b>'+escA(t.title)+'</b><span>'+(t.date?escA(t.date):"")+(t.routeId?" · 🗺️":"")+"</span></button>"; }).join("")+"</div>",
+    footer:'<button class="btn btn-ghost btn-block" data-close>Mégse</button>',
+    onOpen:function(m){ m.querySelectorAll("[data-tid]").forEach(function(b){ b.onclick=function(){ closeModal(); cb(b.dataset.tid); }; }); } }); }
+
+/* ---------- importáló ---------- */
+function openImport(ctx){ ctx=ctx||{};
+  openModal({ title:"🗺️ GPX import", body:
+    '<div class="rt-drop" id="rt-drop"><b>📂 GPX fájl kiválasztása</b><br>Húzd ide a <code>.gpx</code> fájlt<br><label class="btn btn-primary btn-sm" style="margin-top:.7rem"><span>📁 Válassz fájlt</span><input type="file" name="f" accept=".gpx,text/xml,application/gpx+xml" hidden></label></div>'+
+    '<p class="small muted mt0 mb0" id="rt-drop-msg">Valódi GPX-t dolgozunk fel — a hiányzó adatot nem találjuk ki. Az útvonal privát marad.</p>',
+    footer:'<button class="btn btn-ghost btn-block" data-close>Mégse</button>',
+    onOpen:function(m){ var drop=m.querySelector("#rt-drop"), inp=m.querySelector("#rt-drop input[type=file]"), msg=m.querySelector("#rt-drop-msg");
+      function handle(file){ if(!file) return; var rd=new FileReader();
+        rd.onload=function(){ var txt=String(rd.result||"");
+          if(txt.length>3500000){ msg.innerHTML='<b style="color:#8C3B24">A GPX fájl túl nagy.</b>'; return; }
+          var P=parseGPX(txt);
+          if(P.err==="xml"){ msg.innerHTML='<b style="color:#8C3B24">A GPX fájl nem olvasható.</b>'; return; }
+          if(P.err==="notrack"||!P.pts){ if(P.wpts&&P.wpts.length){ msg.innerHTML='A fájlban nincs track — waypoint-kezelés hamarosan. Ezzel nem tudunk útvonalat generálni.'; return; } msg.innerHTML='<b style="color:#8C3B24">Nem találtunk track pontot a fájlban.</b>'; return; }
+          var st=routeStats(P.pts);
+          var rFor={track:P.pts,wpts:P.wpts};
+          var pr={ name:P.name||file.name.replace(/\\.gpx$/i,"").slice(0,80), stats:st, wpts:P.wpts, track:P.pts, raw:txt, fp:fpOf(P.name||file.name,st,txt.length), file:file.name, routeForMap:rFor };
+          if(st.n<2){ msg.innerHTML="Nem elég koordináta a távolság-kiszámításhoz."; return; }
+          closeModal(); if(ctx.opened) return;
+          setTimeout(function(){ previewModal(pr,ctx); },120); };
+        rd.readAsText(file); }
+      inp.onchange=function(){ handle(inp.files[0]); };
+      ["dragover","dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); }); });
+      drop.ondrop=function(e){ e.preventDefault(); if(e.dataTransfer&&e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]); }; } }); }
+
+window.openGPXImport = openImport;
+
+/* ---------- részletek (lap helyett modal) ---------- */
+window.v47parseGPX=function(text){ var p=parseGPX(text); if(p&&p.err) return p; var st=routeStats(p.pts); return { name:p.name, track:p.pts, wpts:p.wpts, stats:st, raw:String(text||""), fp:null }; };
+window.__rtopen=function(id, replace){ var r=rGet(id); if(!r) return;
+  var trip=r.linkedTripId?Store.getTour(r.linkedTripId):null;
+  openModal({ title:"🗺️ "+escA(r.name), body:
+    '<div class="rt-stats">'+
+    '<span class="rt-stat">📏 <b>'+fKm(n0(r.distance_km))+'</b></span>'+
+    '<span class="rt-stat">⛰️ <b>'+(r.elevation_gain_m!=null?"+"+fM(r.elevation_gain_m)+" m":"nincs elevation")+'</b></span>'+
+    '<span class="rt-stat">⬇️ <b>'+(r.elevation_loss_m!=null?"-"+fM(r.elevation_loss_m)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">🔝 <b>'+(r.max_elevation_m!=null?fM(r.max_elevation_m)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">🔻 <b>'+(r.min_elevation_m!=null?fM(r.min_elevation_m)+" m":"—")+'</b></span>'+
+    '<span class="rt-stat">🗓️ <b>'+new Date(r.created_at).toLocaleDateString("hu-HU")+'</b></span></div>'+
+    (r.max_elevation_m!=null?profileSVG(r.track||[]):'<p class="small muted mb0">⛰️ Nincs elevációs adat</p>')+
+    '<div class="rt-map" id="rt-map-'+ r.id +'"></div>'+
+    (trip?'<p class="small mb0">🥾 Kapcsolódó túra: <a href="#/tura/'+trip.id+'">'+escA(trip.title)+"</a></p>":'<p class="small muted mb0">🥾 Nincs túrához kapcsolva</p>')+
+    (r.wpts&&r.wpts.length?'<p class="small muted mb0">📌 Waypointok ('+r.wpts.length+'): '+r.wpts.slice(0,6).map(function(w){return escA(w.name);}).join(", ")+"</p>":"")+
+    '<div class="rt-btns">'+
+      (trip?'<a class="btn btn-ember" href="#/tura/'+trip.id+'">🥾 Túra megnyitása</a>':'<button class="btn btn-ember" id="rt-link">🥾 Túrához adom</button> <button class="btn btn-soft" id="rt-mktrip">🗓️ Túra belőle</button>')+
+      '<button class="btn btn-soft" id="rt-export">⬇️ GPX export</button>'+
+      '<button class="btn btn-ghost" id="rt-rename">✏️ Áthívtás</button>'+
+      '<button class="btn btn-ghost" id="rt-del">🗑️</button>'+
+    '</div>', footer:'<button class="btn btn-primary btn-block" data-close>Kész</button>',
+    onOpen:function(m){ mapInto(m.querySelector(".rt-map"),r);
+      m.querySelector("#rt-export").onclick=function(){ exportRoute(r); };
+      m.querySelector("#rt-rename").onclick=function(){ var v=prompt("Új név:",r.name); if(v){ r.name=String(v).slice(0,80); rSave(r); toast("Áthívva a néven","✏️"); closeModal(); routesRefresh(); } };
+      m.querySelector("#rt-del").onclick=function(){ confirmDlg("Biztosan törölöd az útvonalat?"+(trip?" Az ehhez kapcsolt túra (\\""+trip.title+"\\") MEGMARAD.":""),"Törlés",function(){ rDelete(r.id); closeModal(); toast("Útvonal törölve — a túra megmaradt","🗑"); routesRefresh(); }); };
+      var lk=m.querySelector("#rt-link"); if(lk) lk.onclick=function(){ routesPickTrip(function(tid){ var rr=rGet(r.id); if(rr){ rr.linkedTripId=tid; attachToTrip(rr,tid); } }); };
+      var mk=m.querySelector("#rt-mktrip"); if(mk) mk.onclick=function(){ var rr=rGet(r.id); if(!rr) return;
+        if(rr.linkedTripId&&Store.getTour(rr.linkedTripId)){ closeModal(); toast("van már kapcsolódó túra","🗓️"); NAV.to("#/tura/"+rr.linkedTripId); return; }
+        var t=Store.newTourFromDraft({title:rr.name, place:"", date:"", status:"tervezés", lengthKm:rr.distance_km, ascent:rr.elevation_gain_m||0,
+          coords:(rr.start&&rr.start.lat)?{lat:rr.start.lat,lng:rr.start.lng}:null, desc:"GPX import: "+rr.name, notes:"Forrás: GPX import", tags:["gpx"] });
+        t.routeId=rr.id; t.descent=rr.elevation_loss_m||0; Store.save(); rr.linkedTripId=t.id; rSave(rr); closeModal(); toast("Túra létrehozva a GPX-adataival","🗓️"); NAV.to("#/tura/"+t.id); routesRefresh(); }; } }); };
+
+/* ---------- export ---------- */
+function gpxFromRoute(r){
+  var pts=r.track||[];
+  var seg=""; for(var i=0;i<pts.length;i++){ var p=pts[i];
+    seg+="      <trkpt lat=\\""+p[0]+"\\" lon=\\""+p[1]+"\\">"+(p[2]!=null?"<ele>"+p[2]+"</ele>":"")+(p[3]?"<time>"+p[3]+"</time>":"")+"</trkpt>\\n"; }
+  return"<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<gpx version=\\"1.1\\" creator=\\"Turatars\\" xmlns=\\"http://www.topografix.com/GPX/1/1\\">\\n  <metadata><name>"+escA(r.name)+"</name></metadata>\\n"+
+    "<trk><name>"+escA(r.name)+"</name><trkseg>\\n"+seg+"</trkseg></trk>\\n</gpx>\\n"; }
+function exportRoute(r){ var txt=r.raw||gpxFromRoute(r); var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"application/gpx+xml"})); a.download=String(r.name||"utvonal").replace(/[^\\w-]+/g,"_").slice(0,40)+".gpx";
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },600); toast(r.raw?"Eredeti GPX letöltve — az adat nem változott":"A mentett trackből regenerált GPX","⬇️"); }
+
+window.rtFmt={fKm:fKm,fM:fM,get:rGet};
+window.__V47 = 1;
+})();
+
+/* ==== v47b ==== */
+/* ============ V47b — 🗺️ routes page + hook integrations (workspace, inbox, review, túra mód) ============ */
+(function(){
+"use strict";
+function n0(v){ return v==null?0:(+v||0); }
+function fKm(x){ return (Math.round(n0(x)*10)/10).toFixed(1).replace(".",",")+" km"; }
+function rAll(){ var d=Store.myData(); if(!d.routes) d.routes=[]; return d.routes; }
+function rGet(id){ id=String(id); return rAll().find(function(x){ return x.id===id; }); }
+function escA(x){ return esc(x==null?"":String(x)); }
+function routesRefresh(){ return rtRefresh(); }
+window.routesRefresh=routesRefresh;
+function rtRefresh(){ if(String(location.hash||"").indexOf("#/utvonalak")===0){ if(window.render) render(); else if(typeof App!=="undefined") App.render(); } }
+window.rtRefresh=rtRefresh;
+
+/* ---------- 🗺️ Saját útvonalaim oldal ---------- */
+VIEWS.routes = function(){ var R=rAll();
+  return dash("#/utvonalak")('<div class="dash-top"><div><h1>🗺️ Saját útvonalaim</h1>'+
+    '<p class="small muted" style="margin:.15rem 0 0">Valódi GPX fájlok — távolság, szint és profil a tényleges track pontokból. Mindegyik privát.</p></div>'+
+    '<button class="btn btn-primary" id="rt-import">🗺️ GPX import</button></div>'+
+    (R.length? '<div class="rt-cards">'+R.map(function(r){ var trip=r.linkedTripId?Store.getTour(r.linkedTripId):null;
+      return '<article class="card rt-card" data-rt="'+r.id+'">'+
+        '<div class="rt-ic">🗺️</div><div class="rt-main"><b>'+escA(r.name)+'</b>'+
+        '<div class="small muted">'+fKm(r.distance_km)+' · ⛰️ +'+fM0(r.elevation_gain_m)+' m'+(trip?' · 🥾 '+escA(trip.title):'')+' · 📥 '+new Date(r.created_at).toLocaleDateString("hu-HU")+'</div>'+
+        '<div class="rt-row"><button class="btn btn-soft btn-sm" data-open="'+r.id+'">Megnyitás</button>'+
+        (trip?'<a class="btn btn-ember btn-sm" href="#/tura/'+trip.id+'">🥾 Túra</a>':'')+'<span class="spacer"></span><button class="btn btn-ghost btn-sm" data-exp="'+r.id+'">⬇️</button><button class="btn btn-ghost btn-sm" data-del="'+r.id+'">🗑</button></div>'+
+        '</div></article>'; }).join("")+'</div>'
+      : '<div class="empty"><span class="em-ico">🗺️</span><h3>Még nincs importált útvonalad</h3>'+
+        '<p>Húzz be egy .gpx fájlt — a távolságot, szinteket és profilt a valódi track pontokból számoljuk, semmit nem találunk ki.</p>'+
+        '<button class="btn btn-primary" id="rt-import-empty">🗺️ GPX import most</button></div>')+
+    '</div>'); };
+function fM0(x){ return x==null?"0":String(Math.round(x)).replace(/\\B(?=(\\d{3})+(?!\\d))/g," "); }
+VIEWS.routes.after = function(root){ var R=rAll();
+  var b=root.querySelector("#rt-import")||root.querySelector("#rt-import-empty");
+  if(b) b.onclick=function(){ window.openGPXImport({}); };
+  root.querySelectorAll("[data-open]").forEach(function(x){ x.onclick=function(){ window.__rtopen(x.dataset.open); }; });
+  root.querySelectorAll("[data-exp]").forEach(function(x){ x.onclick=function(){ var r=rGet(x.dataset.exp); if(r) window.__rtexport&&window.__rtexport(r);
+    else { var rr=rGet(x.dataset.exp); /* fallback */ } }; });
+  root.querySelectorAll("[data-del]").forEach(function(x){ x.onclick=function(){ var r=rGet(x.dataset.del); if(!r) return;
+    var t=r.linkedTripId?Store.getTour(r.linkedTripId):null;
+    confirmDlg("Biztosan törlöd: "+r.name+"?"+(t?" A(t) \\""+t.title+"\\" túra MEGMARAD.":""),"Törlés",function(){
+      var d=Store.myData(); d.routes=(d.routes||[]).filter(function(y){return y.id!==r.id;});
+      (d.tours||[]).forEach(function(tt){ if(tt.routeId===r.id){ tt.routeId=null; } });
+      Store.save(); toast("Útvonal törölve — a túra érintetlen","🗑"); rtRefresh(); }); }; });
+  root.querySelectorAll("[data-rt]").forEach(function(c){ c.onclick=function(e){ if(e.target.closest("button,a")) return; window.__rtopen(c.dataset.rt); }; }); };
+
+/* export reachable (v47 belső exportRoute helyett újrahasznosítunk) */
+window.__rtexport=function(r){ var pts=r.track||[], seg="", i;
+  for(i=0;i<pts.length;i++){ var p=pts[i]; seg+='      <trkpt lat="'+p[0]+'" lon="'+p[1]+'">'+(p[2]!=null?"<ele>"+p[2]+"</ele>":"")+(p[3]?"<time>"+p[3]+"</time>":"")+"</trkpt>\\n"; }
+  var txt=r.raw||("<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<gpx version=\\"1.1\\" creator=\\"Turatars\\" xmlns=\\"http://www.topografix.com/GPX/1/1\\">\\n  <metadata><name>"+escA(r.name)+"</name></metadata>\\n<trk><name>"+escA(r.name)+"</name><trkseg>\\n"+seg+"</trkseg></trk>\\n</gpx>");
+  var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([txt],{type:"application/gpx+xml"}));
+  a.download=String(r.name||"utvonal").replace(/[^\\w]+/g,"_").slice(0,40)+".gpx"; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },700);
+  toast(r.raw?"Eredeti GPX letöltve (az adat változatlan)":"Letöltve a mentett trackből","⬇️"); };
+
+/* ---------- workspace Útvonal fül: GPX kártya / import gomb ---------- */
+var _wA47 = VIEWS.workspace.after;
+VIEWS.workspace.after = function(root,id){ try{ _wA47 && _wA47(root,id); }catch(e){}
+  var t=Store.getTour(id); if(!t||!root) return;
+  try{
+    var rvw=root.querySelector("#btn-rvw"); if(rvw) rvw.onclick=function(){ try{ (window.tourReview||tourReview)(t); }catch(e){} };
+    var gp=root.querySelector("#btn-wx"); if(gp && t.routeId && !gp.__rt){ /* időjárás marad */ }
+    var grid=root.querySelector(".ws-grid")||root.querySelector("#view .ws-grid")||null;
+    if(String(wsTab)!=="utvonal") return;
+    var act=root.querySelector(".ws-actions");
+    if(t.routeId && act && !root.querySelector("#rt-ws-open")){ var r=rGet(t.routeId);
+      if(r){ var bo=document.createElement("button"); bo.className="btn btn-soft btn-sm"; bo.id="rt-ws-open";
+        bo.innerHTML="🗺️ Részletek"; bo.onclick=function(){ window.__rtopen(r.id); }; act.appendChild(bo); } }
+    if(!t.routeId && act && !root.querySelector("#rt-ws-import")){ var bi=document.createElement("button"); bi.className="btn btn-soft btn-sm";
+      bi.id="rt-ws-import"; bi.innerHTML="🗺️ GPX import"; bi.onclick=function(){ window.openGPXImport({tripId:id}); }; act.appendChild(bi); }
+    /* ha van route: a ⬇️ GPX export gombot útvonal-exportra váltjuk */
+    var gb=root.querySelector("#btn-gpx");
+    if(gb && t.routeId){ var rr=rGet(t.routeId); if(rr) gb.onclick=function(){ window.__rtexport(rr); }; }
+    /* route státusz-sáv a fül végére */
+    if(t.routeId && grid && !root.querySelector(".rt-tripcard")){ var r2=rGet(t.routeId);
+      if(r2){ var div=document.createElement("div"); div.className="card panel rt-tripcard";
+        div.innerHTML='<h3>🗺️ GPX útvonal: '+escA(r2.name)+'</h3><p class="small mb0">'+fKm(r2.distance_km)+' · ⛰️ +'+fM0(r2.elevation_gain_m)+' m · ⬇️ -'+fM0(r2.elevation_loss_m)+' m · '+((r2.track||[]).length)+' pont (tömörítve) / '+(r2.nPts||0)+' eredeti</p>'+
+        '<button class="btn btn-soft btn-sm" data-rtx="re">🔄 Új GPX cseréje</button> <button class="btn btn-ghost btn-sm" data-rtx="un">🔗 Leválasztás</button>';
+        grid.appendChild(div);
+        div.querySelectorAll("[data-rtx]").forEach(function(bb){ bb.onclick=function(){ var a=bb.dataset.rtx;
+          if(a==="re"){ window.openGPXImport({tripId:id,replace:t.routeId}); }
+          else { t.routeId=null; var r3=rGet(t.routeId); if(r3){ r3.linkedTripId=null; } Store.save(); toast("Az útvonal leválasztva — a GPX megmaradt a könyvtárban","🔗"); rtRefresh(); render(); } }; }); } }
+    /* V45: túra-mód Útvonal gomb → route részletek */
+  }catch(e){} };
+
+/* ---------- V44 review: GPX kontextus sor ---------- */
+var _rv47=window.tourReview;
+window.tourReview=function(t){ try{ _rv47&&_rv47(t); var r=t.routeId?rGet(t.routeId):null; if(!r) return;
+  var tries=0, iv=setInterval(function(){ tries++; var b=document.getElementById("rvw-body");
+    if(b && b.querySelector(".rvw-head")){ clearInterval(iv); if(b.querySelector(".rvw-gpx")) return; b.insertAdjacentHTML("afterbegin",
+      '<div class="rvw-gpx small" style="margin:.2rem 0 .55rem">🗺️ GPX: ez egy '+fKm(r.distance_km)+(r.elevation_gain_m?'-es, +'+fM0(r.elevation_gain_m)+' m szintemelkedés':'')+' útvonal ('+(r.nPts||0)+' pont) — az számítások ezt használják.</div>'); }
+    if(tries>60) clearInterval(iv); },120); }catch(e){} };
+
+/* ---------- V45 túra mód: Útvonal gomb GPX-re ---------- */
+var _tmA47 = VIEWS.tourmode.after;
+VIEWS.tourmode.after = function(root,id){ try{ _tmA47&&_tmA47(root,id); }catch(e){}
+  try{ var t=(id||((location.hash.match(/turamod\\/([\\w-]+)/)||[])[1]))&&Store.getTour(id||location.hash.match(/turamod\\/([\\w-]+)/)[1]); if(!t||!t.routeId||!root) return;
+    var r=rGet(t.routeId); if(!r) return;
+    var b=root.querySelector('[data-tm2="utvonal"]'); if(b && !b.__rt47){ b.__rt47=1; b.onclick=function(){ window.__rtopen(r.id); }; } }catch(e){} };
+
+window.__V47B=1; })();
+
+/* ==== v48 ==== */
+/* ===== V48 — 🧠 VEZETŐ TERV („Hogy áll a túrám?”) — READ-ONLY összefoglaló =====
+   Nem tervez újra: a Store.readiness/tourCheck, V47 route, V44 weather, packing/food/
+   companions/transport/tasks meglévő adatait olvassa. Intézem = navigáció csak. */
+(function(){
+"use strict";
+function X(s){ return esc(s==null?"":String(s)); }
+function n0(v){ return v==null?0:(+v||0); }
+function fKm(x){ return (Math.round(n0(x)*10)/10).toFixed(1).replace('.',',')+" km"; }
+function fM(x){ x=Math.round(n0(x)); return String(x).replace(/\\B(?=(\\d{3})+(?!\\d))/g," "); }
+function hhmm(h){ h=n0(h); if(!h) return null; var H=Math.floor(h); return {h:H, p:Math.round((h-H)*60)}; }
+function routeOf(t){ try{ var fr=window.rtFmt; return (fr && t.routeId) ? fr.get(String(t.routeId)) : null; }catch(e){ return null; } }
+
+function ckDomains(t, wxLive){
+  var rows=[]; var H=n0(t.durationH), P=(t.participants||[]).length, G=t.gear||[], F=t.food||[];
+  function lite(s){return String(s||"").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");}
+  var wKg=F.filter(function(f){return /viz|iv(?:o|0)/.test(lite(f.n));}).reduce(function(a,f){return a+(+f.w||0);},0)/1000;
+  var d, r=routeOf(t); // ——— GYORS ÁTTEKINTÉS sorrend a spec §5 szerint
+  d={k:"utvonal", ic:"🗺️", nm:"Útvonal"};
+  if(r){ d.s="ok"; d.line="✓ GPX betöltve · "+fKm(r.distance_km)+(r.elevation_gain_m!=null?" · ⛰️ +"+fM(r.elevation_gain_m)+" m":"")+" · "+(r.nPts||0)+" pont"; }
+  else if(t.coords||t.gpx||(t.waypoints||[]).length){ d.s="ok"; d.line="✓ Útvonal megvan (koordináták)"; d.tip="GPX importálása pontosíthatja"; d.goto="utvonal"; d.act="🗺️ GPX importálása"; }
+  else { d.s="info"; d.line="ℹ️ Nincs GPX útvonal"; d.act="🗺️ GPX importálása"; d.goto="utvonal"; }
+  rows.push(d);
+  d={k:"felsz", ic:"🎒", nm:"Felszerelés"};
+  if(!G.length){ d.s="bad"; d.line="🔴 Nincs packolási lista"; d.act="🎒 Intézem"; d.goto="felszereles"; }
+  else { var packed=G.filter(function(g){return g.checked;});
+    if(packed.length===G.length){ d.s="ok"; d.line="✓ "+packed.length+" / "+G.length+" bepakolva"; }
+    else { d.s="warn"; d.line="🟠 "+packed.length+" / "+G.length+" bepakolva — "+(G.length-packed.length)+" nincs bejelölve";
+      d.miss=G.filter(function(g){return !g.checked;}).slice(0,3).map(function(g){return g.name;});
+      d.act="🎒 Intézem"; d.goto="felszereles"; } }
+  rows.push(d);
+  d={k:"viz", ic:"💧", nm:"Víz"};
+  if(!F.length){ d.s="info"; d.line="ℹ️ Nincs megadva vízmennyiség"; d.act="💧 Megnézem"; d.goto="ete"; }
+  else if(H>=3 && wKg < (H/2)*Math.max(1,P)*0.75){ d.s="warn"; d.line="🟠 "+wKg.toFixed(1).replace(".",",")+" kg tervezett — az időtartamhoz képest kevésnek tűnik"; d.act="💧 Megnézem"; d.goto="ete"; }
+  else { d.s="ok"; d.line="✓ "+wKg.toFixed(1).replace(".",",")+" kg víz tervezve"; }
+  rows.push(d);
+  d={k:"etel", ic:"🍽️", nm:"Étel"};
+  var meals=F.filter(function(f){return !/viz|iv(?:o|0)/.test(lite(f.n));});
+  if(meals.length){ d.s="ok"; d.line="✓ "+meals.length+" étel tervben"; } else { d.s="info"; d.line="ℹ️ Nincs ételterv"; d.act="🍽️ Megnézem"; d.goto="ete"; }
+  rows.push(d);
+  d={k:"tars", ic:"👥", nm:"Társak"}; if(!P){ d.s="ok"; d.line="✓ Egyéni túra"; }
+  else { var jo=t.participants.filter(function(p){return p.confirmed||p.stat==="jön";}).length;
+    var no=t.participants.filter(function(p){return p.stat==="nem";}).length;
+    var varr=P-jo-no;
+    if(varr>0){ d.s="warn"; d.line="👥 "+P+" résztvevő · ✓ "+jo+" jön"+(varr?" · 🟠 "+varr+" nem válaszolt":"")+(no?" · ✕ "+no+" nem jön":""); d.act="👥 Intézem"; d.goto="resztvevok"; }
+    else if(no>0){ d.s="warn"; d.line="👥 "+jo+" jön · "+no+" nem jön — ültetés/étel áttervezendő"; d.act="👥 Intézem"; d.goto="resztvevok"; }
+    else { d.s="ok"; d.line="✓ Minden résztvevő visszaigazolta ("+jo+")"; } }
+  rows.push(d);
+  d={k:" kozleked".trim(), ic:"🚗", nm:"Közlekedés"};
+  var meet=!!(t.meeting||t.startPoint||t.meetingTime||t.travelMode), car=(t.cars||[]).length>0;
+  if(!meet&&!car){ d.s="bad"; d.line="🔴 Közlekedés nincs megtervezve"; d.act="🚗 Intézem"; d.goto="utazas"; }
+  else if(meet!=car || !t.meeting || !t.arrival || (t.cars||[]).some(function(c){return !(c.assigned||[]).length;}) && P>0){ d.s="warn"; d.line="🟠 Részben tervezve — ellenőrizd a részleteket"; d.act="🚗 Intézem"; d.goto="utazas"; }
+  else { d.s="ok"; d.line="✓ Közlekedés rendezve" + (P? " ("+(t.cars||[]).reduce(function(a,c){return a+(c.seats||0);},0)+" ülőhely)":""); }
+  rows.push(d);
+  d={k:"teendo", ic:"☑️", nm:"Teendők"}; var tk=(t.tasks||[]).filter(function(x){return !x.done;});
+  if(!(t.tasks||[]).length){ d.s="info"; d.line="ℹ️ Nincs feladat rögzítve"; d.goto="teendok"; }
+  else if(tk.length){ d.s="warn"; d.line="🟠 "+tk.length+" nyitott feladat"; d.miss=tk.slice(0,3).map(function(x){ return (x.who? x.who+" — ":"")+x.label; }); d.act="☑️ Intézem"; d.goto="teendok"; }
+  else { d.s="ok"; d.line="✓ minden feladat kész ("+t.tasks.length+")"; }
+  rows.push(d);
+  d={k:"idojaras", ic:"🌦️", nm:"Időjárás"};
+  if(t.weatherChecked && (wxLive||t.weather)){ var w=wxLive||t.weather; d.s="ok"; d.line="✓ "+(w.ico||"")+" "+String(w.tmin!=null?w.tmin+"–":""), (w.tempMax!=null?w.tempMax:"—")+"°"+(w.rain!=null?" · eső "+w.rain+"%":"")+(w.nowTemp!=null?" · most "+w.nowTemp+"°":""); d.line="✓ Időjárás ellenőrizve"+(w.rain!=null?" (eső "+w.rain+"%, "+(w.tmin!=null?w.tmin+"–"+w.tmax:"—")+"°)":""); }
+  else if(wxLive){ d.s="warn"; d.line="🟠 "+(wxLive.ico||"🌦️")+" megvan az előrejelzés — jelöld ellenőrzöttnek a lap tetején"; d.goto="utvonal"; }
+  else if(!t.weather){ d.s="info"; d.line="ℹ️ Nincs elérhető előrejelzés"; d.goto="utvonal"; }
+  else { d.s="warn"; d.line="🟠 Időjárás van az adatbázisban, de nincs jóváhagyva"; d.act="🛏 Megnyitom"; d.goto="utvonal"; }
+  rows.push(d);
+  return rows;
+}
+function ckOverall(rows){ var bad=rows.filter(function(x){return x.s==="bad";}); var warn=rows.filter(function(x){return x.s==="warn";});
+  if(bad.length) return {k:"bad", t:"🔴 TERVEZÉSI PROBLÉMA", sub:"Ezek nélkül a terv nem mehet tovább:"};
+  if(warn.length) return {k:"warn", t:"🟠 FIGYELMET IGÉNYEL", sub:"A jelenlegi adatok alapján több pont is rendezendő."};
+  return {k:"ok", t:"🟢 JÓL TERVEZHETŐ", sub:"A jelenlegi terv alapján nem találtunk fontos hiányosságot."}; }
+function ckProblems(rows){ var p=[];
+  rows.forEach(function(d){ if(d.s==="bad"||d.s==="warn") p.push(d); if(d.s==="ok"||d.s==="warn"||d.s==="bad"){} });
+  // a weather-extra: ha van esőjelzés a packolásban... (v44 weather adatai már benne vannak az idomainben)
+  return p.slice(0,5); }
+function ckHead(t){ var r=Store.readiness(t), c;
+  var head=["<div class=\\"ck-top\\"><div class=\\"ck-pct\\"><b>"+r.pct+"%</b><span>készültség (ugyanaz, mint a dashboard)</span></div><div class=\\"ck-meta\\">"];
+  c=[]; if(n0(t.lengthKm)) c.push("📏 "+fKm(t.lengthKm));
+  if(n0(t.ascent)) c.push("⛰️ +"+fM(t.ascent)+" m");
+  var hm=hhmm(t.durationH); if(hm) c.push("🕐 "+hm.h+"ó"+(hm.p?" "+hm.p+"p":""));
+  if(t.date) c.push("📅 "+X(t.date));
+  head.push(c.length?("<span>"+c.join("</span><span>")+"</span>"):"<span class=\\"muted\\">—</span>");
+  head.push("</div></div>");
+  return head.join(""); }
+function ckHTML(t, rows, overall, isGreen, wxHint){
+  var o=[]; o.push("<div class=\\"ck-wrap\\">");
+  o.push("<p class=\\"small muted\\" style=\\"margin:0 0 .5rem\\">A jelenlegi túraterved alapján — <b>"+X(t.title||"")+"</b></p>");
+  o.push(ckHead(t));
+  o.push("<div class=\\"ck-main "+overall.k+"\\">"+overall.t+(overall.k==="ok"?"<p class=\\"small mb0\\" style=\\"margin:.2rem 0 0\\">"+overall.sub+"</p>":"")+"</div>");
+  var probs=ckProblems(rows);
+  if(isGreen)
+    o.push("<div class=\\"ck-next green\\"><b>🎯 Következő lépés</b><p class=\\"mb0\\" style=\\"margin:.15rem 0 0\\">Nincs fontos teendő — a terv vezetési szempontból kész. <span class=\\"small muted\\">(A ✓ jelölés csak azt fedi le, amit mi is ellenőriztünk a te adataid alapján.)</span></p></div>");
+  else { var n=probs[0];
+    o.push("<div class=\\"ck-next\\"><b>🎯 Következő lépés</b><p class=\\"ck-next-l\\" style=\\"margin:.15rem 0 .35rem\\">\\""+X((n.line||"").replace(/^[✓🟠🔴ℹ️]\\s*/,""))+"\\"</p>"+
+    (n.act?("<button class=\\"btn btn-primary btn-sm\\" data-ckgoto=\\""+n.goto+"\\" data-ckact=\\""+(n.k==="utvonal"&&n.act&&n.act.indexOf("GPX")>-1?"gpx":"nav")+"\\">"+X(n.act)+"</button>"):"")+
+    "<span class=\\"small muted\\" style=\\"margin-left:.5rem\\">"+(probs.length>1?("további "+(probs.length-1)+" figyelendő"):"")+"</span></div>"); }
+    o.push("<details class=\\"ck-det\\""+(overall.k==="ok"?"":" open")+"><summary><b>Túra állapota — gyors áttekintés</b></summary>"+
+    "<div class=\\"ck-list\\">"+rows.map(function(d){
+      var s={ok:"✓",warn:"🟠",bad:"🔴",info:"ℹ️"}[d.s];
+      return "<div class=\\"ck-row\\">"+d.ic+" <b>"+d.nm+"</b> <span class=\\"ck-st st-"+d.s+"\\">"+s+"</span><span class=\\"ck-line\\">"+d.line+"</span>"+
+        (d.goto && d.s!=="ok" ? "<button class=\\"btn btn-ghost btn-sm\\" data-ckgoto=\\""+d.goto+"\\" data-ckact=\\""+(d.k==="utvonal"&&d.act&&d.act.indexOf("GPX")>-1?"gpx":"nav")+"\\">"+(d.act||"Megnyitom")+"</button>" : (d.act&&d.s==="ok"?"":"")) +
+        (d.miss&&d.miss.length?"<div class=\\"ck-miss\\">"+d.miss.map(X).join(" · ")+"</div>":"")+"</div>"; }).join("")+
+    "</div></details>");
+  if(probs.length>1) o.push("<div class=\\"ck-probs\\"><b>Figyelendő pontok</b>"+probs.slice(1).map(function(d){
+    return "<div class=\\"ck-prow "+(d.s==="bad"?"bad":"warn")+"\\"><span>"+d.ic+"</span>"+X(d.line)+(d.goto?"<button class=\\"btn btn-ghost btn-sm\\" data-ckgoto=\\""+d.goto+"\\">Intézem</button>":"")+"</div>"; }).join("")+"</div>");
+  o.push("<div class=\\"ck-foot\\"><button class=\\"btn btn-soft\\" id=\\"ck-re\\">🔄 Újraelemzem</button>"+
+    (

@@ -1,0 +1,791 @@
+|document).querySelectorAll("[data-ackr]").forEach(a=>a.onclick=()=>{ if(Store.me()){ Store.ackFieldReport(a.dataset.ackr); render(); } }); 
+  (root||document).querySelectorAll("[data-jreport]").forEach(a=>a.onclick=()=>{ const tr=Store.myData() && (function(){ const t=Store.upcoming()[0]; return t?{region:t.region}:null;})(); reportModal(tr||{}); }); }
+
+/* ---------- 14+15) Statisztikák: célok + kihívások szekció hozzáadása ---------- */
+(function(){
+  const _s = VIEWS.stats;
+  VIEWS.stats = () => { const base=_s(); const d=Store.myData();
+    const rows = Store.goalRows();
+    const ach = Store.achievements();
+    const ch = d.challenges||[];
+    const extra = \`<section id="bump-goals"></div>\`;
+    return base.replace('</div>\`','') && base; // tartalom később DOM-ból
+  };
+})();
+window.statsBumpInstall = function(AppObj){
+  try{ if(Store.applyTheme) Store.applyTheme(); }catch(e){}
+  window.statsBumpCheck = ()=>{ if((location.hash||"").indexOf("statisztikak")>=0) statsBumpAppend(); };
+  const q = ()=>{ if((location.hash||"").indexOf("statisztikak")>=0){ setTimeout(window.statsBumpCheck, 150); setTimeout(window.statsBumpCheck, 700); } };
+  document.addEventListener("hashchange", q);
+  const _origRender = AppObj.render;
+  AppObj.render = function(...a){ _origRender.apply(this,a); q(); };
+  setInterval(()=>{ if((location.hash||"").indexOf("statisztikak")>=0 && !document.getElementById("bump-goals-wrap")) window.statsBumpCheck(); }, 200);
+};
+function statsBumpAppend(){ if((location.hash||"").indexOf("statisztikak")<0) return;
+  if(document.getElementById("bump-goals-wrap")) return;
+  const d = Store.myData(); if(!d||!d.goalList) return;
+  const rows = Store.goalRows(), ach = Store.achievements(), ch = d.challenges||[];
+  const el = document.createElement("section"); el.id="bump-goals-wrap";
+  el.innerHTML = \`<div class="split2" style="grid-template-columns:1.05fr .95fr;gap:18px;margin-top:20px;align-items:start">
+    <div class="card panel"><h3>🎯 Személyes céljaim</h3>
+      \${rows.map(g=>\`<div class="goal-row">
+        <div class="flex between wrapcol"><b class="small">\${g.icon} \${esc(g.label)}</b><span class="small \${g.pct>=100?"goal-done":""}"><b>\${g.current}</b> / \${g.target}\${g.unit&&g.unit!=="db"?" "+esc(g.unit):""} \${g.pct>=100?"🏅 elérvé!" : " ("+g.pct+"%)"}</span></div>
+        <div class="goal-bar \${g.pct>=100?"done":""}"><i style="width:\${Math.min(100,g.pct)}%"></i></div>
+        <div class="flex" style="justify-content:flex-end"><button class="icon-btn" data-goal="\${g.id}:1" title="Egy kattintásnyi haloml" style="width:26px;height:26px">＋</button>
+        <button class="icon-btn" data-goalrm="\${g.id}" title="Cél törlése" style="width:26px;height:26px">✕</button></div></div>\`).join("")}
+      <button class="btn btn-soft btn-sm" id="bump-goalnew" style="margin-top:.6rem">➕ Saját cél hozzáadása</button></div>
+    <div class="card panel"><h3>🧗 Kihívások — teljesítmények</h3>
+      <div class="ach-row">\${ach.map(a=>\`<span class="ach \${a.now>=a.target?"done":""}">\${a.icon} \${a.now>=a.target?"✔":"☐"} \${esc(a.name)} <b class="muted">\${a.now}/\${a.target}</b></span>\`).join("")}</div>
+      \${ch.map(c=>{ const done=c.items.filter(x=>x.done).length; return \`<div class="chal-card">
+        <div class="flex between wrapcol"><b>\${c.icon} \${esc(c.name)} <span class="muted small">(\${c.desc||""})</span></b><span class="chip chip-blue">\${done}/\${c.items.length}</span></div>
+        <div class="readi-track" style="margin:.35rem 0 .2rem"><i style="width:\${c.items.length?done/c.items.length*100:0}%;background:linear-gradient(90deg,var(--sky),#78a4c2)"></i></div>
+        \${c.items.map((it,i)=>\`<label class="ck" style="padding:.22em .4em"><input type="checkbox" data-chal="\${c.id}" data-chal-item="\${i}" \${it.done?"checked":""}> \${it.done?"☑️":"☐"}&nbsp;\${esc(it.l)}</label>\`).join("")}</div>\`;}).join("")}
+      <button class="btn btn-soft btn-sm" id="bump-chalnew" style="margin-top:.6rem">➕ Új kihívás</button></div>
+  </div>\`;
+  const view = document.querySelector("#view .dash-main"); if(!view) return; view.appendChild(el);
+  el.querySelectorAll("[data-goal]").forEach(b=>b.onclick=()=>{ const [id,sgn]=b.dataset.goal.split(":"); Store.goalDelta(id,+sgn); statsBumpReflow(); });
+  el.querySelectorAll("[data-goalrm]").forEach(b=>b.onclick=()=>{ Store.rmGoal(b.dataset.goalrm); statsBumpReflow(); });
+  el.querySelectorAll("[data-chal]").forEach(c=>c.onchange=()=>{ Store.toggleChallengeItem(c.dataset.chal,+c.dataset.chalItem); statsBumpReflow(); });
+  const gn=el.querySelector("#bump-goalnew"); if(gn) gn.onclick=goalNewModal2;
+  const cn=el.querySelector("#bump-chalnew"); if(cn) cn.onclick=chalNewModal;
+}
+function statsBumpReflow(){ const s=document.getElementById("bump-goals-wrap"); if(s) s.remove(); statsBumpAppend(); }
+function goalNewModal2(){ openModal({ title:"➕ Személyes cél",
+  body:\`<label class="f">Cél neve *</label><input class="input" id="g2-n" placeholder="Pl. bepakolni a székelyföldi csúcsokat">
+    <div class="grid g2" style="margin-top:.6rem"><div><label class="f"> célérték</label><input class="input" id="g2-t" type="number" value="10"></div>
+    <div><label class="f">Egység</label><input class="input" id="g2-u" value="km"></div></div>
+    <label class="f" style="margin-top:.6rem">Automatikus mérés? (írd be: km, túrák, csúcsok, napkelte — vagy üresen hagyva manüls + gombok)</label><select class="input" id="g2-m"><option value="custom">manuális (+ gombbal)</option><option value="km">megtett km</option><option value="tours">teljesített túrák</option><option value="summits">megmászt csúcsok</option><option value="napkelte">napkelte-s túrák</option></select>\`,
+  footer:\`<button class="btn btn-primary btn-block" id="g2-ok">Cél létrehozása</button>\`,
+  onOpen(r){ r.querySelector("#g2-ok").onclick=()=>{ const n=r.querySelector("#g2-n").value.trim(); if(!n){toast("Adj nevet","🙂");return;}
+    Store.addGoal({icon:"🎯", label:n, metric:r.querySelector("#g2-m").value, target:+r.querySelector("#g2-t").value||10, unit:r.querySelector("#g2-u").value||"db", manual:0});
+    closeModal(); toast("Cél felvéve — hajrá! 🎯","🏁"); statsBumpAppend(); }; } }); }
+function chalNewModal(){ openModal({ title:"➕ Új helyi kihívás",
+  body:\`<label class="f">Neve *</label><input class="input" id="c2-n" placeholder="Pl. Hagymás-kör: hat csúcs">
+    <label class="f" style="margin-top:.6rem">Ikon</label><input class="input" id="c2-i" maxlength="4" value="🧗">
+    <label class="f" style="margin-top:.6rem">Helyszínek / tételek — soronként egy</label><textarea class="input" id="c2-l" rows="4" placeholder="Kőris-hegy&#10;Melegő-hát&#10;Góbi-bérc"></textarea>\`,
+  footer:\`<button class="btn btn-primary btn-block" id="c2-ok">Kihívás létrehozása</button>\`,
+  onOpen(r){ r.querySelector("#c2-ok").onclick=()=>{ const items=r.querySelector("#c2-l").value.split("\\n").map(x=>x.trim()).filter(Boolean);
+    if(items.length<2){toast("Kell legalább két tétel","⚠️");return;}
+    Store.addChallenge({name:r.querySelector("#c2-n").value.trim()||"Új kihívás", icon:r.querySelector("#c2-i").value||"🧗", items:items.map(l=>({l,done:false})), desc:"saját kihívás"});
+    closeModal(); toast("Kihívás elmentve — irány a lista tetejére 🧗","🎯"); statsBumpAppend(); }; } }); } 
+
+
+/* ---------- WIZARD: sablonválasztó csipák (a form lépésben) ---------- */
+(function(){
+  const _nta = VIEWS.newTour.after;
+  VIEWS.newTour.after = (root,arg)=>{
+    _nta && _nta(root,arg);
+    if(wiz && (wiz._step==="detail" || wiz._step==="form") && wiz.kind!=="event"){
+      const box=root.querySelector(".wiz-nav");
+      if(box && !root.querySelector(".tpl-strip")){
+        const strip=document.createElement("div"); strip.className="tpl-strip";
+        strip.innerHTML=\`<div class="small" style="width:100%"><b>📐 Kiindulás sablonból:</b></div>
+          \${Store.allTemplates().map(t=>\`<button class="f-pill \${wiz.template===t.id?"on":""}" data-tpl="\${t.id}">\${t.icon} \${esc(t.name)}</button>\`).join("")}
+          <div class="small muted" style="width:100%">A sablon a létrehozáskor a csomaglistát, időtervet és étellistát cseréli — a többi adat megmarad, amit megadsz.</div>\`;
+        box.parentNode.insertBefore(strip, box);
+        const go2 = root.querySelector("#wz-go");
+        if(go2 && !go2._tplw){ const oc=go2.onclick; go2._tplw=1;
+          go2.onclick = (e)=>{ const before=Store.myData().tours.map(x=>x.id);
+            oc && oc.call(go2,e);
+            if(wiz && wiz.template){ const after=Store.myData().tours.map(x=>x.id); const newId=after.find(id=>before.indexOf(id)<0);
+              if(newId){ const dateVal=(root.querySelector("#wz-date")||{}).value; if(dateVal && !Store.getTour(newId).date){ Store.updateTour(newId,{date:dateVal}); }
+                Store.applyTemplate(newId, wiz.template); } } }; }
+        strip.querySelectorAll("[data-tpl]").forEach(b=>b.onclick=()=>{ wiz.template=b.dataset.tpl;
+          const t=Store.templateById(t.id); if(t){ wiz.title=wiz.title||t.name; wiz.difficulty=t.difficulty||wiz.difficulty; }
+          strip.querySelectorAll("[data-tpl]").forEach(x=>x.classList.toggle("on",x===b));
+          toast("Sablon kiválasztva — a létrehozáskor becsomagolja a csomaglistát, időtervet, kaját.","📐"); });
+      }
+    }
+  };
+  // létrehozáskor érvénybe lép a selected sablon
+  const _n = Store.myData; // no-op
+})();
+
+/* ---------- HAGYMÁS INTERAKTÍV ÚTVONALHALÓZAT (beágyazott térkép + GPX import) ---------- */
+const HGY = { filter: "mind" };
+const hgyIcon = t => t==="bringa" ? "🚲" : t==="esztena" ? "🐑" : "🥾";
+function hgyParseGpx(txt){
+  const x=new DOMParser().parseFromString(txt,"application/xml");
+  const nodes=[...x.querySelectorAll("trkpt,rtept,wpt")];
+  return nodes.map(n=>({lat:+n.getAttribute("lat"), lng:+n.getAttribute("lon"),
+    ele:(n.querySelector("ele")&&+n.querySelector("ele").textContent)||null})).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
+}
+function hgyStats(pts){
+  let d=0,up=0,dn=0,min=1e9,max=-1e9;
+  for(let i=1;i<pts.length;i++){ const a=pts[i-1],b=pts[i],R=6371e3,t=Math.PI/180;
+    const h=Math.sin((b.lat-a.lat)*t/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin((b.lng-a.lng)*t/2)**2;
+    d+=2*R*Math.asin(Math.sqrt(h));
+    if(a.ele&&b.ele){ if(b.ele>a.ele) up+=b.ele-a.ele; else dn+=a.ele-b.ele; } }
+  pts.forEach(p=>{ if(p.ele){ if(p.ele<min)min=p.ele; if(p.ele>max)max=p.ele; } });
+  return {m:d, up, dn, min:isFinite(min)?min:null, max:isFinite(max)?max:null};
+}
+function hgyImport(i, btn){
+  const r=HAGYMAS_ROUTES[i];
+  if(!Store.me()){ toast("Az importhoz jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
+  if(btn){ btn.disabled=true; btn.textContent="…" }
+  fetch(r.url).then(res=>res.text()).then(txt=>{
+    const pts=hgyParseGpx(txt);
+    if(pts.length<3) throw new Error("no pts");
+    const st=hgyStats(pts);
+    const t=Store.newTourFromDraft({
+      title:r.n.replace(/_/g," ").replace(/\\s+/g," "),
+      place:"Nagyhagymás útvonalhálózat — "+({bringa:"kerékpár",tura:"túra",esztena:"esztenák"}[r.t]||r.t)+" útvonal",
+      region:"Gyergyó", date:"", lengthKm:Math.round(st.m/100)/10, up:Math.round(st.up), durationH:Math.max(1,Math.round(st.m/100/45*10)/10+Math.round(st.up/350*10)/10),
+      difficulty: st.up>900?"Nehéz": st.up>450?"Közepes":"Könnyű",
+      tags:["hagymás","hálózat","gpx","kilátás"], img: r.t==="bringa"?IMG.legifoto:(r.t==="esztena"?IMG.mezofeny:IMG.kodos),
+      desc:"Importálva a Nagyhagymás Közösségek Közti Fejlesztési Társulás interaktív útvonalai közül (vin: "+ (r.t==="esztena"?"KML legelő-pont":"GPX nyomvonal") +"). A munkaterületen a dátum, szintidő és csomag már a te terved.",
+      coords:{name:"Rajt: "+r.n, lat:pts[0].lat, lng:pts[0].lng},
+      waypoints:[{name:"Rajt",lat:pts[0].lat,lng:pts[0].lng},{name:"Cél",lat:pts.at(-1).lat,lng:pts.at(-1).lng}],
+      gpx:{pts, line:pts.map(p=>[p.lat,p.lng]), elev: (st.min!=null? pts.map(p=>p.ele-(st.min||0)) : pts.map((_,j)=>j%10))},
+      startNote:""
+    });
+    toast("Útvonal importálva a te Túraprojekt-listádba 🕹","🧭");
+    render();
+    if(btn){ btn.disabled=false }
+    location.hash="#/tura/"+t.id;
+  }).catch(()=>{
+    if(btn){ btn.disabled=false; btn.textContent="🧭 Tervbe importálás" }
+    openModal({ title:"A GPX most nem tölthető le",
+      body:\`<p class="muted mt0">A böngésző vagy a szerver most Blokkolta a cross-origin letöltést. Az útvonal így is elérke: a beágyazott térképről (jobb felső új lap), vagy töltsd le tőlük és importáld a workspace GPX-feltöltésénél.</p>\`,
+      footer:\`<div class="flex" style="gap:.5rem;flex-wrap:wrap"><a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="\${esc(r.url)}">⬇ GPX letöltése</a><button class="btn btn-ghost btn-sm" data-close>Bezárás</button></div>\` });
+  });
+}
+VIEWS.hagymas = () => {
+  const u=Store.me();
+  const list = HAGYMAS_ROUTES.filter(r=>HGY.filter==="mind"||r.t===HGY.filter);
+  const body = \`
+    <div class="hgy">
+      <div class="flex between wrapcol" style="margin-bottom:.4rem">
+        <section class="hgy-map-wrap">
+          <div class="hgy-map-box">
+            <iframe src="\${HAGYMAS_MAP_URL}" loading="lazy" title="Hagymás interaktív túraútvonalak" allow="geolocation"></iframe>
+          </div>
+        </section>
+        <aside class="hgy-side">
+          <div class="card panel" style="border-radius:16px">
+            <h3 style="font-size:1.05rem">🕹 Hagymás útvonalhálózat</h3>
+            <p class="small muted mt0">A Nagyhagymás Közösségek Közti Fejlesztési Társulás 37 jelzett útvonala — túra, kerékpár és esztenák. Kattints a „Tervbe importálás” gombra, és a GPX nyomsávonat munkaterület lesz: szintidővel, pontokkal, a te dátumoddal.</p>
+            <div class="filter-row" style="margin:.3rem 0 .6rem">
+              \${[["mind","Mind"],["tura","🥾 Túra"],["bringa","🚲 Bringa"],["esztena","🐑 Esztenák"]].map(([v,l])=>\`<button class="f-pill \${HGY.filter===v?"on":""}" data-hgf="\${v}">\${l}</button>\`).join("")}
+            </div>
+            <a class="btn btn-soft btn-sm btn-block" target="_blank" rel="noopener" href="\${HAGYMAS_MAP_URL}">🔗 Interaktív térkép yeni ablakban</a>
+            <div class="ext-links">
+              <span class="small" style="width:100%;color:var(--bark-soft)">Külső útvonaladatbázisok — inspirationnak:</span>
+              <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://hu.wikiloc.com/nyomvonalak/turazas/romania/harghita">🌐 Wikiloc · Hargita</a>
+              <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://hu.wikiloc.com/nyomvonalak/turazas/romania/harghita/harghita-bai">🧭 Wikiloc · Hargita-bánya</a>
+              <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.komoot.com/suggest/gyergy%C3%B3szentmikl%C3%B3s">🚴 Komoot · Gyergyó</a>
+            </div>
+            <p class="small muted" style="margin:.5rem 0 0">Forrás: adinagyhagymas.ro · \${HAGYMAS_ROUTES.length} útvonal (6 bringa, 30 gyalogos, 1 legelő-KML)</p>
+          </div>
+        </aside>
+      </div>
+      \${u?\`
+      <div class="hgy-list">
+        \${list.map((r,i)=>{ const gi=HAGYMAS_ROUTES.indexOf(r);
+          return \`<div class="hgy-row"><b>\${hgyIcon(r.t)}&nbsp; \${esc(r.n.replace(/_/g," "))}</b><span class="chip \${r.t==='bringa'?'chip-ember':r.t==='esztena'?'chip-sand':'chip-green'}" style="text-transform:none">\${{bringa:"kerékpár",esztena:"legelő KML",tura:"túra GPX"}[r.t]}</span>
+            <button class="btn btn-primary btn-sm" onclick="hgyImport(\${gi},this)" \${r.t==='esztena'?'disabled title="KML — csak a Térképen' : ""}>🧭 Tervbe importálás</button>
+            <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${esc(r.url)}">⬇</a></div>\` }).join("")}
+      </div>\` : \`
+      <div class="card panel center" style="border-radius:18px">
+        <h3>Jelkezz be az importáláshoz</h3><p class="muted">Az útvonalak a te személyes túraközpontodba kerülnek.</p>
+        <a class="btn btn-primary" href="#/belepes">Bejelentkezés</a>
+      </div>\`}
+    </div>\`;
+  const shell = u ? dash("#/hagymas")(u.onboarded?body:\`<p class="muted">Előbb töltsd ki a 5 perces onboardingt — utána tudod importálni az útvonalakat.</p><a class="btn btn-primary" href="#/onboarding">Onboarding</a>\`) : body;
+  return shell;
+};
+VIEWS.hagymas.after = root => {
+  root.querySelectorAll("[data-hgf]").forEach(b=>b.onclick=()=>{ HGY.filter=b.dataset.hgf; render(); });
+};
+
+/* ---------- SZATT 2026 — Szent Anna-tó Teljesítménytúra modul ---------- */
+function szattMakeTour(id){
+  const src=TOURS.find(t=>t.id===id); if(!src) return;
+  if(!Store.me()){ toast("A terv mentéséhez jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
+  const t=Store.newTourFromDraft({ title:src.name, place:src.start.name, region:src.region, date:"2026-09-12",
+    lengthKm:src.km, ascent:src.up, durationH:src.h, difficulty:src.diff, tags:src.tags.slice(), img:src.img,
+    desc:src.desc, coords:{...src.start}, waypoints:src.waypoints||[], notes:"Nevezés: "+SZATT.reg });
+  toast("SZATT táv a túráim közé téve — szept. 12., Nyírfürdő 🏅","🏔");
+  render(); location.hash="#/tura/"+t.id;
+}
+VIEWS.szatt = () => {
+  if(!window.SZATT) return '<div class="wrap" style="padding:60px 20px"><h1>SZATT</h1><p class="muted">Az adatok nem tölthetők be.</p></div>';
+  return \`
+  <div class="wrap pub-section tight" style="max-width:1000px">
+    <div class="hcard big" style="min-height:240px;border-radius:22px;margin-bottom:14px">
+      <img src="https://szatt.cseke.ro/img/szentannato-hero.jpg" alt="Szent Anna-tó" onerror="this.remove()">
+      <div class="hb" style="padding:1.4rem">
+        <span class="chip chip-pine">Csíkszéki EKE · SzATT</span>
+        <h1 style="font-size:2rem;margin:.3rem 0">Szent Anna-tó Teljesítménytúra 2026</h1>
+        <p style="margin:0">📅 <b>2026. szeptember 12., szombat</b> &nbsp;·&nbsp; 📍 <b>\${esc(SZATT.location)}</b> &nbsp;·&nbsp; Rajt–cél a Nyírfürdőn, a Szent Anna-tó és a Mohos-tőzegláp szomszédságában</p>
+      </div>
+    </div>
+    <div class="flex wrapcol" style="gap:.5rem;margin-bottom:14px">
+      <a class="btn btn-ember btn-sm" target="_blank" rel="noopener" href="\${SZATT.reg}">📝 Regisztráció (szatt.cseke.ro)</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${SZATT.tudnyivalok}">ℹ️ Tudnivalók</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${SZATT.archive}">🕰 Archívum & eredmények</a>
+      <a class="btn btn-soft btn-sm" href="#/esemenyek">← Eseménynaptár</a>
+    </div>
+    <div class="grid g3 smm2">
+      \${SZATT.tavok.map(t=>{ const tr=TOURS.find(x=>x.src===t.detail);
+        return \`<div class="card panel szatt-kartya">
+        <div class="flex between"><b>🏁 \${esc(t.n)}</b><span class="diff diff-\${DIFFS[t.diff]}">\${t.diff}</span></div>
+        <div class="meta" style="margin:.5rem 0"><span>📏 <b>\${t.km} km</b></span><span>⬆ <b>\${t.up} m</b></span><span>⏱ <b>\${t.h} ó</b></span><span>🕐 Rajt <b>\${t.rajt}</b></span></div>
+        <div class="flex" style="gap:.4rem;flex-wrap:wrap">
+          \${tr?\`<button class="btn btn-primary btn-sm" onclick="szattMakeTour('\${tr.id}')">➕ A te túráid közé</button>\`:""}
+          <a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="\${t.gpx}">⬇ GPX</a>
+          <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${t.pdf}">📄 PDF (távterv)</a>
+        </div></div>\` }).join("")}
+    </div>
+    <div class="card panel" style="margin-top:14px">
+      <h3 style="font-size:1rem">A múlt évek rajtolói</h3>
+      <div class="flex" style="gap:1.4rem;flex-wrap:wrap">\${SZATT.history.map(h=>\`<div class="kpi"><b>\${h.foven}</b><span>fő · \${h.y}</span></div>\`).join("")}</div>
+      <p class="small muted" style="margin-top:.7rem">Szervező: Csíkszéki Erdélyi Kárpát-Egyesület · \${SZATT.email} · \${SZATT.phone} — a nevezés korlátozott létszámú, érdemes időben jelentkezn! A távok frissítőkkel, emléklappal és meleg étellel a célban.</p>
+    </div>
+  </div>\${footer()}\`;
+};
+
+
+/* ---------- Nyomtatható biztonsági lap ---------- */
+VIEWS.security = (id) => {
+  const t = Store.getTour(id); if(!t) return \`<div class="wrap pub-section"><h1>A túra nem található</h1><a class="btn btn-primary" href="#/turaim">← Túráim</a></div>\`;
+  const geo = t.coords ? \`\${t.coords.lat.toFixed(5)}, \${t.coords.lng.toFixed(5)}\` : "nincs pont";
+  return \`
+  <div class="print-page">
+    <div class="print-head">
+      <div class="logo" style="font-size:1.5rem">
+        <svg viewBox="0 0 100 100" width="34" height="34"><path d="M6 84 L32 30 L50 60 L38 84 Z" fill="#1C4A36"/><path d="M31 84 L56 34 L78 70 L94 84 L14 84 Z" fill="#2F6B4A"/><path d="M10 76 C 28 56, 40 68, 54 50 S 78 52, 88 42" fill="none" stroke="#F7F4EC" stroke-width="3" stroke-dasharray="5 5"/><circle cx="76" cy="18" r="8" fill="#E07A2F"/></svg>
+        <b>TURATÁR · \${esc(t.title)}</b><span class="muted small" style="margin-left:auto">\${new Date().toLocaleString("hu-HU")}</span></div>
+    </div>
+    <div class="print-grid">
+      <div class="sec-item"><span class="muted small">📍 Kiinduló pont</span><b>\${esc(t.place||t.region||"—")} · \${geo}</b></div>
+      <div class="sec-item"><span class="muted small">🎯 Cél</span><b>\${esc(t.title)}</b></div>
+      <div class="sec-item"><span class="muted small">🗺️ Tervezett útvonal</span><b>\${t.gpx?(t.waypoints.length||0)+" saját pont + GPX":(t.waypoints.length? t.waypoints.map(w=>esc(w.name)).join(" → "):"jelzett turistaösvény")}</b></div>
+      <div class="sec-item"><span class="muted small">📅 Dátum · nap</span><b>\${t.date?fmtDateFull(t.date)+" ("+dowHU(t.date).slice(0,3)+")":"tervezés alatt"}</b></div>
+      <div class="sec-item"><span class="muted small">🕕 Várható indulás</span><b>\${esc(firstTimeVal(t))}</b></div>
+      <div class="sec-item"><span class="muted small">🕗 Várható hazatérés</span><b>\${esc(lastTimeVal(t))} +2 ó tartalék</b></div>
+      <div class="sec-item"><span class="muted small">👥 Csapat (\${(t.participants||[]).length+1} fő)</span><b>\${(t.participants||[]).map(p=>esc(p.name)+(p.confirmed?"":" ⚠")).join(", ")||"egyedül"}</b></div>
+      <div class="sec-item"><span class="muted small">📏 Táv · szint · nehézség</span><b>\${t.lengthKm||"?"} km · ↑\${t.ascent||"?"} m · \${esc(t.difficulty||"?")} · \${t.days} nap</b></div>
+      \${t.meeting?\`<div class="sec-item"><span class="muted small">🤝 Találkozás</span><b>\${esc(t.meeting)}</b></div>\`:""}
+    </div>
+    <p class="small" style="margin-top:1rem">Baleset, eltévedés, késés: <b>112</b> — és kérheted a hegyimentőket is. Ha a várható hazatérés +3 óra és nem jelkezik: jelezzék az útvonalat és a csapatot.</p>
+    <div class="foot-112">🆘 112 &nbsp;·&nbsp; Túraterv link: #/biztonsag/\${t.id} &nbsp;·&nbsp; \${(t.notes||"").slice(0,90)}</div>
+    <div class="print-actions no-print">
+      <button class="btn btn-primary btn-lg" onclick="window.print()">🖨 Nyomtatás / PDF mentés</button>
+      <a class="btn btn-ghost btn-lg" href="#/tura/\${t.id}">← Vissza a munkaterületre</a>
+    </div>
+    <p class="muted small" style="margin-top:1.2rem">A Lap a Túratárs demóból való — offline nyomtatásra PDF-be is elmentheted. Kérdésre a szervező elérhetősége a megosztott oldalon.</p>
+  </div>\`;
+};
+
+VIEWS.csapatstat = () => {
+  const d=Store.myData();
+  const tours=d.tours.filter(t=>(t.status==="tervezés"||t.status==="jelentkezve") && (t.participants||[]).length);
+  const rows = tours.length ? tours.sort((a,b)=>(a.date||"9").localeCompare(b.date||"9")).map(t=>{
+    const r = Store.readiness(t); const pend=t.participants.filter(p=>!p.confirmed);
+    const gTodo=t.gear.filter(g=>!g.checked), fTodo=t.food.filter(f=>!f.checked);
+    return \`<div class="card panel cst-card">
+      <div class="flex between wrapcol"><b>🥾 \${esc(t.title)}</b><span class="muted">\${t.date?fmtDateFull(t.date):"—"} · Felkészültség <b>\${r.pct}%</b></span></div>
+      <div class="readi-track"><i style="width:\${r.pct}%"></i></div>
+      <div class="cst-cols">
+        <div><b class="eyebrow">Csapat</b>\${t.participants.map(p=>\`<span class="cst-p \${p.confirmed?"ok":""}">\${p.confirmed?"✔":"…"} \${esc(p.name)}</span>\`).join("")}</div>
+        <div><b class="eyebrow">Teendő</b>\${[...gTodo.slice(0,3).map(g=>"☐ "+esc(g.name)), ...(fTodo.length?["☐ étel/víz ("+fTodo.filter(x=>!x.checked).length+" jelöletlen)"]:[])].slice(0,4).map(x=>\`<span class="cst-t">\${x}</span>\`).join("")||"<span class=muted>minden kész</span>"}</div>
+      </div>
+      <div class="flex" style="gap:.5rem;margin-top:.4rem"><a class="btn btn-soft btn-sm" href="#/tura/\${t.id}">Munkaterület</a>
+      \${pend.length?\`<button class="btn btn-ember btn-sm" data-chall-link="\${t.id}">📣 Emlékeztető küldése</button>\`:""}</div>
+    </div>\`}).join("") : '<div class="empty"><span class="em-ico">👥</span><h3>Nincs csapatostul tervezett túrád</h3><p class="muted">A Résztvevők fülön hívhatsz meg embereket — ekkor itt egy helyben látod, ki mit intézzen.</p><a class="btn btn-primary" href="#/turaim">Túráim</a></div>';
+  return dash("#/csapat")( \`
+    <div class="dash-top"><div><h1>Csapat állapota 👥</h1><div class="hello">Egy nézetben: ki erősített már meg, kinek nincs meg a cucc, mi a hátra lévő feladat.</div></div></div>
+    <div class="grid" style="gap:14px">\${rows}</div>
+    <div class="card panel" style="margin-top:14px"><p class="small muted mt0 mb0">💡 Az egyes résztvevők pipálását a túra Résztvevők fülén tudod jelölni — a cucc hiánya a Felszerelés fül állapotából jön.</p></div>\`);
+};
+
+/* ——— heti kihivás elfogadása ——— */
+function challPlan(){
+  if(!Store.me()){ NAV.to("#/belepes"); return; }
+  const d=Store.myData(); const wk=Math.floor((Date.now()-Date.UTC(new Date().getUTCFullYear(),0,1))/6048e5);
+  const t0=TOURS[wk % Math.max(1,TOURS.length)];
+  const wname=d.wishlist.length?(d.wishlist[wk%d.wishlist.length].name):(t0 ? t0.name.split("(")[0].trim() : "Heti kihívás");
+  const date0=(()=>{ const days=[...Array(6)].map((_,i)=>Store.addDays(Store.todayISO(),i+2)); const f=days.find(dd=>{const k=new Date(dd).getDay();return k===6;}) || days[0]; return f; })();
+  const t=Store.newTourFromDraft({ title:"🎯 "+wname+" — heti kihívás", place:wname, region:(t0&&t0.region)||"",
+    date: date0, lengthKm:(t0&&t0.km)||6, ascent:(t0&&t0.up)||300, durationH: 2,
+    difficulty:"Könnyű", tags:(t0?t0.tags.slice(0,2):["kilátás"]).concat(["kihívás"]),
+    coords:(t0&&{...t0.start})||null, img:(t0&&t0.img)||IMG.mezofeny,
+    desc:"A heti kihívás: "+wname+" — a feladat a Túratárs hetimalomából. Képet a teljesítés után az Élménykönyvbe!" });
+  toast("Kész — a kihívás a tervedben van, "+fmtDate(date0)+"-re!","🎯");
+  render(); location.hash="#/tura/"+t.id;
+}
+
+(function(){ const c=root=>{ root.querySelectorAll("[data-chall-link]").forEach(b=>b.onclick=()=>{ const t=Store.getTour(b.dataset.challLink); if(t){ if(!t.shareCode){ t.shareCode=Store.uid("sh").replace("sh","ch")+Date.now().toString(36); Store.save(); toast("Megosztott lap link: #/osztott/"+t.shareCode,"📣"); }
+  navigator.clipboard && navigator.clipboard.writeText(location.origin+location.pathname+"#/osztott/"+t.shareCode).then(()=>{ toast("Csapat-emlékeztető link kimásolva!","📣"); },(()=>0)); } }); };
+  const _o=VIEWS.csapatstat.after; VIEWS.csapatstat.after=(root,arg)=>{ if(_o) _o(root,arg); c(root); }; })();
+
+/* ==== project ==== */
+/* ============================================================
+   TÚRATÁRS V16 — TÚRAPROJEKT KÖZPONT (project.js)
+   Időjárás-chip, dinamikus készültség, AI-terv a túrán belül,
+   Inbox (linkek/események → saját túraprojekt), teendők,
+   csomagolósúly-összevonás (étel a hátizsákba), Túra mód V2,
+   publikus → tervezés hidak, dashboard-szabályozott rend.
+   ============================================================ */
+"use strict";
+(function(){
+
+const uidp = p => p + "_" + Math.random().toString(36).slice(2,9);
+const num = v => Math.max(0, Math.round(+v||0));
+const D = () => Store.myData();
+
+/* ---------- 0) séma-védelem ---------- */
+function ensureTourFields(t){
+  if(!t.tasks) t.tasks=[];
+  if(!t.noteStream) t.noteStream=[];
+  return t;
+}
+const _origMyData = Store.myData;
+Store.myData = function(){ const d=_origMyData.call(Store); if(!d) return d;
+  (d.tours||[]).forEach(ensureTourFields);
+  if(!d.inbox) d.inbox=[];
+  return d; };
+
+/* ---------- 1) KOCSONYAGTÁR ↔ csomagolás: súly a háti zsákban, étellel együtt ---------- */
+const _origPack = Store.backpack;
+Store.backpack = function(t){
+  const b = _origPack.call(Store, t);
+  const foodG = (t.food||[]).reduce((a,f)=>a+(+f.w||0),0);
+  if(foodG>0){ b.rows = b.rows.concat([{cat:"Étel és víz", g:foodG}]).sort((x,y)=>y.g-x.g); }
+  b.total += foodG; b.foodKg = foodG/1000;
+  b.over = b.total>14000; b.heavy = b.total>11000;
+  return b;
+};
+
+/* ---------- 2) Készültség felirat: „Még N dolog van hátra.” ---------- */
+readiBar = function(t){
+  const c = Store.tourCheck(t);
+  const bar = \`<div class="readi" id="rdi-bar">
+    <div class="readi-head"><b>Felkészültség</b><span>\${c.pct}%</span></div>
+    <div class="readi-track"><i class="readi-fill \${c.pct>=100?"full":""}" style="width:\${c.pct}%"></i></div>
+    <div class="readi-note">\${c.pct>=100
+      ? "🟢 Indulásra kész — jó utat! 🥾"
+      : \`Még \${c.missing.length} dolog van hátra.\`}
+      <span class="readi-chips">\${c.missing.slice(0,3).map(m=>\`<span class="readi-chip">\${esc(m.label)}</span>\`).join("")}\${c.missing.length>3?\`<span class="readi-chip">+\${c.missing.length-3} többi</span>\`:""}</span>
+      <button class="btn btn-soft btn-sm" id="rdi-check" style="margin-left:auto">🛃 Túra ellenőrzése</button>
+    </div></div>\`;
+  return bar;
+};
+
+/* ---------- 3) IDŐJÁRÁS a túraprojektben (chip a fejlécben + eső → csomag) ---------- */
+const WMO = [[0,"🌞"],[1,"🌤️"],[2,"⛅"],[3,"☁️"],[45,"🌫️"],[51,"🌦️"],[53,"🌦️"],[55,"🌧️"],[61,"🌧️"],[63,"🌧️"],[65,"🌧️"],[71,"🌨️"],[73,"🌨️"],[75,"❄️"],[77,"❄️"],[80,"🌦️"],[81,"🌧️"],[82,"⛈️"],[85,"🌨️"],[86,"❄️"],[95,"⛈️"],[96,"⛈️"],[99,"⛈️"]];
+function wmoIco(c){ let best=WMO[0]; for(const [v,i] of WMO){ if(Math.abs(v-c)<=Math.abs(best[0]-c)) best=[v,i]; } return best[1]; }
+function tourCoords(t){
+  if(t.coords && +t.coords.lat) return {lat:+t.coords.lat, lng:+t.coords.lng};
+  const cat = TOURS.find(x=>x.id===t.refTour || x.name===t.title || (t.place && x.start.name===t.place) || x.name===t.place);
+  if(cat) return {lat:cat.start.lat, lng:cat.start.lng};
+  return null;
+}
+async function fetchTourWeather(t){
+  const c = tourCoords(t);
+  let lat=c&&c.lat, lng=c&&c.lng;
+  if(!lat){
+    const q = (t.region||t.place||"Hargita").slice(0,40);
+    try{ const g = await (await fetch(\`https://geocoding-api.open-meteo.com/v1/search?name=\${encodeURIComponent(q)}&count=1&language=hu\`)).json();
+      if(g.results&&g.results[0]){ lat=g.results[0].latitude; lng=g.results[0].longitude; } }catch(e){}
+  }
+  if(!lat) throw new Error("nincs koordináta");
+  const day = t.date && /^\\d{4}-\\d\\d-\\d\\d$/.test(t.date) ? t.date : Store.todayISO();
+  const url = \`https://api.open-meteo.com/v1/forecast?latitude=\${lat}&longitude=\${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto&start_date=\${day}&end_date=\${day}\`;
+  const j = await (await fetch(url)).json();
+  const d=j.daily||{}, cur=j.current||{};
+  const w = { at:new Date().toISOString(), tempMax:num(d.temperature_2m_max&&d.temperature_2m_max[0]), tempMin:num(d.temperature_2m_min&&d.temperature_2m_min[0]),
+    ico: wmoIco((d.weather_code&&d.weather_code[0])??cur.weather_code??0), rain:+(d.precipitation_probability_max&&d.precipitation_probability_max[0])||0,
+    nowTemp: Math.round(cur.temperature_2m||0) };
+  t.weather = w; t.weatherChecked = true;
+  if(w.rain>=40){ t.weatherRain=true; if(!t.gear.some(g=>/esőkabát|kabát/i.test(g.name))) t.gear.push({name:"Esőkabát",cat:"Kabát",icon:"🧥",checked:false,own:!!(D().equipment||[]).find(e=>/kabát/i.test(e.name)),note:"AI: esőjelzés",w:350}); }
+  Store.save();
+  return w;
+}
+
+/* ---------- 4) AI a túraprojekten belül: generálás + „Mentés a túrába” ---------- */
+function ownMatch(name){ return (D().equipment||[]).find(e=>e.name===name || e.name.toLowerCase()===String(name).toLowerCase()); }
+function buildGearKit(t){
+  const H=t.durationH||4, night=(t.days||1)>1, winter=/t[eé]li|hideg|h[oó]z|jég/.test(((t.tags||[]).join(" ")+(t.title||" ")).toLowerCase());
+  const out=[];
+  const pu=(name,cat,w,icon)=>{ const own=ownMatch(name); out.push({name:name,cat:cat,w:own?(+own.w||w):w,icon:icon,checked:false,own:!!own,note:own?"saját tár":""}); };
+  pu("Fejlámpa","Electronika",90,"🔦"); pu("Térkép / telefon","Navigálás",120,"🗺️"); pu("Víz 1,5 l","Ivókanna",H>=4?3000:1500,"💧");
+  pu("Uzsonna","Étel",420,"🥪"); pu("Kesztyű+sapka","Meleg",180,"🧤");
+  if(H>=4) pu("Túrabot","Túrabot",450,"🦯");
+  if(t.weatherRain) pu("Esőkabát","Kabát",350,"🧥");
+  if(winter){ pu("Hótalp/microspike","Egyéb",320,"🧊"); pu("Termosz","Ivókanna",380,"♨️"); }
+  if(night){ pu("Sátor","Sátor",2400,"⛺"); pu("Hálózsák","Hálózsák",1100,"🛌"); pu("Fejlámpa+pó elem","Electronika",120,"🔋"); }
+  return out;
+}
+function buildTimeKit(t){
+  const H=t.durationH||4; let s=/napfelkel|napkelt|h[oó]zsa/.test((t.title+"").toLowerCase())?3.5:(8+t.days*0);
+  const start = s<5 ? 3 : 8; const arr=[];
+  let h=start;
+  arr.push({t:hhmm(h), l:"Indulás a parkolóból / találkozóponton"});
+  for(let i=1;i<=Math.min(4,Math.ceil(H/1.5));i++){ h+=H/Math.min(4,Math.ceil(H/1.5)); if(h<start+H) arr.push({t:hhmm(h), l:MILE_STONES[Math.min(i-1,MILE_STONES.length-1)]}); }
+  h=start+H*0.55; if(h<start+H) arr.push({t:hhmm(h), l:"Pihenő, uzsonna, kilátópont"});
+  arr.push({t:hhmm(start+H+0.2), l:"Vissza a kiindulóponthoz — levegőztetés, nyújtás"});
+  const seen=new Set(); return arr.filter(a=>{if(seen.has(a.l))return false;seen.add(a.l);return true;}).sort((a,b)=>a.t.localeCompare(b.t));
+}
+const hhmm = x => String(Math.max(0,Math.min(23,Math.floor(x)))).padStart(2,"0")+":"+String(Math.round((x%1)*60/5)*5%60).padStart(2,"0");
+const MILE_STONES = ["Erdőszél — tempó beállítása","Patakpart / pihenőpont","Nyereg — légzés ellenőrzése","Gerinc — kitett szakasz","Kilátópont — fotó"];
+function buildFoodKit(t){
+  const H=t.durationH||4, per=Math.ceil(H/2);
+  const items=[["Víz (palack)",  H>=5?2500:1500],["Uzsonna (szendvics)",420],["Gyümölcs/mogyoró",260]];
+  if(t.days>1) items.push( ["Konyha-egység / bensó",700],["Főzelék-zacskó",180]);
+  return items.map(([n,w])=>({id:uidp("fd"),n,i:"🥫",checked:false,w}));
+}
+function buildTravelKit(t){
+  const first=(t.participants||[]).slice(0,4).map(p=>p.name);
+  return { meeting:t.meeting||t.place||"Közös indulás", cars: t.cars.length?t.cars:[{id:uidp("car"),driver:(Store.me()||{}).name||"Te", seats:5, assigned:first, plate:""}] };
+}
+function buildTaskKit(t){
+  const dd = t.date?Store.dayDiff(t.date):9;
+  const due=[];
+  due.push({t:-7,l:"Időjárás elöljáró ellenőrzése",ref:Math.max(1,dd-7)});
+  due.push({t:-2,l:"Csomaglista pipálása (súlyellenőrzés)",ref:Math.max(1,dd-2)});
+  due.push({t:-1,l:"Utazás / sofőr egyeztetés",ref:Math.max(0,dd-1)});
+  due.push({t:0,l:"Korai kelés — a napfelkelte nem vár 🌄",ref:Math.max(0,dd)});
+  return due.map(x=>({id:uidp("tk"),label:x.l,done:false,due:x.ref}));
+}
+function aiKitModal(t){
+  const K={ idoter:buildTimeKit(t), csomag:buildGearKit(t), etel:buildFoodKit(t), utazas:buildTravelKit(t), teendok:buildTaskKit(t) };
+  const SECL=[["idoter","🕐","Időterv",K.idoter.map(x=>\`\${x.t} — \${x.l}\`) ],
+    ["csomag","🎒","Csomaglista (súllyal)",K.csomag.map(x=>\`\${x.name} · \${g2kg(x.w)}\${x.own?" · a te táradban":"✔"}\`)],
+    ["etel","🥪","Étel és víz",K.etel.map(x=>\`\${x.n} · kb. \${g2kg(x.w)}\`)],
+    ["utazas","🚗","Utazás és sofőrök",[K.utazas.meeting?("Találkozó: "+K.utazas.meeting):"", K.utazas.cars.map(c=>\`\${c.driver} sofőr — \${c.seats} hely, \${c.assigned.length} utas\`).join(" · ")]],
+    ["teendok","✅","Teendők",K.teendok.map(x=>\`D-\${x.due}: \${x.label}\`)] ];
+  openModal({ title:"⚡ AI terv — "+esc(t.title), body:\`
+    <p class="small muted mt0">Szempontok: \${t.lengthKm||"?"} km · \${t.durationH||4} ó · \${esc(t.difficulty)} · \${t.days>1?t.days+" nap":"napi"} · esőjelzés: \${t.weatherRain?"van":"nincs"} · saját tárad: \${D().equipment.filter(e=>e.has).length} eszköz</p>
+    \${SECL.map(([k,ic,ttl,lines])=>\`<label class="ck" style="align-items:flex-start"><input type="checkbox" data-sec="\${k}" checked>
+      <span><b>\${ic} \${ttl}</b><br><span class="small muted">\${lines.filter(Boolean).join(" · ")||"-"}</span></span></label>\`).join("")}
+    <button class="btn btn-primary btn-block" id="aikit-save" style="margin-top:.9rem">💾 Mentés a túrába</button>\`,
+    footer:\`<button class="btn btn-ghost btn-block" data-close>Mégsem</button>\`,
+    onOpen(r){ r.querySelector("#aikit-save").onclick=()=>{
+      const on=k=>!!r.querySelector(\`[data-sec="\${k}"]\`)&&r.querySelector(\`[data-sec="\${k}"]\`).checked;
+      if(on("idoter")) t.timeline = K.idoter.map(x=>({id:uidp("tl"),t:x.t,l:x.l,ty:"ai"}));
+      if(on("csomag")){ const have={}; t.gear.forEach(g=>have[g.name]=true);
+        K.csomag.forEach(g=>{ if(!have[g.name]) t.gear.push(Object.assign({id:uidp("g")},g)); }); }
+      if(on("etel")){ K.etel.forEach(f=>{ if(!t.food.some(x=>x.n===f.n)) t.food.push(f); }); }
+      if(on("utazas")){ if(!t.meeting) t.meeting=K.utazas.meeting; if(!t.cars.length) t.cars=K.utazas.cars; }
+      if(on("teendok")){ K.teendok.forEach(x=>{ if(!t.tasks.some(y=>y.label===x.label)) t.tasks.push(x); }); }
+      if(t.status==="ötlet") t.status="tervezés";
+      ensureTourFields(t); Store.save(); closeModal();
+      toast("Az AI-terv a túrádba kerülhet ✔","⚡"); render();
+    }; } });
+}
+
+/* ---------- 5) Saját felszereléstár → csomaglista picker ---------- */
+function gearOwnPicker(t){
+  const eq=(D().equipment||[]).filter(e=>e.has);
+  const inPack={}; t.gear.forEach(g=>inPack[g.name]=true);
+  const cats={}; eq.forEach(e=>{ (cats[e.cat||"Egyéb"]=cats[e.cat||"Egyéb"]||[]).push(e); });
+  openModal({ title:"🎒 Válassz a saját táradból", body:\`
+    <p class="small muted mt0">A súlyuk automatusan belekerül a hátizsák-kalkulátorba. \${eq.filter(e=>inPack[e.name]).length} már alistában van a túrán.</p>
+    <div class="own-list">
+    \${Object.keys(cats).sort().map(c=>\`<div class="own-cat"><div class="own-cat-h">\${c} <span class="muted small">\${g2kg(cats[c].reduce((a,e)=>a+(+e.w||0),0))}</span></div>
+      \${cats[c].map(e=>\`<label class="ck \${inPack[e.name]?"done":""}"><input type="checkbox" data-ownpk="\${e.name.replace(/"/g,"'")}" data-ownw="\${+e.w||600}" data-ownc="\${c}" \${inPack[e.name]?"checked":""}>
+        <span>\${esc(e.name)} <span class="muted small">\${g2kg(+e.w||600)}\${e.cond?" · "+esc(e.cond):""}</span></span></label>\`).join("")}</div>\`).join("")}
+    </div>\`, footer:\`<button class="btn btn-ghost" data-close>Mégse</button><button class="btn btn-primary" id="ownpk-ok">Hozzáad a csomaghoz</button>\`,
+    onOpen(r){ r.querySelector("#ownpk-ok").onclick=()=>{
+      let n=0; r.querySelectorAll("[data-ownpk]").forEach(cb=>{ if(!cb.checked) return; const nm=cb.dataset.ownpk;
+        if(t.gear.some(g=>g.name===nm)) return;
+        t.gear.push({name:nm, cat:cb.dataset.ownc, icon:"🧰", w:+cb.dataset.ownw||600, checked:false, own:true, note:"saját tárból"}); n++; });
+      Store.save(); closeModal(); if(n) toast(n+" saját cucc bekerült a csomagba — súlyostul ✔","🎒"); render(); }; } });
+}
+function condBadge(name){ const e=(D().equipment||[]).find(x=>x.name===name); if(!e) return "";
+  return e.cond&&e.cond!=="Jó"?\`<span class="cond-pill \${/Kopott|Jav/.test(e.cond)?"bad":""}">\${esc(e.cond)}</span>\`:""; }
+
+/* ---------- 6) Workspace connection: időjárás, AI, teendők, picker ---------- */
+const _prjWA = VIEWS.workspace.after;
+VIEWS.workspace.after = (root,id) => {
+  _prjWA && _prjWA(root,id);
+  const t = Store.getTour(id); if(!t || !root.querySelector(".ws-stats")) return;
+  ensureTourFields(t);
+  // — gombok a fejléc-action sorba
+  const act = root.querySelector(".ws-actions") || root.querySelector(".ws-stats");
+  function mkBtn(html,idv,cls,fn){ const b=document.createElement("button"); b.className=cls; b.innerHTML=html; b.onclick=fn; if(idv)b.id=idv; act.appendChild(b); return b; }
+ ensureTourFields(t); recordRecent();
+  const w=t.weather;
+  mkBtn(w?\`\${w.ico} \${w.tempMin}–\${w.tempMax}°C · esély \${w.rain}%\`:"🌤️ Időjárás — ellenőrzés","btn-wx","btn btn-soft btn-sm wth-btn", async ev=>{
+    const b=ev.currentTarget; const old=b.innerHTML; b.innerHTML="⏳ Mérem…";
+    try{ const w2=await fetchTourWeather(t); b.innerHTML=\`\${w2.ico} \${w2.tempMin}–\${w2.tempMax}°C · eső \${w2.rain}%\`; toast(\`Időjárás rögzítve — felkészültség frissült ✔ (\${w2.rain}% esély, \${w2.tempMax}°C)\`, w2.ico);}
+    catch(e2){ b.innerHTML=old; toast("Az időjárás nem érhető el (nincs kapcsolat?)","📡"); } });
+  mkBtn("🤖 Tervezd meg ezt a túrát","btn-ai","btn btn-ember btn-sm", ()=>aiKitModal(t));
+  mkBtn("＋ Saját tárból","btn-pick","btn btn-soft btn-sm", ()=>gearOwnPicker(t));
+  // — Teendők panel az áttekintés végére
+  if(wsTab==="attekintes"){
+    const grid=root.querySelector(".ws-grid");
+    if(grid && !root.querySelector(".tasks-panel")){
+      const open=t.tasks.filter(x=>!x.done).length;
+      grid.insertAdjacentHTML("beforeend", \`<div class="card panel tasks-panel"><div class="flex between wrapcol" style="margin-bottom:.35rem"><h3 style="margin:0">✅ Teendők</h3><span class="chip \${open?"chip-sand":"chip-green"}">\${open?"még "+open+" feladat":"mindent pipáltál"}</span></div>
+        <div id="tk-list">\${t.tasks.map(x=>\`<div class="ck \${x.done?"done":""}" style="display:flex;gap:.5rem;align-items:center;padding:.3rem 0"><input type="checkbox" data-tk="\${x.id}" \${x.done?"checked":""}> \${esc(x.label)} \${x.due<=1?'<span class="chip chip-ember" style="font-size:.72rem">hamarosan</span>':\`<span class="muted small">D-\${x.due}</span>\`}</div>\`).join("")||'<p class="small muted">Nincs feladat — az AI terv kitöltése gomb fel tud dobni egyet.</p>'}</div>
+        <div class="flex" style="gap:.45rem;margin-top:.6rem"><input class="input" id="tk-n" placeholder="Új teendő…" style="flex:1"><button class="btn btn-primary btn-sm" id="tk-add">＋</button></div></div>\`);
+      const rt=root;
+      rt.querySelectorAll("[data-tk]").forEach(cb=>cb.onclick=()=>{ const x=t.tasks.find(y=>y.id===cb.dataset.tk); if(x){x.done=cb.checked; Store.save(); render();} });
+      const add=()=>{ const v=rt.querySelector("#tk-n").value.trim(); if(!v)return; t.tasks.push({id:uidp("tk"),label:v,done:false,due:Math.max(0,t.date?Store.dayDiff(t.date):3)}); Store.save(); render(); };
+      rt.querySelector("#tk-add").onclick=add; rt.querySelector("#tk-n").addEventListener("keydown",e=>{if(e.key==="Enter")add();});
+    }
+  }
+  // — Felszerelés fülön a saját-tár jelölések + állapot badge
+  if(wsTab==="felszereles"){ root.querySelectorAll(".ck input[type=checkbox]").forEach(()=>{}); }
+};
+
+/* ---------- 7) Esemény → túraprojekt egy koppintás ---------- */
+function planFromEvent(e){
+  const base = e.tour?tourById(e.tour):null;
+  const t = Store.newTourFromDraft({ title:e.name, place:(base?base.start.name:e.place), region:(base?base.region:e.region||""),
+    date:e.date||"", lengthKm:base?base.km:0, ascent:base?base.up:0, durationH:base?base.h:0,
+    difficulty:base?base.diff:"Könnyű", img:base?base.img:(e.img||IMG.erdo), tags:["esemény"], eventRef:e.id,
+    desc:e.desc||"", coords:base?{lat:base.start.lat,lng:base.start.lng}:null, notes:(e.src?"Forrás: "+e.src:"") });
+  return t;
+}
+const _origEventModal = eventModal;
+eventModal = function(eid){ _origEventModal(eid);
+  if(!Store.me()) return;
+  const ft=document.querySelector(".modal-foot"); const e=EVENTS.find(x=>x.id===eid); if(!ft||!e) return;
+  if(ft.querySelector("#ev-plan")) return;
+  const b=document.createElement("button"); b.className="btn btn-ember"; b.id="ev-plan"; b.style.marginRight=".5rem";
+  b.innerHTML="🥾 Túraprojekt indítása ebből";
+  b.onclick=()=>{ const t=planFromEvent(e); closeModal(); toast("Megnyitom a munkaterületet, ahol a tervet tovább írhatod","🧭"); NAV.to("#/tura/"+t.id); };
+  ft.insertBefore(b, ft.firstChild); };
+const _prjEvAfter = VIEWS.events.after;
+VIEWS.events.after = (root) => { _prjEvAfter && _prjEvAfter(root);
+  if(!Store.me()) return;
+  root.querySelectorAll(".ecard").forEach(card=>{ const a=card.querySelector("h3 a"); if(!a) return;
+    const mm=a.getAttribute("href").match(/esemenyek\\/([\\w-]+)/); if(!mm||card.querySelector("[data-evplan]")) return;
+    const b=document.createElement("button"); b.className="btn btn-soft btn-sm"; b.dataset.evplan=mm[1];
+    b.style.cssText="margin-top:.5rem;width:100%"; b.innerHTML="🥾 Tervezés — saját projektként";
+    b.onclick=ev=>{ ev.stopPropagation(); const t=planFromEvent(EVENTS.find(x=>x.id===b.dataset.evplan)); toast("Túraprojekt létrehozva a naptáradban","🧭"); NAV.to("#/tura/"+t.id); };
+    (card.querySelector(".eb")||card).appendChild(b); }); };
+
+/* ---------- 8) INBOX — hirtlen mentett ötletem, hivatkozás, FB esemény ---------- */
+const IB_ICON={link:"🔗",event:"📣",place:"📍",note:"📝",photo:"🖼️"};
+function ibAdd(o){ const d=D(); const it=Object.assign({id:uidp("ib"),at:new Date().toISOString(),read:false},o); d.inbox.unshift(it); Store.save(); return it; }
+function guessDate(str){ const yy=new Date().getFullYear(); const p2=x=>String(+x).padStart(2,"0");
+  let m=str.match(/(\\d{4})[.\\/-](\\d{1,2})[.\\/-](\\d{1,2})/); if(m) return m[1]+"-"+p2(m[2])+"-"+p2(m[3]);
+  m=str.match(/(\\d{1,2})\\.?\\s*(jan|feb|marc|apr|maj|jun|jul|aug|szep|okt|nov|dec)/i);
+  if(m){ const mo={jan:1,feb:2,marc:3,apr:4,maj:5,jun:6,jul:7,aug:8,szep:9,okt:10,nov:11,dec:12}[m[2].toLowerCase().normalize("NFD").replace(/[^a-z]/g,"")]||(new Date()).getMonth()+1; return yy+"-"+p2(mo)+"-"+p2(m[1]); }
+  m=str.match(/(\\d{1,2})[./](\\d{1,2})\\./); if(m) return yy+"-"+p2(m[2])+"-"+p2(m[1]);
+  return ""; }
+function ibTour(it){
+  const date=guessDate((it.title+" "+(it.note||"")).slice(0,140));
+  const t=Store.newTourFromDraft({ title:it.title||"Inbox-ötletem", status:"ötlet", date, place:it.place||"", img:it.img||IMG.erdo, desc:it.note||"", notes:(it.url?("Forrás: "+it.url):""), tags:["inbox"] });
+  it.read=true; Store.save(); NAV.to("#/tura/"+t.id);
+}
+function ibWish(it){ const d=D(); const ref="ib_"+it.id;
+  if(d.wishlist.some(x=>x.ref===ref)){ toast("Ez már a bakancslistádon van","❤️"); return; }
+  d.wishlist.push({id:uidp("w"),ref,name:it.title||it.note.slice(0,40),cat:"Inbox",place:it.place||it.url||"—",diff:"—",img:it.img||IMG.erdo,addedAt:Store.todayISO()});
+  it.read=true; Store.save(); toast("Rakva a bakancslistára ❤️","❤️"); render(); }
+VIEWS.inbox = () => {
+  const d=D();
+  return dash("#/inbox")(\`
+    <div class="dash-top"><div><h1>📥 Inbox</h1><div class="hello">Gyors mentőöv: link, Facebook esemény, helyszín, jegyzet, fotó — innen egy koppintás a túraprojekt.</div></div></div>
+    <div class="ib-form card panel">
+      <div class="flex wrapcol" style="gap:.5rem;align-items:flex-end">
+        <div style="min-width:150px"><label class="f" for="ib-t">Típus</label><select class="input" id="ib-t">
+          <option value="link">🔗 Link / cikk</option><option value="event">📣 Esemény (FB, site)</option><option value="place">📍 Helyszín</option><option value="note">📝 Jegyzet</option><option value="photo">🖼️ Fotó</option></select></div>
+        <div style="flex:2;min-width:190px"><label class="f" for="ib-n">Cím</label><input class="input" id="ib-n" placeholder="Pl. SzATT 2026 — izzó gerinc"></div>
+        <div style="flex:2;min-width:190px"><label class="f" for="ib-u">URL (opcionális)</label><input class="input" id="ib-u" placeholder="https://m.facebook.com/events/…"></div>
+        <div style="flex:3;min-width:190px"><label class="f" for="ib-x">Jegyzet</label><input class="input" id="ib-x" placeholder="Dátum, találkozó, tipp…"></div>
+        <button class="btn btn-primary" id="ib-save" style="margin-bottom:2px">＋ Mentés az Inboxba</button>
+      </div>
+      <label class="ib-photo hidden" id="ib-pwrap"><span>🖼️ Fotó csatolása</span><input type="file" id="ib-p" accept="image/*"></label>
+    </div>
+    <div id="ib-list"></div>\`);
+};
+VIEWS.inbox.after = root => {
+  const draw=()=>{
+    const list=root.querySelector("#ib-list"); const d=D();
+    list.innerHTML = d.inbox.length? d.inbox.map(it=>\`
+      <div class="ib-item \${it.read?"":"new"}" data-ibid="\${it.id}">
+        <span class="ib-ic">\${IB_ICON[it.type]||"🔗"}</span>
+        <div class="ib-b">
+          <b>\${esc(it.title||it.note||"(cím nélkül)")}</b>
+          <div class="small muted">\${it.note?esc(it.note).slice(0,110):""} \${it.url?\`· <a href="\${esc(it.url)}" target="_blank" rel="noopener">forrás ↗</a>\`:""} · \${new Date(it.at).toLocaleDateString("hu-HU")}</div>
+          \${it.img?\`<img class="ib-img" src="\${it.img}" alt="">\`:""}
+          <div class="ib-acts">
+            <button class="btn btn-ember btn-sm" data-ib-plan="\${it.id}">🧭 Túraprojekt</button>
+            <button class="btn btn-soft btn-sm" data-ib-wish="\${it.id}">❤️ Bakancslistára</button>
+            \${it.url?\`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${esc(it.url)}">↗ Megnyitás</a>\`:""}
+            <button class="btn btn-ghost btn-sm" data-ib-del="\${it.id}">🗑</button></div></div></div>\`).join("")
+      : \`<div class="empty-state card"><div class="empty em-ico">📥</div><h3>Friss, üres postaláda</h3><p class="muted">Ments ide linkeket, FB eseményeket, jegyzeteket — aztán alakítsd őket túraprojektté.</p></div>\`;
+    list.querySelectorAll("[data-ib-plan]").forEach(b=>b.onclick=()=>{ ibTour(D().inbox.find(x=>x.id===b.dataset.ibPlan||x.id===b.dataset.ibPlan)); });
+    list.querySelectorAll("[data-ib-wish]").forEach(b=>b.onclick=()=>{ ibWish(D().inbox.find(x=>x.id===b.dataset.ibWish)); });
+    list.querySelectorAll("[data-ib-del]").forEach(b=>b.onclick=()=>{ const d2=D(); d2.inbox=d2.inbox.filter(x=>x.id!=b.dataset.ibDel); Store.save(); draw(); });
+  }; draw();
+  const ty=root.querySelector("#ib-t"); const pwrap=root.querySelector("#ib-pwrap");
+  ty.onchange=()=>{ pwrap.classList.toggle("hidden", ty.value!=="photo"); };
+  root.querySelector("#ib-save").onclick=()=>{
+    const v=id=>root.querySelector("#"+id).value.trim();
+    const item={type:ty.value,title:v("ib-n"),url:v("ib-u"),note:v("ib-x"),place:ty.value==="place"?v("ib-n"):""};
+    const f=root.querySelector("#ib-p").files&&root.querySelector("#ib-p").files[0];
+    const finish=(img)=>{ if(!item.title&&!img&&!item.url&&!item.note){ toast("Írj valamit: címet, linket vagy jegyzetet","✍️"); return; }
+      ibAdd(img?Object.assign(item,{img}):item);
+      ["ib-n","ib-u","ib-x"].forEach(id=>root.querySelector("#"+id).value=""); root.querySelector("#ib-p").value="";
+      ty.value="link"; pwrap.classList.add("hidden"); toast("Elmentve az Inboxba 📥","✓");
+      const list=root.querySelector("#ib-list"); list.innerHTML="";
+      const r2=root; const drawF=r2; // újra rajz
+      D().inbox.length; render(); };
+    if(f){ const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement("canvas"); const sc=Math.min(1,700/im.width); c.width=im.width*sc|0; c.height=im.height*sc|0;
+        const g=c.getContext("2d"); g.fillStyle="#000"; g.fillRect(0,0,c.width,c.height); g.setTransform(1,0,0,1,c.width/2,c.height/2);
+        let rot=0; try{ const o=new Image(); rot=0; }catch(e){}
+        g.rotate(rot); g.drawImage(im,-c.width/2,-c.height/2,c.width,c.height);
+        try{ const d3=D(); const pc=d3.inbox.filter(x=>x.img).length; if(pc>=9){ toast("10 kép max az Inboxban — törölj párat","🗜"); return; } }catch(e){}
+        finish(c.toDataURL("image/jpeg",0.62)); }; im.onerror=()=>toast("A fotó nem olvasható","🖼️"); im.src=rd.result; }; rd.readAsDataURL(f); }
+    else finish(); };
+};
+
+/* ---------- 9) Widget az Inboxból + dashboard blokkrend ---------- */
+const _prjLabels=WIDGETS;
+WIDGETS.inbox={label:"📥 Inbox — gyors mentések"};
+/* (az Inboxwidget a dashboard W-tárgyában kapott helyet — lásd upgrade.js W.inbox) */
+
+
+/* ---------- 10) Túra mód V2 — gyors jegyzet + fotó (DOM) ---------- */
+function tmQuickCard(t){ ensureTourFields(t); return \`<div class="card panel tm-quick">
+  <h3>Gyors jegyzet a pályáról</h3>
+  <div class="flex" style="gap:.45rem;flex-wrap:wrap"><input class="input" id="tm-note" placeholder="Pl. forrás a 2 km-nél, jelzés festve…" style="flex:1;min-width:140px"><button class="btn btn-primary" id="tm-note-add">＋</button>
+    <button class="btn btn-soft" id="tm-photo">📸 Fotó</button><input type="file" id="tm-pf" accept="image/*" class="hidden"></div>
+  \${(t.noteStream||[]).slice().reverse().slice(0,6).map(n=>\`<div class="tm-note"><b>\${n.ts}</b> \${esc(n.text)}</div>\`).join("")}
+  \${(t.photos||[]).length?\`<div class="tm-photos">\${t.photos.slice(-4).map(p=>\`<img src="\${p}" alt="túra fotó">\`).join("")}</div>\`:""}</div>\`; }
+function tmWire(){
+  try{
+    const add=document.getElementById("tm-note-add"); if(!add) return;
+    const mm=(location.hash||"").match(/turamod\\/([\\w-]+)/); if(!mm) return;
+    const t=Store.getTour(mm[1]); if(!t) return;
+    add.onclick=()=>{ const i=document.getElementById("tm-note"); const v=i.value.trim(); if(!v) return;
+      ensureTourFields(t); t.noteStream.push({ts:new Date().toLocaleTimeString("hu-HU",{hour:"2-digit",minute:"2-digit"}),text:v}); Store.save(); render(); };
+    const pf=document.getElementById("tm-pf"); if(!pf) return;
+    document.getElementById("tm-photo").onclick=()=>pf.click();
+    pf.onchange=()=>{ const f=pf.files&&pf.files[0]; if(!f) return; const rd=new FileReader();
+      rd.onload=()=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement("canvas"); const sc=Math.min(1,800/im.width);
+        c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); const g=c.getContext("2d"); g.drawImage(im,0,0,c.width,c.height);
+        ensureTourFields(t); t.photos.push(c.toDataURL("image/jpeg",0.6));
+        t.noteStream.push({ts:new Date().toLocaleTimeString("hu-HU",{hour:"2-digit",minute:"2-digit"}),text:"📸 fotó csatolva"});
+        Store.save(); render(); toast("Fotó a túrához mentve (tömörítve)","📸"); }; im.onerror=()=>toast("A fotó nem olvasható","🖼️"); im.src=rd.result; }; rd.readAsDataURL(f); };
+  }catch(e){}
+}
+const _prjTMA = VIEWS.tourmode.after;
+try{ VIEWS.tourmode.after = function(root, id){ try{ _prjTMA && _prjTMA.apply(this, arguments);
+  const mm=(location.hash||"").match(/turamod\\/([\\w-]+)/);
+  if(mm){ const t=Store.getTour(mm[1]||id); const box=(root||document).querySelector(".tmode");
+    if(t && box && !box.querySelector(".tm-quick")){ box.insertAdjacentHTML("beforeend", tmQuickCard(t)); } }
+  tmWire(); }catch(e){ console.error("TMHOOK", e); } }; }catch(e){}
+const _prjRender0 = render;
+render = function(){ _prjRender0.apply(this, arguments);
+  try{ const mm=(location.hash||"").match(/turamod\\/([\\w-]+)/);
+    if(mm){ const tm=document.querySelector(".tmode"); if(tm){ const t=Store.getTour(mm[1]);
+      if(t && !document.querySelector(".tm-quick")) tm.insertAdjacentHTML("beforeend", tmQuickCard(t)); } }
+  }catch(e){}
+  tmWire(); };
+
+/* ---------- 11) sablon teendők → t.tasks + apply csatlakozás ---------- */
+function allTpl(){ return TEMPLATES_DEFAULT.concat(D().templates||[]); }
+if(Store.applyTemplate){ const _prjAT = Store.applyTemplate;
+  Store.applyTemplate = (tid,tpid)=>{ const res=_prjAT(tid,tpid);
+    try{ const t=Store.getTour(tid); const tpl=allTpl().find(x=>x.id===tpid);
+      if(t&&tpl&&tpl.tasks){ ensureTourFields(t);
+        tpl.tasks.forEach(x=>{ if(!t.tasks.some(y=>y.label===x)) t.tasks.push({id:uidp("tk"),label:x,done:false,due:Math.max(0,t.date?Store.dayDiff(t.date):3)}); });
+        Store.save(); } }catch(e){}
+    return res; }; }
+
+/* ---------- 12) Dashboard finomítás: üres sávok eltüntetése + első lépés panel ---------- */
+const _pDashA = VIEWS.dash.after;
+VIEWS.dash.after = (root) => {
+  try{ _pDashA && _pDashA(root); }catch(e){}
+  try{
+    const box = root.querySelector("#widgets"); if(!box) return;
+    const d = Store.myData();
+    box.querySelectorAll(".wsec").forEach(sec=>{
+      const w = sec.dataset.w; const txt = (sec.textContent||"").replace(/\\s+/g,"").length;
+      const ctl = sec.querySelector("input,select,textarea,button:not(#rdi-check),a");
+      if(txt < 16 && !ctl) sec.remove();
+    });
+    if(!d.tours.length && !d.journal.length){
+      box.insertAdjacentHTML("afterbegin", \`<section class="wsec"><div class="df-card"><div class="df-ic">&#129466;</div>
+        <div class="df-b"><h3>&#220;res a túraközpontod — töltsük meg</h3>
+        <p class="muted small" style="margin:.1rem 0 .2rem">Három lépés, és a tervezés, csomagolás, naptár, élménykönyv egy helyen fut.</p>
+        <div class="df-steps">
+          <a href="#/felfedezes"><b>1 · Válassz célt</b><span>32 útvonal · Székelyföld és Erdély</span></a>
+          <a href="#/uj-tura"><b>2 · Tervezd meg</b><span>induló sablonok · 5 perc</span></a>
+          <a href="#/inbox"><b>3 · Mentd az ötleteidet</b><span>FB esemény, link, fotó</span></a>
+        </div></div></div></section>\`);
+    }
+  }catch(e){}
+};
+
+
+/* ---------- 13) ☀️ Valódi időjárás widget (ma, profilszékszeredád fölött) ---------- */
+const SUNKEY="tv.sun.v1";
+async function sunToday(){ const u=Store.me(); if(!u) throw new Error("no user"); const city=(u.city||"").trim()||"Csíkszereda";
+  const today=Store.todayISO(); const ck=SUNKEY+"|"+city+"|"+today;
+  let cache={}; try{ cache=JSON.parse(localStorage.getItem(SUNKEY)||"{}"); }catch(e){}
+  if(cache[ck]) return cache[ck];
+  let lat=46.7,lng=25.0;
+  try{ const g=await (await fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(city.slice(0,40))+"&count=1&language=hu")).json();
+    if(g.results&&g.results[0]){ lat=g.results[0].latitude; lng=g.results[0].longitude; } }catch(e){}
+  const j=await (await fetch(\`https://api.open-meteo.com/v1/forecast?latitude=\${lat}&longitude=\${lng}&daily=sunrise,sunset,temperature_2m_max,precipitation_probability_max&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto\`)).json();
+  const moonAge=(()=>{ const KNOWN=Date.UTC(2000,0,6,18,14); return ((Date.now()-KNOWN)/86400000)%29.530588853; })();
+  const w={ city, sr:(j.daily.sunrise[0]||"").slice(11,16), ss:(j.daily.sunset[0]||"").slice(11,16),
+    tmax:Math.round(j.daily.temperature_2m_max[0]), rain:+(j.daily.precipitation_probability_max[0]||0),
+    moon:Math.round((1-Math.cos(2*Math.PI*moonAge/29.530588853))/2*100), now:Math.round(j.current.temperature_2m),
+    ico:wmoIco(j.current.weather_code), wind:Math.round(j.current.wind_speed_10m) };
+  Object.keys(cache).forEach(k=>{ if(!k.endsWith("|"+today)) delete cache[k]; });
+  cache[ck]=w; try{ localStorage.setItem(SUNKEY, JSON.stringify(cache)); }catch(e){}
+  return w; }
+function sunPaint(root){ const box=root.querySelector("#sun-today-body"); if(!box) return;
+  sunToday().then(w=>{ const loc=root.querySelector("#sun-loc"); if(loc) loc.textContent=esc(w.city);
+    const hold = w.moon<15?"újhold":w.moon<45?"fogyó félhold":w.moon<80?"teliesebb hold":"telihold";
+    box.innerHTML = \`<div class="sun-flex">
+      <span class="sun-now">\${w.ico} <b>\${w.now}°C</b><small>max \${w.tmax}° · eső \${w.rain}% · szél \${w.wind} km/h</small></span>
+      <span class="sun-pair" title="napkelte">🌅 <b>\${w.sr}</b></span><span class="sun-pair" title="napnyugta">🌇 <b>\${w.ss}</b></span>
+      <span class="sun-moon" title="hold">🌙 \${hold} · \${w.moon}%</span></div>
+      <p class="small muted" style="margin:.45rem 0 0">Korai indulásnál számolj a \${w.sr} utáni fényrel — a fejlámpa akkor is kell.</p>\`;
+  }).catch(()=>{ box.innerHTML = '<p class="small muted mt0" style="margin:0">Az időjárás nem kérhető most (nincs kapcsolat).</p>'; }); }
+
+/* ---------- 14) 🕝 Legutóbb megnézett gyűjtő ---------- */
+function recordRecent(){ try{
+  const h=location.hash||""; let ent=null;
+  let m=h.match(/^#\\/tura\\/([\\w-]+)/); if(m){ const t=Store.getTour(m[1]); if(t) ent={href:h,ico:"🥾",label:t.title}; }
+  if(!ent){ m=h.match(/^#\\/turak\\/([\\w-]+)/); if(m){ const ct=TOURS.find(x=>x.id===m[1]||x.id===m[1].split("?")[0]); if(ct) ent={href:h,ico:"⛰️",label:ct.name}; } }
+  if(!ent){ m=h.match(/^#\\/esemenyek\\/([\\w-]+)/); if(m){ const e=EVENTS.find(x=>x.id===m[1]); if(e) ent={href:h,ico:"📣",label:e.name}; } }
+  if(!ent) return;
+  const d=Store.myData(); if(!d.recent) d.recent=[];
+  d.recent=[ent].concat(d.recent.filter(x=>x.href!==ent.href)).slice(0,6); Store.save();
+}catch(e){} }
+addEventListener("hashchange", recordRecent);
+  setTimeout(recordRecent, 1400);
+
+/* ---------- 15) ⬇️ GPX export a saját túrához ---------- */
+function gpxEscape(x){ return String(x||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function buildGpx(t){
+  const pts=[];
+  if(t.coords&&+t.coords.lat) pts.push({lat:+t.coords.lat,lng:+t.coords.lng,n:t.place||t.title,ele:null});
+  (t.waypoints||[]).forEach(w=>{ if(+w.lat) pts.push({lat:+w.lat,lng:+w.lng,n:w.name||"pont",ele:w.ele?+w.ele:null}); });
+  const slug=(t.title||"tura").toLowerCase().replace(/[^a-z0-9]+/gi,"-").slice(0,40);
+  const wpts=pts.map(p=>\`  <wpt lat="\${p.lat}" lon="\${p.lng}">\${p.ele!=null?\`\\n    <ele>\${p.ele}</ele>\`:""}\\n    <name>\${gpxEscape(p.n)}</name></wpt>\`).join("\\n");
+  const trkpts=pts.length>1?\`    <trkseg>\\n\${pts.map(p=>\`      <trkpt lat="\${p.lat}" lon="\${p.lng}">\${p.ele!=null?\`<ele>\${p.ele}</ele>\`:""}</trkpt>\`).join("\\n")}\\n    </trkseg>\`:"";
+  return \`<?xml version="1.0" encoding="UTF-8"?>\\n<gpx version="1.1" creator="Turatars" xmlns="http://www.topografix.com/GPX/1/1">\\n  <metadata><name>\${gpxEscape(t.title)}</name><desc>\${gpxEscape((t.desc||"").slice(0,180))}</desc></metadata>\\n\${wpts}\\n  <trk><name>\${gpxEscape(t.title)}</name>\${trkpts?"\\n"+trkpts+"\\n ":""}</trk>\\n</gpx>\`; }
+function dlGpx(t){
+  if(t.gpx && /^https?:/.test(t.gpx)){ window.open(t.gpx, "_blank"); toast("A katalógus GPX-et új lapon nyitottam — mentsd onnan","🗺️"); return; }
+  if(!(t.coords||t.waypoints||[]).length){ toast("Ehhez a tervhez nincs útvonalpont — importálj nyomvonalat (Katalógus/Hagymás) előbb","🧭"); return ; }
+  const xml=buildGpx(t); const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([xml],{type:"application/gpx+xml"})); a.download=(t.title||"tura").replace(/[^\\w-]+/g,"_").slice(0,44)+".gpx";
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},600);
+  toast("GPX letöltve — betöltheted Természetjáróba, Komootba","⬇️"); }
+
+/* Gombok: GPX az Útvonal- és Áttekintés füleken, sun festés, recent mentés */
+const _prj12DashA = VIEWS.dash.after;
+VIEWS.dash.after = (root) => { _prj12DashA && _prj12DashA(root); recordRecent();
+  try{ if(root.querySelector('[data-w="sun"]')) sunPaint(root); }catch(e){} };
+const _prj12WsA = VIEWS.workspace.after;
+VIEWS.workspace.after = (root,id) => { _prj12WsA && _prj12WsA(root,id);
+  try{ if(wsTab==="utvonal"||wsTab==="attekintes"){ const act=root.querySelector(".ws-actions");
+    if(act && !document.getElementById("btn-gpx")){ const b=document.createElement("button"); b.className="btn btn-ghost btn-sm"; b.id="btn-gpx";
+      b.innerHTML="⬇️ GPX"; b.onclick=()=>{ const t=Store.getTour(id); if(t) dlGpx(t); }; act.insertBefore(b, act.children[2]||null); } } }catch(e){} };
+
+
+/* ---------- 16) V36: Túráim státuszrend + Teendők fül + 3 állapotú résztvevők + közös cucc + Ma-lista + AI-útvonal ---------- */
+const TV_GROUPS=[["otlet","💡 Ötletek"],["bakancs","❤️ Bakancslistán"],["tervezes","🟡 Tervezés alatt"],["kozelgo","🔵 Közelgő"],["folyamatban","🚩 Folyamatban"],["teljesitve","🟢 Teljesítve"],["archivalva","📖 Archiválva"],["eseme

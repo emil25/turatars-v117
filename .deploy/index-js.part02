@@ -1,0 +1,756 @@
+o.v; return \`
+      <button class="opt \${sel?"sel":""}" data-val="\${esc(o.v)}">\${\`<span class="oi">\${o.i}</span>\`}<span>\${esc(o.v)}\${o.d?\`<small>\${esc(o.d)}</small>\`:""}</span></button>\`}).join("")}</div>\`}
+    <div class="wiz-nav">
+      <button class="btn btn-ghost" id="ob-prev" \${s===0?"disabled":""}>← Vissza</button>
+      <button class="btn btn-primary" id="ob-next">\${s===OB_STEPS.length-1?"Kész ✓":" tovább →"}</button>
+    </div>
+    \${s===0?'<p class="small center muted" style="margin-top:1.2rem">Ezek alapján ajánlunk túrákat, eseményeket és felszerelést. Bármikor módosíthatod a beállításokban.</p>':""}
+  </div>\`;
+};
+VIEWS.onboarding.after = root => {
+  const step = OB_STEPS[obStep];
+  root.querySelectorAll(".opt").forEach(o=>o.onclick=()=>{
+    if(!step) return;
+    if(step.multi){ const v=o.dataset.val, arr=obAnswer[step.k]||[]; const i=arr.indexOf(v);
+      i>=0?arr.splice(i,1):arr.push(v); obAnswer[step.k]=arr; }
+    else obAnswer[step.k]=o.dataset.val;
+    render(); });
+  const fin = root.querySelector("#ob-fin"); if(fin) fin.onclick = ()=>{ Store.setPrefs({onboarded:true, ob:obAnswer}); toast("Túraközpontod készen áll — jó tervezést! 🌿","✅"); NAV.to("#/vezerlopult"); };
+  const prev = root.querySelector("#ob-prev"); if(prev) prev.onclick=()=>{ if(obStep>0){obStep--; render();} };
+  const next = root.querySelector("#ob-next"); if(next) next.onclick=()=>{
+    const s=OB_STEPS[obStep];
+    if(s && s.input){ const f=root.querySelector("#ob-from"); obAnswer[s.k]=f?f.value:"Csíkszereda"; }
+    if(obStep<OB_STEPS.length) obStep++; render(); };
+};
+
+/* ==== dashboard ==== */
+/* ============================================================
+   TÚRAVAROS — DASHBOARD: shell, áttekintés, túráim, új túra, naptár
+   ============================================================ */
+"use strict";
+
+/* ---------- DASHBOARD SHELL ---------- */
+const SIDE = [
+  ["#/vezerlopult","🏠","Áttekintés"], ["#/turaim","🥾","Túráim"], ["#/uj-tura","➕","Új túra"], ["#/inbox","📥","Inbox"],
+  ["#/naptar","📅","Túranaptár"], ["#/felfedezes","🗺️","Felfedezés"], ["#/esemenyek","📅","Túraesemények"], ["#/profil","👤","Saját profil"], ["#/szervezo","🏢","Szervezői központ"], ["#/bakancslista","❤️","Bakancslista"], ["#/tarsak","👥","Túratársak"],
+  ["#/felszereles","🎒","Felszerelésem"], ["#/csapatok","👥","Túracsapatok"], ["#/naplo","📖","Túranapló"], ["#/csapat","👥","Csapat állapota"], ["#/terepi","🌍","Terepi infók"], ["#/sablonok","📐","Túrasablonok"],
+  ["#/statisztikak","📊","Statisztikák"], ["#/ai","🤖","AI Túratervező"], ["#/terkep","🧭","Saját térkép"], ["#/hagymas","🕹","Hagymás útvonalak"], ["#/szatt","🏔","SZATT 2026"],
+  ["#/beallitasok","⚙️","Beállítások"]
+];
+function sideBadge(h){ try{ const d=Store.myData(); const show=(n)=>n?\`<span class="badge">\${n>99?"99+":n}</span>\`:"";
+  if(h==="#/turaim") return show(d.tours.length);
+  if(h==="#/bakancslista") return show(d.wishlist.length);
+  if(h==="#/inbox"){ const u=(d.inbox||[]).filter(x=>!x.read).length; return show(u); }
+  if(h==="#/felszereles") return show(d.equipment.filter(x=>x.has).length);
+  if(h==="#/csapatok") return show((d.teams||[]).length);
+  if(h==="#/naplo") return show(d.journal.length);
+  if(h==="#/utvonalak") return show((d.routes||[]).length);
+  return ""; }catch(e){ return ""; } }
+
+function dash(active){
+  document.body.classList.add("in-dash");
+  const u = Store.me();
+  if(!u) { location.hash="#/belepes"; return ""; }
+  if(!u.onboarded && location.hash!=="#/onboarding") { location.hash="#/onboarding"; return ""; }
+  const n = Store.notifications().length;
+  return inner => \`<div class="dash">
+    <aside class="dash-side" aria-label="Vezérlőpult navigáció">
+      <a class="logo" href="#/" style="padding:.3rem .75rem .9rem">
+        <svg viewBox="0 0 100 100" aria-hidden="true" style="width:26px;height:26px"><path d="M6 84 L32 30 L50 60 L38 84 Z" fill="#1C4A36"/><path d="M31 84 L56 34 L78 70 L94 84 L14 84 Z" fill="#2F6B4A"/><path d="M10 76 C 28 56, 40 68, 54 50 S 78 52, 88 42" fill="none" stroke="#F7F4EC" stroke-width="3" stroke-dasharray="5 5" stroke-linecap="round"/><circle cx="76" cy="18" r="8" fill="#E07A2F"/></svg>
+        Túra<em>társ</em></a>
+      <div class="nav-group"><div class="ng-label">Tervezés</div>
+        \${SIDE.filter(s=>["#/vezerlopult","#/turaim","#/uj-tura","#/naptar","#/felfedezes","#/esemenyek"].includes(s[0]))
+          .map(([h,i,l])=>\`<a class="side-link \${active===h?"on":""}" href="\${h}"><span class="ico">\${i}</span>\${l}\${sideBadge(h)}</a>\`).join("")}</div>
+      <div class="nav-group"><div class="ng-label">Személyes</div>
+        \${SIDE.filter(s=>["#/bakancslista","#/tarsak","#/felszereles","#/csapatok","#/utvonalak","#/naplo","#/csapat","#/terepi","#/sablonok","#/terkep","#/hagymas","#/szatt"].includes(s[0]))
+          .map(([h,i,l])=>\`<a class="side-link \${active===h?"on":""}" href="\${h}"><span class="ico">\${i}</span>\${l}\${sideBadge(h)}</a>\`).join("")}</div>
+      <div class="nav-group"><div class="ng-label">Tudás és segítség</div>
+        \${SIDE.filter(s=>["#/profil","#/szervezo","#/statisztikak","#/ai","#/beallitasok"].includes(s[0]))
+          .map(([h,i,l])=>\`<a class="side-link \${active===h?"on":""}" href="\${h}"><span class="ico">\${i}</span>\${l}\${sideBadge(h)}</a>
+            \${h==="#/beallitasok"&&n?\`<a class="side-link" href="#/ertesitesek"><span class="ico">🔔</span>Értesítések<span class="badge">\${n}</span></a>\`:""}\`).join("")}
+      </div>
+    </aside>
+    <div class="dash-main">\${inner}</div></div>\`;
+}
+
+/* ---------- ÁTTEKINTÉS ---------- */
+VIEWS.dash = () => {
+  const u = Store.me(), d = Store.myData(), st = Store.stats();
+  const next = Store.upcoming()[0];
+  const needs = Store.needs();
+  const evNext = (EVENTS.concat(window.e2Events?window.e2Events():[])).filter(e=>d.savedEvents.includes(e.id) && (!e.date || e.date>=Store.todayISO())).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'))[0];
+  const m = todayMonthStats();
+  const hour = new Date().getHours();
+  const greet = hour<10?"Jó reggelt":hour<18?"Szép napot":"Kellemes estét";
+  const recs = recommendFor(u);
+  return dash("#/vezerlopult")(\`
+    <div class="dash-top">
+      <div><div class="hello">\${greet}, \${hour<10||hour>=18?"🌙":"🌤"} · \${fmtDateFull(Store.todayISO())}</div>
+        <h1>Szia, \${esc((u.name||"útitárs").split(" ")[0])}! Merre kalandozunk legközelebb? 🥾</h1></div>
+      <a class="btn btn-ember" href="#/uj-tura">➕ Új túra tervezése</a>
+    </div>
+
+    \${next ? \`<div class="nextbox" style="margin-bottom:20px">
+      <div class="split2" style="grid-template-columns:1.3fr .7fr;gap:24px">
+        <div>
+          <div class="nb-label">Következő túrád · \${fmtDateFull(next.date)} (\${dowHU(next.date).slice(0,3)})</div>
+          <h3 style="margin-bottom:.3rem">\${esc(next.title)}</h3>
+          <p class="small" style="color:#c3dcc6;margin-bottom:.9rem">📍 \${esc(next.place||next.region)} · 📏 \${next.lengthKm} km · ⏱ \${next.durationH} ó · ⬆ \${next.ascent} m \${diffChip(next.difficulty)}</p>
+          \${needs.length?\`<b class="small" style="color:#9ec6a5;letter-spacing:.1em;text-transform:uppercase">\${needs.length} teendő hátra:</b>
+          <ul>\${needs.map((x,i)=>\`<li><span class="n">\${i+1}</span><a href="\${x.href}" class="nb-need">\${esc(x.label)}</a>
+            <span style="margin-left:auto;opacity:.7;font-size:.85rem">→</span></li>\`).join("")}</ul>\`
+           : \`<ul><li><span class="n">✓</span>Minden teendő kész — csak indulni kell! 🎉</li></ul>\`}
+        </div>
+        <div style="position:relative">
+          <div class="img-wrap" style="height:100%;min-height:150px;border-radius:16px">\${imgTag(next.img,next.title)}</div>
+          <a class="btn btn-primary btn-sm" style="position:absolute;bottom:10px;left:10px;background:#fff;color:var(--pine)" href="#/tura/\${next.id}">Túramunkaterület megnyitása →</a>
+        </div></div>
+      <div id="overview-weather" style="margin-top:.9rem"></div>
+    </div>\`: \`<div class="card panel" style="margin-bottom:20px">
+      <h3>Még nincs tervezett túrád</h3><p class="muted">Induljuk el az elsőt — pár kattintás, és a rendszer összeállítja az időtervet, a felszereléslistát és az ételvízlistát.</p>
+      <a class="btn btn-primary" href="#/uj-tura">➕ Első túram tervezése</a></div>\`}
+
+    <div class="grid g4 smm2" style="margin-bottom:20px">
+      <div class="card stat-tile"><span class="st-ic">🥾</span><b>\${d.tours.filter(t=>t.status==="tervezés"||t.status==="jelentkezve").length}</b><span>tervezett túra</span></div>
+      <div class="card stat-tile"><span class="st-ic">🎫</span><b>\${evNext?fmtDate(evNext.date).replace(". ",". "):"—"}</b><span>következő esemény\${evNext?\` · \${evNext.name.split(" ").slice(0,2).join(" ")}\`:""}</span></div>
+      <div class="card stat-tile"><span class="st-ic">✅</span><b>\${Store.needs().length}</b><span>függőben lévő teendő</span></div>
+      <div class="card stat-tile"><span class="st-ic">📏</span><b>\${m.km} km</b><span>a hónap eddig (\${m.tours} túra)</span></div>
+    </div>
+
+    <h2 style="font-size:1.25rem">Gyors indítás</h2>
+    <div class="qa-grid" style="margin-bottom:26px">
+      <a class="quickact" href="#/uj-tura"><span class="qi">🗓️</span><b>Új túra tervezése</b><span>Időterv, csomaglista, résztvevők</span></a>
+      <a class="quickact" href="#/felfedezes"><span class="qi">🗺️</span><b>Túra felfedezése</b><span>\${TOURS.length} útvonal a térképen</span></a>
+      <a class="quickact" href="#/esemenyek"><span class="qi">🎪</span><b>Esemény keresése</b><span>Vezetett és napkelte túrák</span></a>
+      <a class="quickact" href="#/bakancslista"><span class="qi">❤️</span><b>Bakancslista</b><span>\${d.wishlist.length} hely vár rád</span></a>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1.25fr .75fr;align-items:start">
+      <div>
+        <h2 style="font-size:1.25rem">Neked ajánlott túrák <span class="small muted" style="font-weight:400">a preferenciáid alapján</span></h2>
+        <div class="grid g2">\${recs.length?recs.map(t=>\`<a class="card tcard" href="#/turak/\${t.id}" style="text-decoration:none">
+          <div class="img-wrap" style="height:130px">\${imgTag(t.img,t.name)}<span class="rate">\${t.rating}★</span></div>
+          <div class="tbody"><span class="region">\${esc(t.region)} · \${esc(t.diff)}</span><h3 style="font-size:1rem">\${esc(t.name)}</h3>
+          <div class="meta"><span>📏 \${t.km} km</span><span>⏱ \${t.h} ó</span></div></div></a>\`).join(""):\`
+          <div class="empty" style="grid-column:1/-1"><span class="em-ico">🌿</span>Válasz az onbard kérdéseire, és személyre szabjuk az ajánlásokat.</div>\`}</div>
+      </div>
+      <div>
+        <h2 style="font-size:1.25rem">Naptár <span class="small"><a href="#/naptar" style="color:var(--sky);font-weight:600">→</a></span></h2>
+        <div id="mini-cal"></div>
+        \${evNext?\`<div class="card panel" style="margin-top:14px"><span class="chip chip-ember">\${esc(evNext.cat)}</span>
+          <div style="margin-top:.5rem"><b>\${esc(evNext.name)}</b></div><div class="meta"><span>📅 \${fmtDateFull(evNext.date)}</span><span>📍 \${esc(evNext.place)}</span></div></div>\`:""}
+        \${d.tours.some(t=>t.status==="tervezés"&&t.date<Store.todayISO())||d.tours.some(t=>t.status==="teljesítve"&&!d.journal.some(j=>j.tourId===t.id))
+        ?\`<div class="card panel" style="margin-top:14px;border-color:#f2d3b3;background:var(--ember-soft)">
+          <b class="small warn-ic">⚠ Lejárt vagy naplózandó túrák</b>
+          <p class="small" style="margin:.3rem 0 .6rem">Van múlt dátumú vagy még naplózandó túrád — nézd át a listát.
+          </p><a href="#/turaim" class="btn btn-sm btn-ember" style="display:inline-block">Túráim átnézése</a></div>\`:""}
+      </div>
+    </div>\`);
+};
+function todayMonthStats(){
+  const d=Store.myData(); const m=Store.todayISO().slice(0,7);
+  const js=d.journal.filter(j=>(j.date||"").startsWith(m));
+  return {km:Math.round(js.reduce((s,j)=>s+(+j.km||0),0)), tours:js.length};
+}
+function recommendFor(u){
+  const p = (u&&u.prefsOnb)||{};
+  const typeTag = {"Rövid séták":"kezdőknek","Hegyi túrák":"erdő","Csúcstúrák":"csúcs","Családi túrák":"family","Többnapos túrák":"többnapos","Fotós túrák":"kilátás"};
+  const radius = { "20 km":0, "50 km":1, "100 km":2, "Mindegy":3 }[p.radius] ?? 3;
+  const home = (u&&u.city)||"";
+  const regionBonus = { "csíkszereda":"Csíki","csíksz":"Csíki","gyimes":"Csíki","keresztúr":"Csíki","udvarhely":"Hargita","brassó":"Hargita","sepsi":"Hargita","gyergyó":"Gyergyó","szentmiklós":"Gyergyó","kolozsvár":"Kolozs","torda":"Erdélyi-karszt","vasarhely":"Kolozs","d[ée]va":"Hunyad" };
+  let rr = null; for(const k in regionBonus) if(home.toLowerCase().includes(k)) rr = regionBonus[k];
+  const d = Store.myData(); const have = new Set(d.tours.map(t=>t.title));
+  return TOURS.filter(t=>!have.has(t.name))
+    .map(t=>({t, s:(p.types||[]).reduce((a,x)=>a+(t.tags.includes(typeTag[x])?1.5:0),0)
+      + (p.diff&&t.diff===p.diff?1:0)
+      + (rr&&t.region.includes(rr.split(" ")[0])?2:0)
+      + (radius>=2&&t.h<=6?1:0) + (radius<=1&&t.h<=3.5?1:0) + (t.rating-4.5)*3}))
+    .sort((a,b)=>b.s-a.s).slice(0,4).map(x=>x.t);
+}
+VIEWS.dash.after = (root) => {
+  // mini naptár
+  const mc = root.querySelector("#mini-cal"); if(mc) renderCalendar(mc, {mini:true});
+  // teendők linkjei a workspace megfelelő fülére
+  root.querySelectorAll(".nb-need").forEach(a=>a.onclick=e=>{ e.preventDefault();  });
+  // időjárás a következő túrára
+  const w = root.querySelector("#overview-weather");
+  const t0 = Store.upcoming()[0];
+  if(w && t0 && t0.coords){
+    w.innerHTML = \`<div class="small muted">⏳ Időjárás ellenőrzése: \${esc(t0.place)}…</div>\`;
+    Weather.get(t0.coords.lat,t0.coords.lng,t0.date).then(r=>{
+      if(!r){ w.innerHTML=""; return; }
+      const wet = r.rain>=50;
+      w.innerHTML = \`<div class="\${wet?"alert-strip":"small"}" style="\${wet?"":"color:var(--bark-soft)"}">\${wet?"🌧️ <b>IDŐJÁRÁS-FIGYELMEZTETÉS:</b>":"🌤"} \${fmtDate(t0.date)} — \${esc(r.label)}, \${Math.round(r.min)}–\${Math.round(r.max)} °C, esély esőre: <b>\${r.rain}%</b>. \${wet?"Vigyél esőkabátot és vízálló borítást!":"Jó úton jársz."}</div>\`;
+    });
+  } else if(w) w.innerHTML="";
+};
+
+/* ---------- TÚRÁIM ---------- */
+let tourTab = "tervezés";
+VIEWS.tours = () => {
+  const d = Store.myData();
+  const groups = { otletek: d.tours.filter(t=>t.status==="ötlet"||t.status==="bakancs"), tervezés: d.tours.filter(t=>t.status==="tervezés"), jelentkezve: d.tours.filter(t=>t.status==="jelentkezve"), teljesitve: d.tours.filter(t=>t.status==="teljesítve"||t.status==="archiválva"), "teljesítve": [] };
+  const list = (groups[tourTab]||[]).slice().sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
+  return dash("#/turaim")(\`
+    <div class="dash-top"><div><h1>Túráim 🥾</h1><div class="hello">Minden terved, munkaterületed és teljesítésed egy helyen.</div></div>
+      <a class="btn btn-primary" href="#/uj-tura">➕ Új túra</a></div>
+    <div class="tabs" role="tablist">
+      \${Object.entries({ otletek:"💡 Ötletek / bakancslista", tervezés:"🟡 Tervezés alatt", jelentkezve:"🎫 Eseményekre jelentkezve", teljesitve:"✓ Teljesítve / archív"}).map(([k,l])=>
+        \`<button class="\${tourTab===k?"on":""}" data-tab="\${k}">\${l} <span class="muted">(\${groups[k].length})</span></button>\`).join("")}
+    </div>
+    \${list.length?\`<div class="grid" id="tour-list">\${list.map(tourRow).join("")}</div>\`:
+    \`<div class="empty"><span class="em-ico">\${tourTab==="teljesítve"?"📖":"🌲"}</span>
+      <h3>\${tourTab==="tervezés"?"Nincs még tervezett túrád":tourTab==="jelentkezve"?"Nincs mentett eseményed":"Még nincs teljesített túra"}</h3>
+      <p>\${tourTab==="tervezés"?"Tervezz egy túrát — a többi részt a rendszer átveszi tőled.":tourTab==="jelentkezve"?"Az Események oldalon egy kattintással mentheted a saját túráid közé.":"Ha letelt egy túra, a Teljesítettem gombbal máris naplózhatod."}</p>
+      <a class="btn btn-primary" href="\${tourTab==="jelentkezve"?"#/esemenyek":"#/uj-tura"}">\${tourTab==="jelentkezve"?"Események böngészése":"➕ Új túra"}</a></div>\`}\`);
+};
+function tourRow(t){
+  const st = t.status==="teljesítve";
+  return \`<div class="card tour-row">
+    <a class="img-wrap" style="height:92px;border-radius:12px" href="#/tura/\${t.id}">\${imgTag(t.img||IMG.erdo,t.title)}</a>
+    <div>
+      <div class="meta" style="gap:.4rem .7rem">\${statusChip(t.status)}\${t.difficulty?diffChip(t.difficulty):""}\${t.eventCat?\`<span class="chip chip-sand">\${esc(t.eventCat)}</span>\`:""}</div>
+      <h3 style="margin:.3rem 0 .1rem;font-size:1.08rem"><a href="#/tura/\${t.id}">\${esc(t.title)}</a></h3>
+      <div class="meta"><span style="font-size:.83rem">📍 \${esc(t.region||t.place||"nincs hely")} · 📅 \${t.date?fmtDateFull(t.date):"dátum nélkül"}</span></div>
+      <div class="meta" style="font-size:.82rem"><span>📏 \${t.lengthKm||"?"} km</span><span>⏱ \${t.durationH||"?"} ó</span><span>⬆ \${t.ascent||"?"} m</span></div>
+    </div>
+    <div class="tr-actions">
+      <a class="btn btn-soft btn-sm" href="#/tura/\${t.id}">Megnyitás</a>
+      \${(t.status==="ötlet"||t.status==="bakancs")?\`<button class="btn btn-ember btn-sm" data-promote="\${t.id}">📅 Túra tervezése</button>\`:""}
+      \${(t.status==="tervezés"||t.status==="jelentkezve")&&Store.dayDiff(t.date)<=3?\`<a class="btn btn-primary btn-sm" href="#/turamod/\${t.id}">⚡ Túra mód</a>\`:""}
+      \${!st?\`<button class="btn btn-ghost btn-sm" data-complete="\${t.id}">✓ Teljesítettem</button>\`:
+        \`\${(window.memBtn&&window.memBtn(t))||'<a class="btn btn-ghost btn-sm" href="#/naplo">📖 Napló</a>'}\`}
+      <button class="icon-btn" data-del="\${t.id}" title="Törlés" aria-label="\${esc(t.title)} törlése">🗑</button>
+    </div></div>\`;
+}
+VIEWS.tours.after = root => {
+  root.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{tourTab=b.dataset.tab; render();});
+  wireTourActions(root);
+};
+function wireTourActions(root){
+  root.querySelectorAll("[data-promote]").forEach(b=>b.onclick=()=>{ const t=Store.getTour(b.dataset.promote);
+    Store.setStatus(t.id,"tervezés"); if(!t.date) t.date=Store.addDays(Store.nextSatDate(),7), Store.save(); toast("Tervezés alatt — a teendőlisták életbe léptek.","📅"); render(); });
+  root.querySelectorAll("[data-complete]").forEach(b=>b.onclick=()=>{
+    const t=Store.getTour(b.dataset.complete);
+    openModal({ title:\`\${esc(t.title)} — teljesítetted? ⛰️\`,
+      body:\`<p class="muted mt0">Ha igen, felkerül a túranaplódba a dátummal, távolsággal és képekkel — csak pár kattintás.</p>
+        <label class="f">Értékelés</label><div id="rate-stars" style="font-size:1.7rem;color:var(--ember);display:flex;gap:.2rem">
+        \${[1,2,3,4,5].map(i=>\`<button data-star="\${i}" style="background:none;border:0;cursor:pointer;color:#cfcabb" aria-label="\${i} csillag">★</button>\`).join("")}</div>
+        <label class="f" style="margin-top:.7rem">Jegyzet</label><textarea class="input" id="j-note" placeholder="Pl. Gyönyörű idő volt. A felső rész sáros volt, de megérte."></textarea>\`,
+      footer:\`<div class="flex" style="justify-content:flex-end;gap:.5rem"><button class="btn btn-ghost btn-sm" data-close>Mégsem</button><button class="btn btn-primary" id="do-complete">✓ Kész — naplóba</button></div>\`,
+      onOpen(r){ let stars=5; const draw=()=>r.querySelectorAll("[data-star]").forEach(s=>s.style.color=s.dataset.star<=stars?"var(--ember)":"#cfcabb");
+        r.querySelectorAll("[data-star]").forEach(s=>s.onclick=()=>{stars=+s.dataset.star;draw()}); draw();
+        r.querySelector("#do-complete").onclick=()=>{ Store.completeTour(t.id, stars, r.querySelector("#j-note").value, []);
+          closeModal(); render(); if(window.congratsToursModal) congratsToursModal(t); }; }});
+  });
+  root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    const t=Store.getTour(b.dataset.del);
+    confirmDlg(\`A(z) \${t.title} túra minden adata (időterv, lista, napló) törlődik.\`, "Törlés", ()=>{ Store.deleteTour(t.id); toast("Túra törölve.","🗑"); render(); });
+  });
+}
+
+/* ---------- TÚRANAPTÁR (havi) ---------- */
+let calDate = new Date();
+VIEWS.calendar = () => dash("#/naptar")(\`
+  <div class="dash-top"><div><h1>Túranaptár 📅</h1><div class="hello">Tervezett túráid, mentett eseményeid és teljesítéseid egy tekintetre.</div></div>
+  <a class="btn btn-primary" href="#/uj-tura">➕ Új túra</a></div>
+  <div class="legend"><span><i style="background:#2C6E9B"></i>Tervezett túra</span><span><i style="background:#E07A2F"></i>Esemény</span><span><i style="background:#3E8E5F"></i>Teljesített</span><span><i style="background:#C94F4F"></i>Bakancslista</span></div>
+  <div id="cal-mount"></div>\`);
+VIEWS.calendar.after = root => renderCalendar(root.querySelector("#cal-mount"), {});
+
+function renderCalendar(mount, opt){
+  if(!mount) return;
+  const d = Store.myData(); if(!d){ return; }
+  const view = calDate; const y=view.getFullYear(), mo=view.getMonth();
+  const first = new Date(y,mo,1); const start = (first.getDay()+6)%7; // hétfővel indul
+  const daysIn = new Date(y,mo+1,0).getDate();
+  const iso = (i)=>\`\${y}-\${String(mo+1).padStart(2,"0")}-\${String(i).padStart(2,"0")}\`;
+  const cells=[]; for(let i=1;i<=daysIn;i++) cells.push(iso(i));
+  const mini = !!opt.mini;
+  const monthLabel = \`\${MONTHS_HU[mo]} \${y}\`;
+  mount.innerHTML = \`
+    \${mini?\`\`:\`<div class="cal-head"><button class="icon-btn" id="cal-prev" aria-label="Előző hónap">←</button>
+      <h2 style="text-transform:capitalize">\${monthLabel}</h2>
+      <button class="icon-btn" id="cal-next" aria-label="Következő hónap">→</button>
+      <button class="btn btn-soft btn-sm" id="cal-today" style="margin-left:.4rem">Ma</button></div>\`}
+    \${mini?\`<div class="between" style="margin-bottom:.4rem"><b style="text-transform:capitalize">\${monthLabel}</b><span class="small"><a href="#/naptar" style="color:var(--sky);font-weight:600">Teljes naptár →</a></span></div>\`:""}
+    <div class="cal-grid" role="grid">\${[...DOW_HU,...DOW_HU].slice(0,7).map(x=>\`<div class="cal-dow">\${x}</div>\`).join("")}
+    \${Array(start).fill("<div class='cal-cell other'></div>").join("")}
+    \${cells.map(isoD=>{
+      const [,,dd]=isoD.split("-"); const tnum=+dd;
+      const plans = d.tours.filter(t=>t.date===isoD && t.status!=="teljesítve");
+      const dones = d.tours.filter(t=>t.date===isoD && t.status==="teljesítve");
+      const evs = (EVENTS.concat(window.e2Events?window.e2Events():[])).filter(e=>isoD===e.date && d.savedEvents.includes(e.id));
+      const today = isoD===Store.todayISO();
+      return \`<div class="cal-cell \${today?"today":""}" data-date="\${isoD}" title="\${esc(plans[0]?plans[0].title:"")}" tabindex="0" role="button">
+        <span class="dno">\${tnum}</span>
+        \${plans.slice(0,2).map(t=>\`<span class="cal-pill cp-plan">🥾 \${esc(t.title)}</span>\`).join("")}
+        \${evs.slice(0,1).map(e=>\`<span class="cal-pill cp-event">🎫 \${esc(e.name)}</span>\`).join("")}
+        \${dones.slice(0,1).map(t=>\`<span class="cal-pill cp-done">✓ \${esc(t.title)}</span>\`).join("")}
+        \${plans.length+evs.length+dones.length>3?\`<span class="more">+\${plans.length+evs.length+dones.length-3} több</span>\`:""}</div>\`;
+    }).join("")}</div>\`;
+  if(!mini){
+    mount.querySelector("#cal-prev").onclick=()=>{ calDate=new Date(y,mo-1,1); render(); };
+    mount.querySelector("#cal-next").onclick=()=>{ calDate=new Date(y,mo+1,1); render(); };
+    mount.querySelector("#cal-today").onclick=()=>{ calDate=new Date(); render(); };
+  }
+  mount.querySelectorAll(".cal-cell[data-date]").forEach(c=>{
+    c.onclick = () => {
+      NAV.to(\`#/uj-tura?date=\${c.dataset.date}\`);
+    };
+  });
+}
+
+/* ---------- ÚJ TÚRA — WIZARD ---------- */
+const WIZ_KINDS = [
+  {v:"catalog", i:"🏔️", t:"Egy konkrét túrát", d:"Kiválasztom a kínálatból (helyszín, nehézség…)"},
+  {v:"suggest", i:"💡", t:"Még nem tudom — ajánlj valamit!", d:"Az AI Túratervező keres a preferenciáim alapján"},
+  {v:"event", i:"🎫", t:"Egy túraeseményhez csatlakozom", d:"Vezetett, napfelkelte, családi, fotós program"},
+  {v:"custom",  i:"🧭", t:"Saját útvonalat tervezek", d:"Megadom a helyszínt és a paramétereket"},
+  {v:"multi",   i:"⛺", t:"Többnapos túrát tervezek", d:"Sátor vagy menedékház, napok száma: 2+"}
+];
+let wiz = null;
+function resetWiz(date){ wiz = { kind:null, place:"", date:date||"", days:1, with:"", who:[], difficulty:"Közepes", hours:"3-5", title:"", start:"" }; }
+VIEWS.newTour = (q) => {
+  if(!wiz || wiz._done) resetWiz(q&&q.date);
+  const step = wiz._step||"kind";
+  const back = step==="kind" ? \`<button class="btn btn-ghost" id="wz-cancel">← Mégse</button>\` : \`<button class="btn btn-ghost" id="wz-back">← Vissza</button>\`;
+  let body="";
+  if(step==="kind"){
+    body = \`<h1>Mit szeretnél tervezni?</h1><p class="muted">Válassz egy módot — végigkísérünk a lépéseken.</p>
+    <div class="opt-grid" style="grid-template-columns:1fr">\${WIZ_KINDS.map(k=>
+      \`<button class="opt \${wiz.kind===k.v?"sel":""}" data-kind="\${k.v}"><span class="oi">\${k.i}</span><span>\${k.t}<small>\${k.d}</small></span></button>\`).join("")}</div>\`;
+  }
+  if(step==="form"){
+    const K = WIZ_KINDS.find(k=>k.v===wiz.kind);
+    body = \`<h1>\${K.i} \${K.t}</h1><p class="muted">Néhány adat — az időtervet, csomaglistát és a biztonsági lapot a rendszer automatikusan előkészíti.</p>
+    \${wiz.kind==="event" ? eventPickerStep()
+     : (wiz.kind==="suggest" && !wiz.place ? suggestStep() : catalogPickerForm((wiz.kind==="custom"||wiz.kind==="multi") && !wiz.place))}\`;
+  }
+  if(step==="done"){ // köztes állapot — a create() átadja a workspace-nek
+    body=\`<div class="empty"><span class="em-ico">⏳</span><h3>Túramunkaterület létrehozása…</h3></div>\`;
+  }
+  const html = dash("#/uj-tura")(\`<div class="wiz-wrap" style="max-width:720px">
+      <div class="wiz-track"><i class="\${step==="kind"?"on":""}"></i><i class="\${step==="form"?"on":""}"></i></div>
+      \${body}
+      <div class="wiz-nav" style="margin-top:1.8rem">\${back}<span></span></div>
+    </div>\`);
+  return html;
+};
+function eventPickerStep(){
+  const list = EVENTS.filter(e=>e.date>=Store.todayISO());
+  return \`<div class="grid" style="gap:12px">\${list.map(e=>\`
+    <button class="opt \${wiz.eventRef===e.id?"sel":""}" data-ev="\${e.id}" style="align-items:center">
+      <div class="img-wrap" style="width:64px;height:64px;border-radius:12px;flex:none">\${imgTag(e.img,"")}</div>
+      <span style="text-align:left">\${esc(e.name)}<small>📅 \${fmtDateFull(e.date)} · \${esc(e.place)} · \${esc(e.cat)} · \${esc(e.diff)}</small></span></button>\`).join("")}</div>
+    <p class="small muted" style="margin-top:.7rem">Kiválasztva: <b>\${wiz.eventRef?esc(EVENTS.find(e=>e.id===wiz.eventRef).name):"még nincs"}</b> — a gomb a kiválasztás után megjelenik.</p>
+    \${wiz.eventRef?\`<button class="btn btn-primary btn-block" id="wz-go" style="margin-top:.4rem">➜ Esemény mentése a túráimba</button>\`:""}\`;
+}
+function suggestStep(){
+  const recs = recommendFor(Store.me());
+  return \`<p class="muted mt0">Ezt a preferenciáid és a közeledben lévő tájegységek alapján ajánljuk most. Válassz egyet, vagy kattints a <b>Tervezd át</b> gombra és az AI ír helyetted teljes tervet.</p>
+    <div class="grid g2">\${recs.map(t=>\`<button class="opt \${wiz.sel===t.id?"sel":""}" data-sel="\${t.id}" style="align-items:flex-start;flex-direction:column;gap:.3rem">
+      <span class="region">\${esc(t.region)} · \${esc(t.diff)}</span><span style="font-size:1rem;font-weight:700">\${esc(t.name)}</span>
+      <small>📏 \${t.km} km · ⏱ \${t.h} ó · ⬆ \${t.up} m · ★ \${t.rating}</small></button>\`).join("")}</div>
+    <div class="opt-grid"><button class="opt" data-sel="ai"><span class="oi">🤖</span><span>Egyik sem — kérdezzük az AI-t<small>Naturális nyelven fogalmazom meg, mit szeretnék</small></span></button></div>\`;
+}
+function catalogPickerForm(free){
+  return \`<div class="grid g2" style="grid-template-columns:1fr 1fr">
+    \${free?\`
+      <div><label class="f">Helyszín *</label><input class="input" id="wz-place" placeholder="Pl. Mária-kő, Hargita" value="\${esc(wiz.place||"")}"></div>
+      <div><label class="f">Kiinduló pont (városd)</label><input class="input" id="wz-start" placeholder="Pl. Csíkszereda, Gyergyó" value="\${esc(wiz.start||Store.me().city||"")}" style="margin-top:0"></div>
+    \`:\`
+      <div style="grid-column:1/-1"><label class="f" for="wz-pick">Válassz egy ismert túrát, vagy írd be a saját helyszínedet</label>
+      <select class="input" id="wz-pick"><option value="">— Kézzel írom —</option>\${TOURS.map(t=>\`<option value="\${t.id}">\${esc(t.name)} (\${esc(t.region)})</option>\`).join("")}</select></div>
+    \`}
+    <div><label class="f">Dátum</label><input class="input" type="date" id="wz-date" value="\${esc(wiz.date||"")}"></div>
+    <div><label class="f">\${wiz.kind==="multi"?"Hány napos?":"Hány napos túra?"}</label>
+      <select class="input" id="wz-days">\${[1,2,3,4].map(n=>\`<option \${wiz.days==n?"selected":""} value="\${n}">\${n} nap</option>\`).join("")}</select></div>
+    <div><label class="f">Mennyi időd van egy napra?</label><select class="input" id="wz-hours">
+      \${[["1-3","1–3 óra (rövid)"],["3-5","3–5 óra (fél napos)"],["5-8","5–8 óra (egész napos)"],["8","8 óra fölött"]].map(([v,l])=>\`<option value="\${v}" \${wiz.hours===v?"selected":""}>\${l}</option>\`).join("")}</select></div>
+    <div><label class="f">Nehézség</label><select class="input" id="wz-diff">\${["Könnyű","Közepes","Nehéz"].map(x=>\`<option \${wiz.difficulty===x?"selected":""}>\${x}</option>\`).join("")}</select></div>
+    <div><label class="f">Kivel mész?</label><input class="input" id="wz-with" placeholder="Pl. Réka, Zsolt, család" value="\${esc(wiz.with||"")}"></div>
+    <div><label class="f">Túra neve (opcionális)</label><input class="input" id="wz-title" placeholder="Pl. Őszi gerincek" value="\${esc(wiz.title||"")}"></div>
+  </div>
+  \${!free&&wiz.place?\`<div class="card" style="padding:.9rem 1.1rem;margin-top:1rem;display:flex;gap:.8rem;align-items:center;border-radius:14px">
+    \${imgTag((tourById(wiz.place)||{}).img||IMG.erdo,"")}<span style="width:44px;height:44px;border-radius:12px;overflow:hidden;display:inline-block"><img src="\${(tourById(wiz.place)||{}).img||IMG.erdo}" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover"></span>
+    <div><b>\${esc((tourById(wiz.place)||{}).name||wiz.place)}</b><div class="meta"><span>\${esc((tourById(wiz.place)||{}).region||"")}</span><span>📏 \${(tourById(wiz.place)||{}).km||"?"} km</span><span>⬆ \${(tourById(wiz.place)||{}).up||"?"} m</span></div></div></div>\`:""}
+  <button class="btn btn-ember btn-lg btn-block" id="wz-go" style="margin-top:1.2rem">🥾 Túramunkaterület létrehozása</button>
+  <p class="small muted center" style="margin-top:.6rem">A rendszer automatikus időtervet, felszereléslistát és ételvíz-listát készít — mintha baráttal terveznél.</p>\`;
+}
+VIEWS.newTour.after = root => {
+  const step = wiz._step||"kind";
+  const cancel = root.querySelector("#wz-cancel"); if(cancel) cancel.onclick=()=>NAV.to("#/vezerlopult");
+  const back = root.querySelector("#wz-back"); if(back) back.onclick=()=>{ wiz._step = wiz._prevStep||"kind"; render(); };
+  if(step==="kind"){
+    root.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{ wiz.kind=b.dataset.kind; wiz._step="form"; render(); });
+  }
+  if(step==="form"){
+    if(wiz.kind==="event"){
+      root.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>{ wiz.eventRef=b.dataset.ev; render(); });
+      const go=root.querySelector("#wz-go"); if(go) go.onclick=()=>{
+        const ev=EVENTS.find(e=>e.id===wiz.eventRef); if(!Store.isEventSaved(ev.id)) Store.toggleEvent(ev.id);
+        wiz._done=true; toast("Esemény a túráid közé mentve — a naptáradban is megjelenik.","🎫"); NAV.to("#/turaim"); };
+      return;
+    }
+    if(wiz.kind==="suggest"){
+      root.querySelectorAll("[data-sel]").forEach(b=>b.onclick=()=>{
+        if(b.dataset.sel==="ai"){ NAV.to("#/ai"); return; }
+        wiz.sel=b.dataset.sel; wiz.place=b.dataset.sel;
+        const t=tourById(b.dataset.sel); if(t){ wiz.title=t.name; wiz.difficulty=t.diff; } render(); });
+      // detail: a form shows with pre-filled values when wiz.place set
+      if(wiz.place) fillForm();
+      return;
+    }
+    fillForm();
+  }
+  function fillForm(){
+    const q=id=>root.querySelector(id);
+    const bind = (id,ev,key,val)=>{ const e=q(id); if(e) e.addEventListener(ev,()=>{ e._t=true; wiz[key]=val?val(e):e.value; }); };
+    bind("#wz-place","input", "place");
+    bind("#wz-start","input","start");
+    bind("#wz-title","input","title");
+    bind("#wz-with","input","who");
+    const pick=q("#wz-pick");
+    if(pick) pick.onchange=()=>{ const t=tourById(pick.value); wiz.place=pick.value; wiz.title=t?t.name:wiz.title; wiz.difficulty=t?t.diff:wiz.difficulty; render(); };
+    ["#wz-date","#wz-days","#wz-hours","#wz-diff"].forEach(id=>{const e=q(id); if(e) e.onchange=()=>{
+      if(id==="#wz-date") wiz.date=e.value; if(id==="#wz-days") wiz.days=+e.value;
+      if(id==="#wz-hours") wiz.hours=e.value; if(id==="#wz-diff") wiz.difficulty=e.value; };});
+    const go=q("#wz-go"); if(go) go.onclick=()=>{
+      ["#wz-place","#wz-start","#wz-date","#wz-days","#wz-hours","#wz-diff","#wz-with","#wz-title"].forEach(id=>{const e=q(id); if(e&&e.value!==undefined){
+        const map={"#wz-place":"place","#wz-start":"start","#wz-date":"date","#wz-days":"days","#wz-hours":"hours","#wz-diff":"difficulty","#wz-with":"who","#wz-title":"title"};
+        wiz[map[id]] = id==="#wz-days"?+e.value:e.value; }});
+      createTour(); };    if(step==="kind"){ }
+  }
+  function createTour(){
+    const isCat = wiz.place && tourById(wiz.place);
+    const base = isCat ? tourById(wiz.place) : null;
+    const hoursNum = { "1-3":2.5, "3-5":4.5, "5-8":6.5, "8":9 }[wiz.hours] || 4;
+    const days = wiz.kind==="multi" ? Math.max(2,wiz.days) : (wiz.days||1);
+    const dr = {
+      title: wiz.title || base?.name || (wiz.place? wiz.place : "Új túra"),
+      place: isCat? base.start.name : (wiz.place||""),
+      region: isCat? base.region : "",
+      date: wiz.date || "", days, lengthKm: base?base.km: (wiz.kind==="multi"?32:10),
+      ascent: base?base.up:(wiz.kind==="multi"?1200:450), durationH: base?base.h:hoursNum,
+      difficulty: wiz.difficulty||"Közepes", tags: wiz.kind==="multi"?["többnapos","sátor"]: base? base.tags.slice():[],
+      img: base?base.img: IMG.kodos, desc: base?base.desc:"", coords: base? {...base.start}:null,
+      with: wiz.who
+    };
+    dr.participants = (wiz.who||"").split(/,| · |\\/+/).map(s=>s.trim()).filter(Boolean)
+      .map(n=>({id:Store.uid("p"),name:n,confirmed:false}));
+    const t = Store.newTourFromDraft(dr);
+    wiz._done=true; wiz = null;
+    toast("Túramunkaterület létrehozva — a teendőid listája vár! 🎒","✅");
+    NAV.to("#/tura/"+t.id);
+  }
+};
+
+/* ==== dashboard2 ==== */
+/* ============================================================
+   TÚRAVAROS — DASHBOARD 2: bakancslista, felszerelés, csapatok,
+   napló, statisztikák, AI túratárs, saját térkép, értesítések, beállítások
+   ============================================================ */
+"use strict";
+
+/* ---------- BAKANCSLISTA ---------- */
+let wishCat = "";
+VIEWS.wishlist = () => {
+  const d = Store.myData();
+  const items = d.wishlist.filter(w=>!wishCat||w.cat===wishCat);
+  const byCat = {};
+  items.forEach(w=>{ const k=(w.cat==null||w.cat==="")?"Egyéb":String(w.cat); (byCat[k]=byCat[k]||[]).push(w); });
+  return dash("#/bakancslista")(\`
+    <div class="dash-top"><div><h1>Bakancslista ❤️</h1>
+      <div class="hello">Azok a helyek, amikre egyszer el akarsz jutni — innen egy kattintás túrát tervezni.</div></div>
+      <button class="btn btn-primary" id="wish-add">➕ Új hely hozzáadása</button></div>
+    <div class="filter-row"><button class="f-pill \${!wishCat?"on":""}" data-wc="">Összes (\${d.wishlist.length})</button>
+      \${WISH_CATS.map(c=>\`<button class="f-pill \${wishCat===c.name?"on":""}" data-wc="\${esc(c.name)}">\${c.icon} \${c.name} (\${d.wishlist.filter(w=>w.cat===c.name).length})</button>\`).join("")}</div>
+    \${items.length? Object.entries(byCat).map(([cat,ws])=>\`
+      <div style="margin-bottom:1.6rem"><h2 style="font-size:1.15rem">\${WISH_CATS.find(c=>c.name===cat)?.icon||"📍"} \${esc(cat)}</h2>
+      <div class="wish-grid">\${ws.map(w=>\`
+        <div class="card" style="overflow:hidden;border-radius:20px">
+          <div class="wcard" style="aspect-ratio:4/3">
+            \${imgTag(w.img||IMG.erdo,w.name)}
+            <div class="wb"><h3>\${esc(w.name||w.place||"Névtelen tipp")}</h3><div class="meta" style="color:#dbe7da"><span>\${esc(w.place||"")} · \${esc(w.diff||"")}</span></div>
+            <div class="flex" style="margin-top:.55rem;flex-wrap:wrap">
+              <button class="btn btn-ember btn-sm" data-wplan="\${w.id}">🗓️ Tervet készítek</button>
+              <button class="icon-btn" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:#fff" data-wdel="\${w.id}" aria-label="Eltávolítás">✕</button>
+            </div></div>
+            <span class="heart">\${w.custom?"📍":"❤️"}</span>
+          </div></div>\`).join("")}</div></div>\`).join("")
+    : \`<div class="empty"><span class="em-ico">💔</span><h3>Ebben a kategóriában még nincs mentett hely</h3>
+       <p>Böngesd végig a legszebb helyeket a nyilvános oldalon, mentsd el őket egy kattintással.</p>
+       <a class="btn btn-primary" href="#/helyek">🧭 Helyek felfedezése</a></div>\`}
+    <div class="card panel" style="margin-top:1rem"><h3>💡 Tipp</h3><p class="muted mb0 small">A Bakancslista pontjai a saját térképeden piros szíven jelennek meg — lásd, hol jártál már és hová vágysz.</p></div>\`);
+};
+VIEWS.wishlist.after = root => {
+  root.querySelectorAll("[data-wc]").forEach(b=>b.onclick=()=>{wishCat=b.dataset.wc; render();});
+  root.querySelector("#wish-add").onclick = () => {
+    openModal({ title:"Új hely a bakancslistára",
+      body:\`<label class="f">Hely neve *</label><input class="input" id="nw-n" placeholder="Pl. Csukás-vízesés">
+        <div style="height:.7rem"></div><label class="f">Kategória</label>
+        <select class="input" id="nw-c">\${WISH_CATS.map(c=>\`<option>\${esc(c.name)}</option>\`).join("")}</select>
+        <div style="height:.7rem"></div><label class="f">Hol találtad? (tájegység, helység)</label><input class="input" id="nw-p" placeholder="Pl. Hargita">
+        <div style="height:.7rem"></div><label class="f">Nehézség</label><select class="input" id="nw-d"><option>Könnyű</option><option selected>Közepes</option><option>Nehéz</option></select>\`,
+      footer:\`<button class="btn btn-primary btn-block" id="nw-save">❤️ Mentés</button>\`,
+      onOpen(r){ r.querySelector("#nw-save").onclick=()=>{ const n=r.querySelector("#nw-n").value.trim();
+        if(!n){ toast("Adj nevet a helynek","⚠️"); return; }
+        Store.toggleWish({id:"c_"+n, name:n, cat:r.querySelector("#nw-c").value, place:r.querySelector("#nw-p").value, diff:r.querySelector("#nw-d").value, img:IMG.erdo, custom:true});
+        closeModal(); toast("Felkerült a bakancslistára","❤️"); render(); }; } });
+  };
+  root.querySelectorAll("[data-wdel]").forEach(b=>b.onclick=()=>{ Store.rmWish(b.dataset.wdel); toast("Eltávolítva a listáról","—"); render(); });
+  root.querySelectorAll("[data-wplan]").forEach(b=>b.onclick=()=>{
+    const w = Store.myData().wishlist.find(x=>x.id===b.dataset.wplan);
+    openModal({ title:\`Túra terv: \${esc(w.name)}\`,
+      body:\`<p class="muted mt0">Mikor mennél?</p><input class="input" type="date" id="wp-date" value="\${Store.addDays(Store.nextSatDate(),7)}">
+        <label class="f" style="margin-top:.8rem">Kivel?</label><input class="input" id="wp-with" placeholder="Pl. Réka, család…">\`,
+      footer:\`<button class="btn btn-primary btn-block" id="wp-go">🥾 Munkaterület létrehozása</button>\`,
+      onOpen(r){ r.querySelector("#wp-go").onclick=()=>{
+        const base = TOURS.find(t=>t.start.name.toLowerCase().includes(w.name.toLowerCase().split(" ")[0].toLowerCase().slice(0,5))) ||
+                     TOURS.find(t=>t.region && (w.place||"").toLowerCase().includes(t.region.toLowerCase().split(" ")[0]));
+        const t = Store.newTourFromDraft({ title:\`\${w.name} — bakancslista-túra\`, place:w.place||w.name,
+          date:r.querySelector("#wp-date").value, difficulty:w.diff||"Közepes", img:w.img,
+          tags:base?base.tags:[ "kul", "cs" ].filter(x=>x), lengthKm: base?base.km:"?",
+          ascent: base?base.up:"?", durationH: base?base.h:"?" });
+        closeModal(); NAV.to("#/tura/"+t.id); }; } });
+  });
+};
+
+/* ---------- FELSZERELÉSEM ---------- */
+VIEWS.equipment = () => {
+  const d = Store.myData();
+  const have = d.equipment.filter(e=>e.has), miss = d.equipment.filter(e=>!e.has);
+  const catIcon = c => ({Bakancs:"🥾",Hátizsák:"🎒",Kabát:"🧥",Fejlámpa:"🔦",Túrabot:"🦯",Sátor:"⛺",Hálózsák:"🛌",Ivókanna:"💧",Egyéb:"🧰"}[c]||"🧰");
+  return dash("#/felszereles")(\`
+    <div class="dash-top"><div><h1>Felszerelésem 🎒</h1>
+      <div class="hello">A saját cuccaid listája — új tervnél a rendszer ebből indul ki, és azt jelöli, ami még hiányzik.</div></div>
+      <button class="btn btn-primary" id="eq-add">➕ Eszköz hozzáadása</button></div>
+    <div class="gear-cols">
+      <div class="card panel"><h3>✅ Megvan (\${have.length})</h3>
+        \${have.map(g=>gearRow(g,catIcon)).join("")||'<p class="muted small">Még nem adtál hozzá eszközt.</p>'}</div>
+      <div class="card panel" style="border-color:#f2d3b3"><h3><span class="warn-ic">🧯</span> Hiányzik (\${miss.length})</h3>
+        \${miss.map(g=>gearRow(g,catIcon)).join("")||'<p class="muted small">Teljes a szerelésed — nem kell többé boltok között rohangálnod. 🎉</p>'}</div>
+    </div>\`);
+};
+function expiryBadge(x){ const d=Math.ceil((new Date(x)-new Date())/864e5);
+  if(d<0) return '<span class="chip chip-ember" style="text-transform:none">⚠ lejárt: '+x+'</span>';
+  if(d<=30) return '<span class="chip" style="text-transform:none;background:#FBF4DE;color:#8a6d12">📅 '+d+' nap — újítsd fel!</span>';
+  return '<span class="chip chip-green" style="text-transform:none">✔ érvényes: '+x+'</span>'; }
+function gearRow(g, icon){
+  return \`<div class="flex between" style="border-bottom:1px solid var(--line);padding:.7rem .2rem;gap:.6rem">
+    <div class="flex" style="gap:.7rem;min-width:0"><span style="font-size:1.45rem;flex:none">\${g.icon||icon(g.cat)}</span>
+      <div style="min-width:0"><b style="font-size:.95rem">\${esc(g.name)}</b>
+        <div class="meta" style="font-size:.78rem">\${g.expiry?expiryBadge(g.expiry):""}<span>\${esc(g.cat)}</span><span title="A naplóból számolt összes túra-táv">🧭 eddig \${Store.journalKmTotal()} km</span>\${(Store.journalKmTotal()>800&&/Bakancs|Hátizsák/.test(g.cat))?\`<span class="gear-badge" style="background:var(--ember-soft);color:#B95E1C">✂ ideje újat venni!</span>\`:""}\${g.w?\`<span>⚖ \${g.w>=1000?(g.w/1000).toFixed(1).replace(".",",")+" kg":g.w+" g"}</span>\`:""}\${g.cond?\`<span>Állapot: \${g.cond==="Jó"?"🟢 "+esc(g.cond):g.cond.includes("Közepes")?"🟡 "+esc(g.cond):"🔴 "+esc(g.cond)}</span>\`:""}</div>
+        \${g.note?\`<div class="small muted" style="font-style:italic">\${esc(g.note)}</div>\`:""}</div></div>
+    <div class="flex" style="flex:none">
+      <button class="btn btn-sm \${g.has?"btn-ghost":"btn-soft"}" data-toggle-has="\${g.id}">\${g.has?"Megvan ✓":"Szerzem… ⏳"}</button>
+      <button class="icon-btn" data-eq-edit="\${g.id}" aria-label="Szerkesztés">✎</button>
+      <button class="icon-btn" data-eq-del="\${g.id}" aria-label="Törlés">🗑</button></div></div>\`;
+}
+VIEWS.equipment.after = root => {
+  const form = (g={})=>\`<label class="f">Eszköz neve *</label><input class="input" id="eq-n" value="\${esc(g.name||"")}" placeholder="Pl. Hógázló">
+    <div style="height:.7rem"></div><label class="f">Kategória</label><select class="input" id="eq-c">\${GEAR_OWN_CATS.map(c=>\`<option \${g.cat===c?"selected":""}>\${c}</option>\`).join("")}</select>
+    <div style="height:.7rem"></div><label class="f">Állapot</label><select class="input" id="eq-s"><option \${g.cond==="Jó"?"selected":""}>Jó</option><option \${g.cond&&g.cond.startsWith("Közepes")?"selected":""}>Közepes</option><option \${g.cond==="Kopott"?"selected":""}>Kopott</option><option value="">Nincs rögzítve</option></select>
+    <div style="height:.7rem"></div><label class="f">Súly (g) — hátizsák-kalkulátorhoz</label><input class="input" id="eq-w" type="number" min="0" step="10" value="\${g.w||700}">
+    <div style="height:.7rem"></div><label class="f">Biztosítás / tagság lejárata (opcionális)</label><input class="input" id="eq-x" type="date" value="\${esc(g.expiry||"")}">
+    <div style="height:.7rem"></div><label class="f">Megvan-e?</label><select class="input" id="eq-h"><option value="1" \${g.has!==false?"selected":""}>Igen, megvan</option><option value="0" \${g.has===false?"selected":""}>Még nem / nincs</option></select>
+    <div style="height:.7rem"></div><label class="f">Jegyzet</label><input class="input" id="eq-note" value="\${esc(g.note||"")}" placeholder="Pl. télen microspikes mehet rá">\`;
+  const save = (r,id) => { const o = { id, name:r.querySelector("#eq-n").value.trim(), cat:r.querySelector("#eq-c").value,
+    cond:r.querySelector("#eq-s").value, has:r.querySelector("#eq-h").value==="1", note:r.querySelector("#eq-note").value, expiry:r.querySelector("#eq-x").value||null, icon:{"Bakancs":"🥾","Hátizsák":"🎒","Kabát":"🧥","Fejlámpa":"🔦","Túrabot":"🦯","Sátor":"⛺","Hálózsák":"🛌","Ivókanna":"💧"}[r.querySelector("#eq-c").value]||"🧰", w:Math.max(0,+r.querySelector("#eq-w")?.value||0) };
+    if(!o.name){ toast("Add meg az eszköz nevét","⚠️"); return false; }
+    Store.saveEquipment(o); return true; };
+  root.querySelector("#eq-add").onclick = () => openModal({ title:"Új eszköz", body:form(), footer:\`<button class="btn btn-primary btn-block" id="eq-save">Mentés</button>\`,
+    onOpen(r){ r.querySelector("#eq-save").onclick=()=>{ if(save(r)){ closeModal(); toast("Eszköz elmentve","🎒"); render(); } }; } });
+  root.querySelectorAll("[data-eq-edit]").forEach(b=>b.onclick=()=>{ const g=Store.myData().equipment.find(x=>x.id===b.dataset.eqEdit);
+    openModal({ title:"Eszköz szerkesztése", body:form(g), footer:\`<button class="btn btn-primary btn-block" id="eq-save">Mentés</button>\`,
+      onOpen(r){ r.querySelector("#eq-save").onclick=()=>{ if(save(r,g.id)){ closeModal(); render(); } }; } }); });
+  root.querySelectorAll("[data-toggle-has]").forEach(b=>b.onclick=()=>{ const g=Store.myData().equipment.find(x=>x.id===b.dataset.toggleHas);
+    Store.saveEquipment({...g, has:!g.has, cond: g.has? "—" : (g.cond||"Jó")}); render(); });
+  root.querySelectorAll("[data-eq-del]").forEach(b=>b.onclick=()=>{
+    confirmDlg("Eszköz törlése a listáról?","Törlés",()=>{ Store.removeEquipment(b.dataset.eqDel); toast("Törölve","🗑"); render(); }); });
+};
+
+/* ---------- TÚRACSAPATOK ---------- */
+const DEMO_PEOPLE = ["Kiss Réka","Nagy Zsolt","Bíró Laci","Tóth Gizi","Müller Kata","Fekete Ádám"];
+VIEWS.teams = () => {
+  const d = Store.myData();
+  const nextShared = t => { const names=new Set(t.members.map(m=>m.name));
+    return Store.upcoming().find(x=>x.participants.some(p=>names.has(p.name)) && x.participants.length>=2); };
+  return dash("#/csapatok")(\`
+    <div class="dash-top"><div><h1>Túracsapatok 👥</h1><div class="hello">Barátok, közös túrák, autók — egyszerűen.</div></div>
+      <button class="btn btn-primary" id="tm-new">➕ Csapat létrehozása</button></div>
+    <div class="grid g2">
+      \${d.teams.map(t=>{ const nt = nextShared(t); return \`
+      <div class="card panel">
+        <div class="flex between"><h3>\${esc(t.name)}<span class="chip chip-green" style="margin-left:.5rem">\${t.members.length} tag</span></h3>
+          \${t.joined?\`<button class="btn btn-ghost btn-sm" data-leave="\${t.id}">Kilépés</button>\`:\`<button class="btn btn-ember btn-sm" data-join="\${t.id}">Csatlakozom</button>\`}\${t.joined?\`<button class="btn btn-soft btn-sm" style="margin-left:.4rem" data-invite="\${t.id}">📨 Meghívás</button>\`:""}</div>
+        \${t.desc?\`<p class="small muted">\${esc(t.desc)}</p>\`:""}
+        <div class="flex wrapcol" style="gap:.45rem;margin:.55rem 0">
+          \${t.members.slice(0,6).map(m=>\`<span class="person-chip"><span class="avt">\${initials(m.name)}</span>\${esc(m.name)}\${m.role==="szervező"?' <span class="chip chip-pine" style="text-transform:none;font-size:.62rem">vezér</span>':""}</span>\`).join("")}
+          \${t.members.length>6?\`<span class="small muted">+\${t.members.length-6}</span>\`:""}</div>
+        \${nt?\`<div class="card" style="background:var(--cream);padding:.7rem .9rem;border-radius:12px">
+          <div class="small muted">Következő közös túrátok:</div><b>🥾 \${esc(nt.title)}</b> · \${fmtDateFull(nt.date)}
+          <div class="small">\${count(nt.participants,p=>p.confirmed)}/\${nt.participants.length} erősítette meg</div>
+          <a class="btn btn-soft btn-sm" style="margin-top:.5rem" href="#/tura/\${nt.id}">Részletek</a></div>\`:\`<p class="small muted">\${t.joined?"Nincs még közös tervezett túrátok — hívd meg a többieket egy túrára!":"Csatlakozz, és máris látod a közös terveket."}</p>\`}
+      </div>\`; }).join("")}
+    </div>
+    <h2 style="font-size:1.15rem;margin-top:2rem">👥 Csatlakozás hívókóddal</h2>
+    <div class="card panel" style="padding:1rem">
+      <p class="muted small mt0" style="margin-bottom:.5rem">Kaptál kódot a túratársadtól? Írd be — ha a csapat ezen a gépen szerepel, a te listádba kerülsz. A többeszközös szinkron szerveres háttérrel jön.</p>
+      <div class="flex" style="gap:.6rem;flex-wrap:wrap"><input class="input" id="jc-in" placeholder="Pl. A1B2" style="width:150px;text-transform:uppercase"><button class="btn btn-primary btn-sm" id="jc-go">Csatlakozom</button>
+      <a class="btn btn-ghost btn-sm" href="#/uj-tura">➕ Új túra a csapattal</a></div></div>
+\`);
+};
+VIEWS.teams.after = root => {
+  const jcg=root.querySelector("#jc-go"); if(jcg) jcg.onclick=()=>{ const code=root.querySelector("#jc-in").value.trim().toUpperCase();
+    if(!code){ toast("\\u00cdrd be a h\\u00edv\\u00f3k\\u00f3dot", "\\u2328\\ufe0f"); return; }
+    const t=(Store.myData().teams||[]).find(x=>(x.inviteCode||"")===code);
+    if(!t){ toast("Ilyen h\\u00edv\\u00f3k\\u00f3d\\u00fa csapat nem tal\\u00e1lhat\\u00f3 ezen a g\\u00e9pen \\u2014 a t\\u00f6bbeszem\\u00e9ly\\u0171 szinkron szerveres h\\u00e1tt\\u00e9rrel j\\u00f6v\\u0151.", "\\ud83d\\udd0e"); return; }
+    Store.joinTeam(t.id); Store.save(); toast("Bel\\u00e9pt\\u00e9l a(z) "+t.name+" csapatba", "\\ud83d\\udc65"); render(); };
+  const t0 = Store.myData().teams;
+  root.querySelector("#tm-new").onclick = () => openModal({ title:"Új túracsapat",
+    body:\`<label class="f">Csapat neve *</label><input class="input" id="nc-n" placeholder="Pl. Hétfő reggeli Sétacsapat">
+      <div style="height:.7rem"></div><label class="f">Rövid leírás</label><input class="input" id="nc-d" placeholder="Kinek szól, milyen ritmusban?">\`,
+    footer:\`<button class="btn btn-primary btn-block" id="nc-save">Csapat létrehozása</button>\`,
+    onOpen(r){ r.querySelector("#nc-save").onclick=()=>{ const n=r.querySelector("#nc-n").value.trim();
+      if(!n){ toast("Adj nevet","⚠️"); return; }
+      Store.addTeam(n); const t=Store.teamById(Store.myData().teams.at(-1).id); t.desc=r.querySelector("#nc-d").value; Store.save();
+      closeModal(); toast("Csapat kész — hívj meg embereket a túráidon!","👥"); render(); }; } });
+  root.querySelectorAll("[data-join]").forEach(b=>b.onclick=()=>{ Store.joinTeam(b.dataset.join);
+    Store.save(); toast("Beléptél a csapatba — a hívást a 📨 Meghívás gombbal küldheted","👥"); render(); });
+  root.querySelectorAll("[data-invite]").forEach(b=>b.onclick=()=>{ const t=Store.teamById(b.dataset.invite);
+    if(!t.inviteCode){ t.inviteCode=Math.random().toString(36).slice(2,6).toUpperCase(); Store.save(); }
+    const msg="Gyere a(z) "+t.name+" túracsapatba a Túratársban! Csatlakozó kód: "+t.inviteCode+" — "+location.href.split("#")[0];
+    openModal({title:"📨 Meghívás — "+esc(t.name), body:\`<p class="small muted mt0">Küldd el ezt a szöveget (Messenger, SMS, mail). A kódot a meghívott a „Csatlakozás hívókóddal” mezőbe írja be.</p>
+      <div class="code-line"><b id="inv-code">\${t.inviteCode}</b><button class="btn btn-soft btn-sm" id="inv-copy">Kód másolása</button></div>
+      <label class="f" for="inv-msg" style="margin-top:.7rem">Meghívó szöveg</label><textarea class="input" id="inv-msg" rows="3" style="font-size:.85rem">\${esc(msg)}</textarea>
+      <label class="f" for="inv-name" style="margin-top:.7rem">Vagy vedd fel neved szerint a csapat listába:</label>
+      <div class="flex" style="gap:.5rem"><input class="input" id="inv-name" placeholder="Pl. Kiss Anna — utána a túra Résztvevők fülére" style="flex:1"><button class="btn btn-primary btn-sm" id="inv-add">＋</button></div>\`,
+      footer:\`<button class="btn btn-ghost btn-block" data-close>Kész</button>\`,
+      onOpen(r){ r.querySelector("#inv-copy").onclick=()=>{ navigator.clipboard.writeText(r.querySelector("#inv-msg").value).then(
+        ()=>toast("Meghívó szöveg a vágólapon ✔","📋"), ()=>toast("A böngésző nem enged másolást — jelöld ki a szöveget","📋")); };
+        r.querySelector("#inv-add").onclick=()=>{ const v=r.querySelector("#inv-name").value.trim(); if(!v){toast("Írd be a nevet","✍️");return;}
+          const tt=Store.teamById(b.dataset.invite); tt.members.push({id:Store.uid("m"),name:v,role:"tag"}); Store.save();
+          closeModal(); toast(v+" benne van a csapatban — a túra Résztvevők fülén jelöld","👥"); render(); }; } }); });
+
+  root.querySelectorAll("[data-leave]").forEach(b=>b.onclick=()=>{ Store.leaveTeam(b.dataset.leave); render(); });
+};
+
+/* ---------- TÚRANAPLÓ ---------- */
+VIEWS.journal = () => {
+  const d = Store.myData(); const js = d.journal.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  let lastM = "";
+  return dash("#/naplo")(\`
+    <div class="dash-top"><div><h1>Túranapló 📖</h1><div class="hello">A te sztorid, a te képeiddel — minden teljesített túra egy-egy bejegyzés.</div></div></div>
+    \${js.length? js.map(j=>\`
+      \${(()=>{ const m=(j.date||"").slice(0,7); const lab=m?\`\${MONTHS_HU[+m.slice(5,7)-1]} \${m.slice(0,4)}\`:""; const head = lab!==lastM? (lastM=lab, \`<h2 style="font-size:1.1rem;margin:1.6rem 0 .6rem;color:var(--moss)">\${lab}</h2>\`):""; return head; })()}
+      <article class="card jcard" style="margin-bottom:14px">
+        <div class="img-wrap">\${imgTag(Store.myData().tours.find(t=>t.id===j.tourId)?.img||IMG.erdo, j.title)}</div>
+        <div class="jb">
+          <div class="flex between wrapcol"><b>\${esc(j.title)}</b><span class="small muted">\${fmtDateFull(j.date)}</span></div>
+          <span class="stars">\${"★".repeat(j.rating||0)}\${"☆".repeat(5-(j.rating||0))}</span>
+          <p class="small" style="margin:.3rem 0 .2rem;color:var(--bark-soft)">"\${esc(j.note||"")}"</p>
+          <div class="meta" style="font-size:.8rem"><span>📍 \${esc(j.place||"—")}</span><span>📏 \${j.km==null||j.km===""?"—":esc(String(j.km))+" "} km</span><span>⬆ \${j.up==null||j.up===""||isNaN(+j.up)?"—":j.up} m</span><span>⏱ \${j.h==null||j.h===""||isNaN(+j.h)?"—":j.h} ó</span></div>
+          <div class="flex" style="margin-top:.6rem">
+            <button class="btn btn-ghost btn-sm" data-jedit="\${j.id}">✎ Jegyzet szerkesztése</button>
+            \${j.tourId?\`<a class="btn btn-soft btn-sm" href="#/tura/\${j.tourId}">📁 Munkaterület</a>\`:""}
+            <a class="btn btn-soft btn-sm" href="?img=/photo/\${j.id}">🖼 Képek megnyitása</a>
+          </div></div>
+      </article>\`).join("")
+    : \`<div class="empty"><span class="em-ico">📖</span><h3>A naplód még üres</h3><p>Ha teljesítesz egy túrát, ide felkerül az értékeléseddel, képeiddel és a saját szavaiddal. A többi — dátum, táv, szint — automatikusan rendeződik.</p>
+      <a class="btn btn-primary" href="#/turaim">Túráim</a></div>\`}\`);
+};
+VIEWS.journal.after = root => {
+  root.querySelectorAll("[data-jedit]").forEach(b=>b.onclick=()=>{
+    const j = Store.myData().journal.find(x=>x.id===b.dataset.jedit);
+    openModal({ title:\`Jegyzet: \${esc(j.title)}\`,
+      body:\`<textarea class="input" id="jn" rows="4">\${esc(j.note||"")}</textarea>
+        <label class="f" style="margin-top:.8rem">Értékelés</label><select class="input" id="jr">\${[5,4,3,2,1].map(n=>\`<option value="\${n}" \${j.rating===n?"selected":""}>\${"★".repeat(n)}</option>\`).join("")}</select>\`,
+      footer:\`<button class="btn btn-primary btn-block" id="js">Mentés</button>\`,
+      onOpen(r){ r.querySelector("#js").onclick=()=>{ j.note=r.querySelector("#jn").value; j.rating=+r.querySelector("#jr").value;
+        Store.updateTour(j.tourId,{}); renderNotifSafe(); closeModal(); toast("Napló frissítve","📖"); render(); }; } });
+  });
+};
+function renderNotifSafe(){ try{ renderHeader(); }catch(e){} }
+
+/* ---------- STATISZTIKÁK ---------- */
+VIEWS.stats = () => {
+  const s = Store.stats(), d = Store.myData();
+  const months = []; const now=new Date();
+  for(let i=11;i>=0;i--){ const dd=new Date(now.getFullYear(),now.getMonth()-i,1);
+    months.push(\`\${dd.getFullYear()}-\${String(dd.getMonth()+1).padStart(2,"0")}\`); }
+  const maxKm = Math.max(1,...months.map(m=>(s.byM[m]||{km:0}).km));
+  const diffs = Object.entries(s.diffs), maxD = Math.max(1,...diffs.map(x=>x[1]));
+  const goalPct = Math.min(100, Math.round(s.yearKm/s.goals.km*100));
+  const ring = (p, color) => { const c=2*Math.PI*58; return \`<svg width="150" height="150"><circle cx="75" cy="75" r="58" stroke="#EFE8D8" stroke-width="12" fill="none"/>
+    <circle cx="75" cy="75" r="58" stroke="\${color}" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="\${c}" stroke-dashoffset="\${c*(1-p/100)}" style="transition:stroke-dashoffset 1s"/></svg>\`; };
+  return dash("#/statisztikak")(\`
+    <div class="dash-top"><div><h1>Statisztikák 📊</h1><div class="hello">Ahol a kilométerek sztorivá válnak.</div></div></div>
+    <div class="grid g4 smm2" style="margin-bottom:18px">
+      <div class="kpi"><span class="kic">🥾</span><div><b>\${s.tours}</b><span>összes túra</span></div></div>
+      <div class="kpi"><span class="kic">📏</span><div><b>\${Math.round(s.km)}</b><span>összes kilométer</span></div></div>
+      <div class="kpi"><span class="kic">⬆️</span><div><b>\${(s.up/1000).toFixed(1)}k</b><span>m szintkülönbség</span></div></div>
+      <div class="kpi"><span class="kic">⏱️</span><div><b>\${Math.round(s.h)}</b><span>óra a túraösvényeken</span></div></div>
+      <div class="kpi"><span class="kic">🏔️</span><div><b>\${s.summits}</b><span>megmászott csúcs</span></div></div>
+      <div class="kpi"><span class="kic">🎯</span><div><b>\${s.planned}</b><span>tervezés alatt</span></div></div>
+      <div class="kpi"><span class="kic">📅</span><div><b>\${new Date().getFullYear()}</b><span>\${s.yearKm} km eddig</span></div></div>
+      <div class="kpi"><span class="kic">🔥</span><div><b>\${s.tours?Math.round(s.km/s.tours*10)/10:"0"}</b><span>km / átlagtúra</span></div></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1.15fr .85fr;align-items:start;gap:18px">
+      <div class="card chart-card"><h3>Havonta megtett km</h3>
+        \${months.map(m=>{ const v=(s.byM[m]||{km:0,tours:0}); const mon=m.slice(5,7);
+          return \`<div class="bar-row"><span class="bl">\${MONTHS_HU[+mon-1].slice(0,3)}.</span>
+            <span class="bt"><i style="width:\${Math.max(v.km?2:0, v.km/maxKm*100)}%;background:\${m.startsWith(String(now.getFullYear()))?"linear-gradient(90deg,var(--moss),var(--leaf))":"#cfe0cf"}"></i></span>
+            <span class="bv">\${Math.round(v.km)} km · \${v.tours}×</span></div>\`; }).join("")}
+        <p class="small muted">A sávok a teljesített túrák távolságát mutatják az elmúlt 12 hónapban.</p>
+      </div>
+      <div>
+        <div class="card chart-card">
+          <h3>Nehézségi megoszlás</h3>
+          \${diffs.map(([k,v])=>\`<div class="bar-row"><span class="bl">\${k.slice(0,3)}</span><span class="bt"><i style="width:\${v/maxD*100}%"></i></span><span class="bv">\${v} db</span></div>\`).join("")}
+        </div>
+        <div class="card chart-card" style="margin-top:14px"><h3>Kedvenc tájegységek</h3>
+          \${Object.entries(s.regions).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>\`<div class="bar-row"><span class="bl" style="font-size:.72rem">\${esc(k.slice(0,5))}.</span><span class="bt"><i style="width:\${v/Math.max(...Object.values(s.regions))*100}%;background:linear-gradient(90deg,var(--sky),#6FA8C8)"></i></span><span class="bv">\${v}× </span></div>\`).join("")||'<p class="small muted">Még nincs adat.</p>'}</div>
+      </div>
+    </div>
+    <div class="card chart-card" style="margin-top:18px">
+      <div class="flex between wrapcol"><h3 style="margin:0">Éves cél — \${s.year}</h3>
+        <div class="flex" style="gap:.4rem"><label class="f" style="margin:0">Cél (km)</label><input class="input" id="goal-km" type="number" style="width:90px" value="\${s.goals.km}"><button class="btn btn-soft btn-sm" id="goal-save">Mentés</button></div></div>
+      <div class="split2" style="grid-template-columns:170px 1fr;margin-top:.8rem;gap:24px">
+        <div class="goal-ring">\${ring(goalPct,"var(--ember)")}<div class="gr-c"><b>\${goalPct}%</b><span>\${Math.round(s.yearKm)} / \${s.goals.km} km</span></div></div>
+        <div>
+          <div class="progress-strip" style="height:20px"><i style="width:\${goalPct}%"></i></div>
+          <p class="small muted" style="margin-top:.6rem">\${goalPct>=100? "🏆 Cél teljesítve — tűzz ki újat!" : \`Még \${Math.max(0,s.goals.km-Math.round(s.yearKm))} km hiányzik a \${s.year}-i célhoz. \${Math.ceil((s.goals.km-s.yearKm)/Math.max(1,s.yearKm/((+Store.todayISO().slice(5,7)))))} km átlag/hónap kell a hátralévő időben.\`}</p>
+        </div></div>
+    </div>\`);
+};
+VIEWS.stats.after = root => {
+  const g = root.querySelector("#goal-km");
+  root.querySelector("#goal-save").onclick=()=>{ Store.myData().goals.km=Math.max(10,+g.value||300); Store.save(); toast("Cél mentve 🎯","✅"); render(); };
+};
+
+/* ---------- AI TÚRATÁRS ---------- */
+VIEWS.ai = () => {
+  const d=Store.myData();
+  const msgs = d.aiChat||[];
+  return dash("#/ai")(\`
+    <div class="dash-top"><div><h1>AI Túratervező 🤖</h1><div class="hello">Írd le természetesen, mire vágysz — ő ajánl túrát, időtervet, csomaglistát, étellistát. Egy gombbal új túraként is elmentheted.</div></div></div>
+    <div class="ai-shell card" style="padding:1.1rem 1.2rem">
+      <div class="ai-msgs" id="ai-msgs">
+        \${msgs.length? msgs.map(m=>\`<div class="bub \${m.role==="user"?"user":"ai"}">\${m.html||esc(m.text)}</div>\`).join("") :
+        \`<div class="bub ai">Szia! Én a Túratárs Túratervezője vagyok. 🥾<br>Pl.: <i>„Szombaton szeretnék egy közepes nehézségű, maximum 5 órás túrát gyönyörű kilátással.”</i></div>\`}
+        \${msgs.length? msgs.filter(m=>m.role==="ai"&&m.result).slice(-1).map(m=>aiRecCard(m.result)).join(""):""}
+      </div>
+      <div class="ai-chips">
+        \${["Könnyű, 3 órán belüli családi túra vízeséshez","Nehéz túra, holnap, komoly szintekkel","Napfelkelte-sétalehetőség vasárnap","Többnapos sátrazós túra az erdőben"].map(c=>\`<button class="f-pill" data-chip="\${esc(c)}">\${esc(c)}</button>\`).join("")}
+      </div>
+      <div class="ai-input-row"><input class="input" id="ai-in" placeholder="Mire vágysz a héten? Írd le, mint egy barátnak…" autocomplete="off">
+        <button class="btn btn-primary" id="ai-send">Küldés ➤</button></div>
+    </div>\`);
+};
+function aiRecCard(r){
+  if(!r) return "";
+  const t=r.tour;
+  return \`<div class="ai-card-rec">
+    <div class="img-wrap" style="he
