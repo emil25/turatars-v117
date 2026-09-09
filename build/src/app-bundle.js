@@ -3691,7 +3691,11 @@ VIEWS.dash = function(){
   const rs = Store.fieldReports().slice(0,2);
   W.terep = `<h2 style="font-size:1.25rem">Terepi infók <span class="small"><a href="#/terepi" style="color:var(--sky);font-weight:600">→ Mind</a></span></h2>
     <div class="card panel" style="padding:.3rem 0">${rs.map(r=>terepRow(r,{compact:1}).replace('class="nrow terep','class="terep-sm nrow terep')).join("")}</div>`;
-  const widgets = order.map(k=>`<section class="wsec" data-w="${k}" draggable="false"><div class="wsec-grip" title="Húzd átrendezéshez">⠿</div>${W[k]}</section>`).join("");
+  const widgets = order.map(k=>{
+    const widget = W[k];
+    const rendered = typeof widget === "function" ? widget() : (widget || "");
+    return `<section class="wsec" data-w="${k}" draggable="false"><div class="wsec-grip" title="Húzd átrendezéshez">⠿</div>${rendered}</section>`;
+  }).join("");
   return dash("#/vezerlopult")(`
     <div class="dash-top">
       <div><div class="hello">${new Date().getHours()<10?"Jó reggelt":new Date().getHours()<18?"Kellemes napot":"Kellemes estet"} · ${fmtDateFull(Store.todayISO())} · ${u.city?esc(u.city):"jó kirándulást"}</div>
