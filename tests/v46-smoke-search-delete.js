@@ -1,0 +1,17 @@
+const { chromium } = require('playwright');
+(async()=>{ const b=await chromium.launch({executablePath:'/opt/playwright-browsers/chromium-1209/chrome-linux64/chrome',args:['--no-sandbox']});
+ const p=await b.newPage();p.on('pageerror',e=>console.log('PE',String(e).slice(0,140)));
+ const U=x=>'https://cq78ba4p.qwenwork.page/?KK'+x+'_'+Date.now(); const ev=f=>p.evaluate(f);
+ await p.goto(U(0)+'#/',{waitUntil:'networkidle'});
+ await ev(()=>{Store.signup('KK','kk@x.io','kkpassword1','Csík');Store.me().onboarded=true;Store.save();
+  const d=Store.myData();d.inbox.push({id:'a1',type:'note',title:'ALMA',note:'k',created_at:new Date().toISOString(),status:'new'},{id:'b2',type:'note',title:'KÖRTE',note:'k',created_at:new Date().toISOString(),status:'new'});Store.save();});
+ await p.goto(U(1)+'#/inbox',{waitUntil:'networkidle'}); await p.waitForTimeout(900);
+ await ev(()=>{const q=document.getElementById('ib26-q');q.value='ALMA';q.dispatchEvent(new Event('input',{bubbles:true}));}); await p.waitForTimeout(300);
+ console.log('search 1?', await ev(()=>document.querySelectorAll('.ib26-card b').length===1&&document.body.innerText.includes('ALMA')&&!document.body.innerText.includes('KÖRTE')));
+ await ev(()=>{const q=document.getElementById('ib26-q');q.value='';q.dispatchEvent(new Event('input',{bubbles:true}));}); await p.waitForTimeout(250);
+ console.log('cards 2?', await ev(()=>document.querySelectorAll('.ib26-card').length===2));
+ await ev(()=>{const cards=[...document.querySelectorAll('.ib26-card')];cards[cards.length-1].querySelector('[data-ib2d]').click();}); await p.waitForTimeout(400);
+ console.log('confirm?', await ev(()=>/Törlöd/.test(document.body.innerText)));
+ await ev(()=>{const y=[...document.querySelectorAll('[data-modal] button')].find(x=>x.textContent.trim()==='Törlés' && x.className.indexOf('btn-danger')>-1); y&&y.click();}); await p.waitForTimeout(400);
+ console.log('deleted?', await ev(()=>(Store.myData().inbox||[]).length===1));
+ await b.close();})();

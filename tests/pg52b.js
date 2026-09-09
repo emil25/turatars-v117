@@ -1,0 +1,21 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/playwright-browsers/chromium-1209/chrome-linux64/chrome', args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage(); const pe = []; p.on('pageerror', e => pe.push(String(e).slice(0, 180)));
+  const U = x => 'https://cq78ba4p.qwenwork.page/?PGB' + x + Date.now();
+  await p.goto(U('0') + '#/', { waitUntil: 'networkidle' }); await p.waitForTimeout(600);
+  await p.evaluate(() => { const r = Store.signup('PG B', 'pgb@pg.io', 'pgbpasswordx1', 'X'); if (r.ok) Store.me().onboarded = true; Store.save(); });
+  await p.evaluate(() => { Store.platform().organizers.push({ id: 'orgp2', owner: 'pgb@pg.io', name: 'PG Org2', demo: false });
+    Store.platform().events.push({ id: 'evp_c', orgId: 'orgp2', name: 'Cucs Test', date: '2026-12-05', place: 'Gyergyói-havasok', region: 'Gyergyó', km: 16, up: 900, diff: 'Nehéz', status: 'published', joinMode: 'internal', cap: 1, fp: 'c', rev: 0, demo: false, createdAt: new Date().toISOString() });
+    Store.save(); });
+  await p.goto(U('1') + '#/felfedezes', { waitUntil: 'networkidle' }); await p.waitForTimeout(1300);
+  await p.evaluate(() => { const t = document.querySelector('[data-f9tab="events"]'); t && t.click(); }); await p.waitForTimeout(600);
+  await p.evaluate(() => { document.querySelectorAll('#f9-list details').forEach(d => { d.open = true; }); }); await p.waitForTimeout(300);
+  console.log('card found:', await p.evaluate(() => !!([...document.querySelectorAll('#f9-list .f9card')].find(x => /Cucs Test/.test(x.textContent)))));
+  await p.evaluate(() => { const c = [...document.querySelectorAll('#f9-list .f9card')].find(x => /Cucs Test/.test(x.textContent)); const bb = c && c.querySelector('[data-f9ev]'); bb && bb.click(); }); await p.waitForTimeout(800);
+  console.log('modal open + plan btn:', await p.evaluate(() => { const m = document.querySelector('[data-modal]'); return { m: !!m, plan: m && !!m.querySelector('[data-f9plan]'), join: m && !!m.querySelector('[data-e2join]') }; }));
+  await p.evaluate(() => { const x = document.querySelector('[data-modal] [data-f9plan]'); x && x.click(); }); await p.waitForTimeout(1600);
+  console.log('after plan — tours:', await p.evaluate(() => (Store.myData().tours || []).map(t => t.extRef + "|" + (t.eventRef || "") + "|" + t.date + "|" + t.title).join(' ;; ')), '| hash:', await p.evaluate(() => location.hash));
+  console.log('PE:', pe.slice(0, 3));
+  await b.close(); process.exit(0);
+})().catch(e => { console.log('H', e.message.slice(0, 150)); process.exit(0); });

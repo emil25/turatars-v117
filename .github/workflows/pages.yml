@@ -22,20 +22,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble production site
-        shell: bash
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: build/package-lock.json
+
+      - name: Install build dependencies
+        working-directory: build
+        run: npm ci
+
+      - name: Rebundle application source
+        run: node tools/rebundle.mjs
+
+      - name: Build production site
+        working-directory: build
+        env:
+          VITE_TT_SUPABASE_ENABLED: "true"
+          VITE_SUPABASE_URL: https://reezefgcbdrcnuhcktma.supabase.co
         run: |
-          mkdir -p _site/assets _site/icons
-          cp index.html manifest.webmanifest sw.js .nojekyll _site/
-          cp assets/*.css _site/assets/
-          cp icons/* _site/icons/
-          cat .deploy/index-js.part* > _site/assets/index-BpnR2Qag.js
+          npm run build
+          bundle=$(find dist/assets -maxdepth 1 -name 'index-*.js' -print -quit)
+          test -n "$bundle"
+          grep -q 'reezefgcbdrcnuhcktma\.supabase\.co' "$bundle"
+          grep -q 'cloudAuthEnabled' "$bundle"
+          grep -q 'authSignup' "$bundle"
+          grep -q 'authLogin' "$bundle"
+
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: build/dist
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

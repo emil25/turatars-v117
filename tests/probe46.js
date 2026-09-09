@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/playwright-browsers/chromium-1209/chrome-linux64/chrome', args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage(); const eps = []; p.on('pageerror', e => eps.push(String(e).slice(0, 150)));
+  const U = x => 'https://cq78ba4p.qwenwork.page/?P46' + x + Date.now();
+  await p.goto(U('a') + '#/', { waitUntil: 'networkidle' }); await p.waitForTimeout(500);
+  await p.evaluate(() => { const r = Store.signup('P46', 'p46@p', 'pppppppp1', 'X'); if (r.ok) { Store.me().onboarded = true; Store.save(); } });
+  await p.goto(U('b') + '#/inbox', { waitUntil: 'networkidle' }); await p.waitForTimeout(900);
+  await p.evaluate(() => { const n = document.getElementById('ib26-new'); n && n.click(); }); await p.waitForTimeout(500);
+  await p.evaluate(() => { const sels = ['r', 'e', 'g', 'l', 'n', 'h']; let f = null; document.querySelectorAll('[data-ib2type]').forEach(x => { }); const ev = document.querySelector('[data-ib2type="event"]') || document.querySelector('.ib26-t'); if (ev) ev.click(); });
+  await p.waitForTimeout(400);
+  const fields = await p.evaluate(() => { const o = []; [...document.querySelectorAll('[id^="ib26f_"]')].forEach(x => o.push(x.id)); o.push('raw:' + !!document.getElementById('ib26-raw')); return o.join(','); });
+  console.log('FIELDS:', fields);
+  await p.evaluate(() => { const r = document.getElementById('ib26-raw'); if (r) { r.value = 'Esemény: Madarasi őszi túra — 2026.12.24. 09:00, helyszín: Gyergyó, szervező: CsEKE, táv: 18 km'; } const d = document.getElementById('ib26-det'); d && d.click(); }); await p.waitForTimeout(600);
+  const parsed = await p.evaluate(() => { const o = {}; [...document.querySelectorAll('[id^="ib26f_"]')].forEach(x => { if (x.value) o[x.id.replace('ib26f_', '')] = String(x.value).slice(0, 30); }); return JSON.stringify(o); });
+  console.log('PARSED:', parsed);
+  await p.evaluate(() => { const s = document.getElementById('ib26-save'); s && s.click(); }); await p.waitForTimeout(800);
+  const items = await p.evaluate(() => (Store.myData().inbox || []).map(i => i.type + '|' + (i.title || '') + '|' + (i.text || '').slice(0, 25)).join(' ;; '));
+  console.log('ITEMS:', items.slice(0, 220));
+  await p.evaluate(() => { const q = document.getElementById('ib26-q'); q.value = 'Madarasi'; q.dispatchEvent(new Event('input', { bubbles: true })); }); await p.waitForTimeout(600);
+  console.log('SEARCH:', await p.evaluate(() => document.querySelectorAll('.ib26-card').length + ' cards: ' + [...document.querySelectorAll('.ib26-card')].map(c => c.innerText.replace(/\n/g, ' ').slice(0, 30)).join('||')));
+  console.log('PE:', eps);
+  await b.close();
+})().catch(e => console.log('H', e.message.slice(0, 160)));

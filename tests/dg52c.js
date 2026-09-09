@@ -1,0 +1,22 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/playwright-browsers/chromium-1209/chrome-linux64/chrome', args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage(); const pe = []; p.on('pageerror', e => pe.push(String(e).slice(0, 200)));
+  const U = x => 'https://cq78ba4p.qwenwork.page/?DW' + x + Date.now();
+  await p.goto(U('0') + '#/', { waitUntil: 'networkidle' }); await p.waitForTimeout(600);
+  await p.evaluate(() => { Store.signup('DW', 'dw@v52.io', 'dwpasswordxx1', 'Gyergyó'); Store.me().onboarded = true; Store.save(); });
+  await p.goto(U('1') + '#/szervezo', { waitUntil: 'networkidle' }); await p.waitForTimeout(1100);
+  await p.evaluate(() => { document.getElementById('e2-reg').click(); }); await p.waitForTimeout(500);
+  await p.evaluate(() => { const m = document.querySelector('[data-modal]'); m.querySelector('#e2o_save').click(); }); await p.waitForTimeout(900);
+  await p.evaluate(() => { document.getElementById('e2-new').click(); }); await p.waitForTimeout(700);
+  await p.evaluate(() => { const m = document.querySelector('[data-modal]'); const g = (id, v) => { const e = m.querySelector(id); if (e) e.value = v; };
+    g('#e2f_name', 'DW Turistátúra 2026'); g('#e2f_date', '2026-11-28'); g('#e2f_place', 'Csíki-havasok'); g('#e2f_km', '13'); m.querySelector('#e2f_save').click(); }); await p.waitForTimeout(900);
+  await p.evaluate(() => { const x = document.querySelector('[data-e2st$=":published"]'); x && x.click(); }); await p.waitForTimeout(800);
+  const st1 = await p.evaluate(() => { const e = Store.platform().events.find(x => /DW/.test(x.name)); return { st: e && e.status, date: e && e.date, id: e && e.id }; });
+  console.log('state:', JSON.stringify(st1), '| pool:', await p.evaluate(() => window.e2Events().map(x => x.id + "/" + x.date).join(",")));
+  await p.goto(U('2') + '#/felfedezes', { waitUntil: 'networkidle' }); await p.waitForTimeout(1200);
+  await p.evaluate(() => { const t = document.querySelector('[data-f9tab="events"]'); t && t.click(); }); await p.waitForTimeout(800);
+  console.log('tab cards:', await p.evaluate(() => document.querySelectorAll('#f9-list .f9card').length), '| DW in html:', await p.evaluate(() => /DW Turistátúra/.test(document.getElementById('f9-list').innerHTML)));
+  console.log('PE:', pe.slice(0, 3));
+  await b.close();
+})().catch(e => console.log('H', e.message.slice(0, 160)));

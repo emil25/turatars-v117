@@ -1,0 +1,6 @@
+@import "./app-css/base.css";
+@import "./app-css/layout.css";
+@import "./app-css/views.css";
+@import "./app-css/dark.css";
+
+/* Regisztrált betűkészletek betöltése a CSS-ből is (a <link> mellett) */

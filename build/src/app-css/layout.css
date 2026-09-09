@@ -1,0 +1,89 @@
+/* ============================================================
+   LAYOUT — publikus fejléc/lábléc, dashboard shell, mobil nav
+   ============================================================ */
+
+/* ---------- Publikus fejléc ---------- */
+#site-header{position:sticky;top:0;z-index:900}
+.pub-nav{background:rgba(247,244,236,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.pub-nav .wrap{display:flex;align-items:center;gap:1.4rem;height:64px}
+.logo{display:flex;align-items:center;gap:.55rem;font-family:var(--font-display);font-weight:700;font-size:1.28rem;color:var(--pine);letter-spacing:-.02em}
+.logo svg{width:30px;height:30px;flex:none}
+.logo em{font-style:normal;color:var(--ember)}
+.logo .brand-logo{display:block;width:auto;height:46px;max-width:190px;object-fit:contain}
+.dash-side .logo .brand-logo{height:auto;width:190px;max-width:100%}
+.pub-links{display:flex;gap:.2rem;margin-left:auto;font-weight:600;font-size:.95rem}
+.pub-links a{padding:.5em .95em;border-radius:999px;color:var(--bark);transition:all .15s}
+.pub-links a:hover{background:var(--leaf-soft);color:var(--pine)}
+.pub-links a.on{background:var(--pine);color:#fff}
+.pub-cta{display:flex;gap:.55rem;align-items:center}
+@media(max-width:880px){
+  .pub-links{display:none}
+  .pub-nav .wrap{height:58px;gap:.7rem}
+  .pub-nav .logo .brand-logo{height:38px;max-width:150px}
+  .pub-cta .btn-ghost:not(.keep-m){display:none}
+}
+
+/* ---------- Publikus lábléc ---------- */
+.pub-foot{background:var(--pine);color:#dce9dd;margin-top:4rem}
+.pub-foot .wrap{padding-top:3rem;padding-bottom:2rem;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:2rem}
+.pub-foot h4{color:#fff;font-family:var(--font-body);font-weight:700;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;margin-bottom:.9rem}
+.pub-foot a{display:block;padding:.22em 0;color:#bcd6c2;font-size:.92rem}
+.pub-foot a:hover{color:#fff}
+.pub-foot .fbrand{font-family:var(--font-display);font-size:1.5rem;color:#fff;font-weight:600;margin-bottom:.4rem}
+.pub-foot .fine{border-top:1px solid rgba(255,255,255,.15);grid-column:1/-1;padding-top:1.2rem;font-size:.82rem;color:#9dbfa6;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+@media(max-width:820px){.pub-foot .wrap{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.pub-foot .wrap{grid-template-columns:1fr}}
+
+/* ---------- Dashboard shell ---------- */
+.dash{display:grid;grid-template-columns:252px 1fr;min-height:calc(100vh - 64px)}
+.dash-side{background:var(--paper);border-right:1px solid var(--line);padding:1.1rem .8rem 2rem;position:sticky;top:64px;height:calc(100vh - 64px);overflow:auto}
+.dash-side .nav-group{margin-bottom:1.15rem}
+.dash-side .ng-label{font:700 .68rem/1 var(--font-body);letter-spacing:.16em;text-transform:uppercase;color:#a8b0a4;padding:.4rem .75rem .45rem}
+.side-link{display:flex;align-items:center;gap:.65rem;padding:.58em .75em;border-radius:12px;font-weight:500;font-size:.93rem;color:var(--bark);
+  transition:background .15s,color .15s;position:relative}
+.side-link .ico{width:22px;text-align:center;flex:none;font-size:1.02rem}
+.side-link:hover{background:var(--leaf-soft)}
+.side-link.on{background:var(--pine);color:#fff;font-weight:600}
+.side-link .badge{margin-left:auto;background:var(--ember);color:#fff;font-size:.68rem;font-weight:700;border-radius:999px;padding:.15em .5em;min-width:1.5em;text-align:center}
+.dash-main{padding:clamp(16px,2.6vw,34px) clamp(16px,3vw,40px) 90px;min-width:0;background:
+  radial-gradient(900px 300px at 85% -60px, rgba(94,155,116,.12), transparent)}
+.dash-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem;flex-wrap:wrap}
+.dash-top h1{font-size:clamp(1.5rem,3vw,2rem);margin:0}
+.dash-top .hello{color:var(--bark-soft);font-size:.95rem;margin-top:.15rem}
+@media(max-width:940px){
+  .dash{grid-template-columns:1fr}
+  .dash-side{display:none}
+}
+@media(min-width:941px){
+  .mobile-only{display:none !important}
+}
+
+/* ---------- Mobil felső sáv + alsó navigáció ---------- */
+.m-topbar{display:none;position:sticky;top:58px;z-index:800;background:var(--pine);color:#fff;padding:.55rem 1rem;align-items:center;justify-content:space-between}
+.m-topbar .logo{color:#fff;font-size:1.05rem}
+body.in-dash .m-topbar{display:flex}
+.m-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:1000;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);padding:.35rem .3rem calc(.35rem + env(safe-area-inset-bottom));
+  grid-template-columns:repeat(5,1fr)}
+body.in-dash .m-bottom-nav{display:grid}
+.mb-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:.42rem .2rem;border-radius:14px;font-size:.62rem;font-weight:600;color:var(--bark-soft);letter-spacing:.02em}
+.mb-item .mi{font-size:1.25rem;line-height:1.15}
+.mb-item.on{color:var(--pine)}
+.mb-item.plus{color:#fff}
+.mb-item.plus .mi{width:46px;height:46px;margin-top:-16px;background:var(--ember);border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;font-weight:700;box-shadow:0 6px 16px rgba(224,122,47,.45);border:3px solid #fff}
+.mb-item.plus{font-size:.62rem}
+
+/* Kártyarácsok a publikus oldalon */
+.p-h-scroll{display:flex;gap:18px;overflow-x:auto;padding:6px 4px 18px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.p-h-scroll>*{flex:0 0 min(320px,82vw);scroll-snap-align:start}
+@media(min-width:760px){.p-h-scroll{overflow:visible;flex-wrap:wrap}.p-h-scroll>*{flex:0 0 calc((100% - 36px)/3)}}
+@media(min-width:760px) and (max-width:1020px){.p-h-scroll>*{flex:0 0 calc((100% - 18px)/2)}}
+
+/* Szekció ritmus */
+.pub-section{padding:56px 0}
+.pub-section.tight{padding:34px 0}
+
+/* Elosztás segédek */
+.split2{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center}
+@media(max-width:900px){.split2{grid-template-columns:1fr}}

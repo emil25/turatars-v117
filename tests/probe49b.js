@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/playwright-browsers/chromium-1209/chrome-linux64/chrome', args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport:{width:390,height:844} })).newPage(); const errs=[];
+  p.on('pageerror',e=>errs.push(String(e).slice(0,160)));
+  const U = x => 'https://cq78ba4p.qwenwork.page/?PC'+x+'_'+Date.now()+'_'+Math.floor(Math.random()*9999);
+  await p.goto(U(1)+'#/', { waitUntil:'networkidle' }); await p.waitForTimeout(500);
+  await p.evaluate(()=>{ const r=Store.signup('C','c@c','cccccccc1','X'); if(r.ok){Store.me().onboarded=true;Store.save();} });
+  await p.goto(U(2)+'#/felfedezes', { waitUntil:'networkidle' }); await p.waitForTimeout(800);
+  await p.evaluate(()=>{ const x=document.querySelector('[data-f9tab="events"]'); x&&x.click(); }); await p.waitForTimeout(500);
+  await p.evaluate(()=>{ const x=[...document.querySelectorAll('[data-f9ev]')][0]; x&&x.click(); }); await p.waitForTimeout(600);
+  console.log('modal:', await p.evaluate(()=>{const m=document.querySelector('[data-modal]'); return m?m.innerText.slice(0,80).replace(/\n/g,' '):'-';}));
+  await p.evaluate(()=>{ const x=[...document.querySelectorAll('[data-modal] [data-close]')].pop(); x&&x.click(); }); await p.waitForTimeout(400);
+  const firstPlan = await p.evaluate(()=>{ const x=document.querySelector('#f9-list [data-f9plan^="e"]'); return x?x.dataset.f9plan:'NOBTN'; });
+  await p.evaluate(()=>{ const x=document.querySelector('#f9-list [data-f9plan^="e"]'); x&&x.click(); }); await p.waitForTimeout(1500);
+  console.log('firstPlan btn:', firstPlan, 'hash:', await p.evaluate(()=>location.hash));
+  console.log('projektek:', await p.evaluate(()=>JSON.stringify((Store.myData().tours||[]).filter(t=>t.extRef&&t.extRef.startsWith('f9:e')).map(t=>({e:t.eventRef,d:t.date,s:t.status}))).slice(0,160)));
+  console.log('PE:', errs.slice(0,2));
+  await b.close();
+})().catch(e=>{ console.log('HIBA', e.message.slice(0,200)); process.exit(1); });
