@@ -1,14 +1,4 @@
-ny","🎫 Események"],["mind","🌐 Mind"]];
-function tvBucket(t){ const d=t.date?Store.dayDiff(t.date):999;
-  if(t.status==="ötlet")return"otlet"; if(t.status==="bakancs")return"bakancs";
-  if(t.status==="teljesítve")return"teljesitve"; if(t.status==="archiválva")return"archivalva";
-  if(t.status==="folyamatban"||(t.date&&d<=0))return"folyamatban";
-  if(t.eventRef)return"esemeny";
-  if(d<=7&&["tervezés","közelgő"].includes(t.status))return"kozelgo"; return "tervezes"; }
-let tvTab="mind";
-VIEWS.tours = () => { const d=Store.myData();
-  const buck={}; d.tours.forEach(t=>{ const k=tvBucket(t); (buck[k]=buck[k]||[]).push(t); });
-  Object.values(buck).forEach(a=>a.sort((x,y)=>(x.date||"9999").localeCompare(y.date||"9999")));
+").localeCompare(y.date||"9999")));
   const list=(tvTab==="mind"? d.tours.slice() : (buck[tvTab]||[]).slice()).sort((x,y)=>(x.date||"9999").localeCompare(y.date||"9999"));
   return dash("#/turaim")(\`
     <div class="dash-top"><div><h1>Túráim 🥾</h1><div class="hello">Minden terved önálló túraprojekt — a fülek a projekt állapotát követik.</div></div>
@@ -677,4 +667,15 @@ VIEWS.tourmode.after = function(root,id){
           const url=c.toDataURL('image/jpeg',0.62); const tt=Store.getTour(t.id);
           if(!tt.photos) tt.photos=[]; tt.photos.push(url); (tt.noteStream=tt.noteStream||[]).push({ts:new Date().toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'}),text:"📸 fotó csatolva"});
           Store.save(); if(window.render) render(); else if(window.App&&App.render) App.render({}); toast("Fotó a túrához mentve (tömörítve, a képsor végén)","📸"); }catch(err){ toast("A fotó feldolgozása nem sikerült","🖼️"); } };
- 
+        im.onerror=function(){ toast("A fotó nem olvasható","🖼️"); }; im.src=rd.result; }; rd.readAsDataURL(f); }; }
+    const mem=document.getElementById('tm2-mem');
+  if(mem) mem.onclick=function(){ if(window.openMemoryEditor){ window.openMemoryEditor(Store.getTour(t.id)); } else toast("Az memoria szerkesztőért menj a teljesitett túráid fülre","📖"); };
+};
+window.__V45MODULE=1;
+})();
+
+/* ==== v46 ==== */
+/* ========= V46 — 📥 INBOX 2.0 : minden túraötlet egy helyen =========
+   Típusok: link / esemény / kép / jegyzet / túraötlet / hely.
+   Helyi AI-felismerés beillesztett szövegből (kitalált adat NINCS).
+   Egy lépés: ⭐ Bakancslista · 🗓️ Túraterv — du

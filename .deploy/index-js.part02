@@ -1,8 +1,4 @@
-o.v; return \`
-      <button class="opt \${sel?"sel":""}" data-val="\${esc(o.v)}">\${\`<span class="oi">\${o.i}</span>\`}<span>\${esc(o.v)}\${o.d?\`<small>\${esc(o.d)}</small>\`:""}</span></button>\`}).join("")}</div>\`}
-    <div class="wiz-nav">
-      <button class="btn btn-ghost" id="ob-prev" \${s===0?"disabled":""}>← Vissza</button>
-      <button class="btn btn-primary" id="ob-next">\${s===OB_STEPS.length-1?"Kész ✓":" tovább →"}</button>
+ton class="btn btn-primary" id="ob-next">\${s===OB_STEPS.length-1?"Kész ✓":" tovább →"}</button>
     </div>
     \${s===0?'<p class="small center muted" style="margin-top:1.2rem">Ezek alapján ajánlunk túrákat, eseményeket és felszerelést. Bármikor módosíthatod a beállításokban.</p>':""}
   </div>\`;
@@ -56,8 +52,7 @@ function dash(active){
   return inner => \`<div class="dash">
     <aside class="dash-side" aria-label="Vezérlőpult navigáció">
       <a class="logo" href="#/" style="padding:.3rem .75rem .9rem">
-        <svg viewBox="0 0 100 100" aria-hidden="true" style="width:26px;height:26px"><path d="M6 84 L32 30 L50 60 L38 84 Z" fill="#1C4A36"/><path d="M31 84 L56 34 L78 70 L94 84 L14 84 Z" fill="#2F6B4A"/><path d="M10 76 C 28 56, 40 68, 54 50 S 78 52, 88 42" fill="none" stroke="#F7F4EC" stroke-width="3" stroke-dasharray="5 5" stroke-linecap="round"/><circle cx="76" cy="18" r="8" fill="#E07A2F"/></svg>
-        Túra<em>társ</em></a>
+        <img class="brand-logo" src="./icons/brand-logo.png" alt="Túratárs"></a>
       <div class="nav-group"><div class="ng-label">Tervezés</div>
         \${SIDE.filter(s=>["#/vezerlopult","#/turaim","#/uj-tura","#/naptar","#/felfedezes","#/esemenyek"].includes(s[0]))
           .map(([h,i,l])=>\`<a class="side-link \${active===h?"on":""}" href="\${h}"><span class="ico">\${i}</span>\${l}\${sideBadge(h)}</a>\`).join("")}</div>
@@ -753,4 +748,12 @@ function aiRecCard(r){
   if(!r) return "";
   const t=r.tour;
   return \`<div class="ai-card-rec">
-    <div class="img-wrap" style="he
+    <div class="img-wrap" style="height:110px">\${imgTag(t.img,t.name)}</div>
+    <div style="padding:.85rem .95rem">
+      <b>\${esc(t.name)}</b><div class="meta" style="font-size:.8rem;margin-top:.2rem"><span>\${esc(t.region)}</span><span>📏 \${t.km} km</span><span>⏱ \${t.h} ó</span><span>⬆ \${t.up} m</span>\${diffChip(t.diff)}</div>
+      <p class="small muted" style="margin:.5rem 0 .6rem">\${r.why}</p>
+      <div class="flex" style="gap:.4rem;flex-wrap:wrap">
+        <button class="btn btn-ember btn-sm" data-aims="\${t.id}" data-aidate="\${r.date}">💾 Mentés új túraként</button>
+        <a class="btn btn-ghost btn-sm" href="#/turak/\${t.id}">👀 Részletek</a></div></div></div>\`;
+}
+VIEWS.ai.after = root => {

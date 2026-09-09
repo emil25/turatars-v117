@@ -1,15 +1,4 @@
-       im.onerror=function(){ toast("A fotó nem olvasható","🖼️"); }; im.src=rd.result; }; rd.readAsDataURL(f); }; }
-    const mem=document.getElementById('tm2-mem');
-  if(mem) mem.onclick=function(){ if(window.openMemoryEditor){ window.openMemoryEditor(Store.getTour(t.id)); } else toast("Az memoria szerkesztőért menj a teljesitett túráid fülre","📖"); };
-};
-window.__V45MODULE=1;
-})();
-
-/* ==== v46 ==== */
-/* ========= V46 — 📥 INBOX 2.0 : minden túraötlet egy helyen =========
-   Típusok: link / esemény / kép / jegyzet / túraötlet / hely.
-   Helyi AI-felismerés beillesztett szövegből (kitalált adat NINCS).
-   Egy lépés: ⭐ Bakancslista · 🗓️ Túraterv — duplikáció-védelem, forrás megmarad. */
+plikáció-védelem, forrás megmarad. */
 (function(){
 "use strict";
 var IB_T={link:["🔗","Link"],event:["📅","Esemény"],photo:["📸","Kép"],note:["📝","Jegyzet"],tour:["🥾","Túraötlet"],place:["📍","Hely"]};
@@ -687,4 +676,16 @@ function ckHTML(t, rows, overall, isGreen, wxHint){
   if(probs.length>1) o.push("<div class=\\"ck-probs\\"><b>Figyelendő pontok</b>"+probs.slice(1).map(function(d){
     return "<div class=\\"ck-prow "+(d.s==="bad"?"bad":"warn")+"\\"><span>"+d.ic+"</span>"+X(d.line)+(d.goto?"<button class=\\"btn btn-ghost btn-sm\\" data-ckgoto=\\""+d.goto+"\\">Intézem</button>":"")+"</div>"; }).join("")+"</div>");
   o.push("<div class=\\"ck-foot\\"><button class=\\"btn btn-soft\\" id=\\"ck-re\\">🔄 Újraelemzem</button>"+
-    (
+    (isGreen?"<a class=\\"btn btn-primary\\" id=\\"ck-go\\" href=\\"#/turamod/"+ t.id +"\\">🥾 Indulok</a>":"<button class=\\"btn btn-ember\\" id=\\"ck-fix\\" data-ckgoto=\\""+(probs[0]&&probs[0].goto||"attekintes")+"\\">🛠️ Terv javítása</button>")+
+    "</div></div>");
+  return o.join(""); }
+
+async function openCockpit(t, forceLive){
+  if(!t) return;
+  var wxLive=null;
+  if(!t.weatherChecked && (!t.weather || t.weather.at && Date.now()-new Date(t.weather.at) > 3*3600e3)) {
+    try{ if(window.rvwWeatherFresh){ var w=await window.rvwWeatherFresh(t); if(w && w!=="NOLONG") wxLive=w; } }catch(e){}
+  } else if(t.weather) wxLive=t.weather;
+  function paint(){
+    var rows=ckDomains(t, wxLive);
+ 

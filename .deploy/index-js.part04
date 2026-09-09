@@ -1,18 +1,4 @@
-izsák-kalkulátor ---------- */
-const _origTab = wsTabHTML;
-wsTabHTML = (t, catTour) => {
-  if(wsTab==="felszereles") return gearV2(t);
-  let h = _origTab(t, catTour);
-  if(wsTab==="biztonsag") h += securityCardHTML(t);
-  if(wsTab==="utvonal")   h = terepStripHTML(t) + h;
-  return h;
-};
-function bpackBarsHTML(b){
-  return b.rows.map(r=>\`<div class="bar-row"><span class="bl">\${esc(r.cat.replace(/^[^ ]+ /,""))}</span><span class="bt"><i style="width:\${b.total?r.g/b.total*100:0}%"></i></span><span class="bv">\${g2kg(r.g)}</span></div>\`).join("");
-}
-function gearV2(t){
-  const b = Store.backpack(t);
-  const groups={}; t.gear.forEach(g=>{ const c=cat7(g.cat); (groups[c]=groups[c]||[]).push(g); });
+ });
   return \`<div class="split2 gear2col">
     <div class="card panel">
       <div class="flex between wrapcol" style="margin-bottom:.4rem"><h3 style="margin:0">🎒 Csomaglista kategóriák szerint</h3>
@@ -671,4 +657,14 @@ VIEWS.journal.after = (root)=>{
 };
 })();
 
-function wireTerepLinks(root){ (root|
+function wireTerepLinks(root){ (root||document).querySelectorAll("[data-ackr]").forEach(a=>a.onclick=()=>{ if(Store.me()){ Store.ackFieldReport(a.dataset.ackr); render(); } }); 
+  (root||document).querySelectorAll("[data-jreport]").forEach(a=>a.onclick=()=>{ const tr=Store.myData() && (function(){ const t=Store.upcoming()[0]; return t?{region:t.region}:null;})(); reportModal(tr||{}); }); }
+
+/* ---------- 14+15) Statisztikák: célok + kihívások szekció hozzáadása ---------- */
+(function(){
+  const _s = VIEWS.stats;
+  VIEWS.stats = () => { const base=_s(); const d=Store.myData();
+    const rows = Store.goalRows();
+    const ach = Store.achievements();
+    const ch = d.challenges||[];
+    const extra = \`<section id="bump-goal

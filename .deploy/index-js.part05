@@ -1,14 +1,4 @@
-|document).querySelectorAll("[data-ackr]").forEach(a=>a.onclick=()=>{ if(Store.me()){ Store.ackFieldReport(a.dataset.ackr); render(); } }); 
-  (root||document).querySelectorAll("[data-jreport]").forEach(a=>a.onclick=()=>{ const tr=Store.myData() && (function(){ const t=Store.upcoming()[0]; return t?{region:t.region}:null;})(); reportModal(tr||{}); }); }
-
-/* ---------- 14+15) Statisztikák: célok + kihívások szekció hozzáadása ---------- */
-(function(){
-  const _s = VIEWS.stats;
-  VIEWS.stats = () => { const base=_s(); const d=Store.myData();
-    const rows = Store.goalRows();
-    const ach = Store.achievements();
-    const ch = d.challenges||[];
-    const extra = \`<section id="bump-goals"></div>\`;
+s"></div>\`;
     return base.replace('</div>\`','') && base; // tartalom később DOM-ból
   };
 })();
@@ -788,4 +778,14 @@ VIEWS.workspace.after = (root,id) => { _prj12WsA && _prj12WsA(root,id);
 
 
 /* ---------- 16) V36: Túráim státuszrend + Teendők fül + 3 állapotú résztvevők + közös cucc + Ma-lista + AI-útvonal ---------- */
-const TV_GROUPS=[["otlet","💡 Ötletek"],["bakancs","❤️ Bakancslistán"],["tervezes","🟡 Tervezés alatt"],["kozelgo","🔵 Közelgő"],["folyamatban","🚩 Folyamatban"],["teljesitve","🟢 Teljesítve"],["archivalva","📖 Archiválva"],["eseme
+const TV_GROUPS=[["otlet","💡 Ötletek"],["bakancs","❤️ Bakancslistán"],["tervezes","🟡 Tervezés alatt"],["kozelgo","🔵 Közelgő"],["folyamatban","🚩 Folyamatban"],["teljesitve","🟢 Teljesítve"],["archivalva","📖 Archiválva"],["esemeny","🎫 Események"],["mind","🌐 Mind"]];
+function tvBucket(t){ const d=t.date?Store.dayDiff(t.date):999;
+  if(t.status==="ötlet")return"otlet"; if(t.status==="bakancs")return"bakancs";
+  if(t.status==="teljesítve")return"teljesitve"; if(t.status==="archiválva")return"archivalva";
+  if(t.status==="folyamatban"||(t.date&&d<=0))return"folyamatban";
+  if(t.eventRef)return"esemeny";
+  if(d<=7&&["tervezés","közelgő"].includes(t.status))return"kozelgo"; return "tervezes"; }
+let tvTab="mind";
+VIEWS.tours = () => { const d=Store.myData();
+  const buck={}; d.tours.forEach(t=>{ const k=tvBucket(t); (buck[k]=buck[k]||[]).push(t); });
+  Object.values(buck).forEach(a=>a.sort((x,y)=>(x.date||"9999

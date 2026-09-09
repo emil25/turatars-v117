@@ -1,12 +1,3 @@
-ight:110px">\${imgTag(t.img,t.name)}</div>
-    <div style="padding:.85rem .95rem">
-      <b>\${esc(t.name)}</b><div class="meta" style="font-size:.8rem;margin-top:.2rem"><span>\${esc(t.region)}</span><span>📏 \${t.km} km</span><span>⏱ \${t.h} ó</span><span>⬆ \${t.up} m</span>\${diffChip(t.diff)}</div>
-      <p class="small muted" style="margin:.5rem 0 .6rem">\${r.why}</p>
-      <div class="flex" style="gap:.4rem;flex-wrap:wrap">
-        <button class="btn btn-ember btn-sm" data-aims="\${t.id}" data-aidate="\${r.date}">💾 Mentés új túraként</button>
-        <a class="btn btn-ghost btn-sm" href="#/turak/\${t.id}">👀 Részletek</a></div></div></div>\`;
-}
-VIEWS.ai.after = root => {
   const d=Store.myData(); const box=root.querySelector("#ai-msgs"), inp=root.querySelector("#ai-in");
   const push = () => { box.innerHTML = (d.aiChat||[]).map(m=>{
     let out = \`<div class="bub \${m.role==="user"?"user":"ai"}">\${m.html||esc(m.text)}</div>\`;
@@ -799,4 +790,18 @@ VIEWS.workspace.after = (root, id) => {
   }
 };
 
-/* ---------- 6+7) CSOMAGOLÁS V2: kategóriák, súlyok, hát
+/* ---------- 6+7) CSOMAGOLÁS V2: kategóriák, súlyok, hátizsák-kalkulátor ---------- */
+const _origTab = wsTabHTML;
+wsTabHTML = (t, catTour) => {
+  if(wsTab==="felszereles") return gearV2(t);
+  let h = _origTab(t, catTour);
+  if(wsTab==="biztonsag") h += securityCardHTML(t);
+  if(wsTab==="utvonal")   h = terepStripHTML(t) + h;
+  return h;
+};
+function bpackBarsHTML(b){
+  return b.rows.map(r=>\`<div class="bar-row"><span class="bl">\${esc(r.cat.replace(/^[^ ]+ /,""))}</span><span class="bt"><i style="width:\${b.total?r.g/b.total*100:0}%"></i></span><span class="bv">\${g2kg(r.g)}</span></div>\`).join("");
+}
+function gearV2(t){
+  const b = Store.backpack(t);
+  const groups={}; t.gear.forEach(g=>{ const c=cat7(g.cat); (groups[c]=groups[c]||[]).push(g);

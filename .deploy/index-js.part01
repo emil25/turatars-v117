@@ -333,8 +333,7 @@ function renderHeader(){
   const link=(href,label)=>\`<a href="\${href}" class="\${route===href?"on":""}">\${label}</a>\`;
   h.innerHTML = \`<nav class="pub-nav"><div class="wrap">
     <a class="logo" href="#/" aria-label="Túratárs — Kezdőlap">
-      <svg viewBox="0 0 100 100" aria-hidden="true" style="width:30px;height:30px"><path d="M6 84 L32 30 L50 60 L38 84 Z" fill="#1C4A36"/><path d="M31 84 L56 34 L78 70 L94 84 L14 84 Z" fill="#2F6B4A"/><path d="M10 76 C 28 56, 40 68, 54 50 S 78 52, 88 42" fill="none" stroke="#F7F4EC" stroke-width="3" stroke-dasharray="5 5" stroke-linecap="round"/><circle cx="76" cy="18" r="8" fill="#E07A2F"/></svg>
-      Túra<em>társ</em></a>
+      <img class="brand-logo" src="./icons/brand-logo.png" alt="Túratárs"></a>
     <div class="pub-links">\${link("#/","Kezdőlap")}\${link("#/felfedezes","Felfedezés")}\${link("#/esemenyek","Események")}\${link("#/helyek","Helyek")}</div>
     <div class="pub-cta" style="margin-left:auto">
       \${u ? \`<button class=" icon-btn" id="bell-btn" aria-label="Értesítések" style="position:relative">🔔\${notifCount()>0?\`<span style="position:absolute;top:-2px;right:-2px;background:var(--ember);color:#fff;font-size:.62rem;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:grid;place-items:center">\${notifCount()}</span>\`:""}</button>\`:""}
@@ -862,4 +861,8 @@ VIEWS.onboarding = () => {
     <div class="wiz-track">\${OB_STEPS.map((_,i)=>\`<i class="\${i<=s?"on":""}"></i>\`).join("")}</div>
     \${step.input ? \`<div><label class="f" for="ob-from">Kiinduló helyed (város, falu)</label>
         <input class="input" id="ob-from" placeholder="Pl. Csíkszereda, Székelyudvarhely, Kolozsvár…" value="\${esc(obAnswer[step.k]||Store.me().city||"")}"></div>\` :
-    \`<div class="opt-grid">\${step.opts.map(o=>{ const sel = step.multi ? (obAnswer[step.k]||[]).includes(o.v) : obAnswer[step.k]===
+    \`<div class="opt-grid">\${step.opts.map(o=>{ const sel = step.multi ? (obAnswer[step.k]||[]).includes(o.v) : obAnswer[step.k]===o.v; return \`
+      <button class="opt \${sel?"sel":""}" data-val="\${esc(o.v)}">\${\`<span class="oi">\${o.i}</span>\`}<span>\${esc(o.v)}\${o.d?\`<small>\${esc(o.d)}</small>\`:""}</span></button>\`}).join("")}</div>\`}
+    <div class="wiz-nav">
+      <button class="btn btn-ghost" id="ob-prev" \${s===0?"disabled":""}>← Vissza</button>
+      <but
