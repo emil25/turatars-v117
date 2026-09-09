@@ -6521,18 +6521,23 @@ function isOrg(){ var p=P(); return p.organizers.find(function(o){ return o.owne
 function getEvent(id){ return P().events.find(function(x){ return x.id===id; })||null; }
 function ownEvent(id){ var e=getEvent(id); var o=isOrg(); return (e&&o&&e.orgId===o.id)?e:null; }
 
-/* ---------- DEMO szedés (egyértelmű jelöléssel) ---------- */
-function ensureDemo(){ var p=P(); if(p.seeded) return; p.seeded=true;
-  var o={ id:"org_demo", owner:"DEMO-OWNER", name:"DEMO Túraklub (szemléltető)", bio:"Szemléltető szervezet — valódi szervezői kapcsolat nincs.", region:"Gyergyó", web:"", phone:"", logo:"", demo:true, createdAt:nowISO() };
-  p.organizers.push(o);
-  function satAhead(n){ var d=new Date(); var add=(6-d.getDay()+7)%7||7; d.setDate(d.getDate()+add+7*n); return d.toISOString().slice(0,10); }
-  p.events.push({ id:"evp_demo1", orgId:o.id, name:"DEMO — Ősszel a Csukás alatt", date:satAhead(1), time:"09:00", place:"Gyergyó", region:"Gyergyói-havasok",
-    coords:null, km:11, up:650, h:5, diff:"Közepes", desc:"Szemléltető esemény: a platform fungsiójának bemutatása — valódi szervezés nincs.", img:null, routeId:null,
-    joinMode:"internal", cap:15, status:"published", fp:fpOf({name:"DEMO — Ősszel a Csukás alatt",date:satAhead(1),place:"Gyergyó"}), rev:0, demo:true, createdAt:nowISO() });
-  p.events.push({ id:"evp_demo2", orgId:o.id, name:"DEMO — Tavaszi gerincjárás", date:satAhead(3), time:"08:00", place:"Hargita", region:"Hargita",
-    coords:null, km:14, up:780, h:6, diff:"Nehéz", desc:"Szemléltető esemény — külső linkes jelentkezéssel.", img:null, routeId:null,
-    joinMode:"external", joinUrl:"https://demo-pelda.invalid/", cap:null, status:"published", fp:fpOf({name:"DEMO — Tavaszi gerincjárás",date:satAhead(3),place:"Hargita"}), rev:0, demo:true, createdAt:nowISO() });
-  Store.save(); }
+/* ---------- DEMO események eltávolítása ---------- */
+function ensureDemo(){
+  var p=P(), changed=false, removed=new Set();
+  p.events=(p.events||[]).filter(function(e){
+    var demo=!!e.demo || String(e.id||"").indexOf("evp_demo")===0 || /^DEMO\s*[—–-]/i.test(String(e.name||""));
+    if(demo){ removed.add(e.id); changed=true; return false; }
+    return true;
+  });
+  p.participants=(p.participants||[]).filter(function(x){ return !removed.has(x.eid); });
+  p.organizers=(p.organizers||[]).filter(function(o){
+    var demo=!!o.demo || o.id==="org_demo" || /^DEMO\s*[—–-]/i.test(String(o.name||""));
+    if(demo){ changed=true; return false; }
+    return true;
+  });
+  p.seeded=true;
+  if(changed) Store.save();
+}
 
 /* ---------- mapped pool a V49/CAT_E számára ---------- */
 function counts(id){ var p=P(); var L=p.participants.filter(function(x){ return x.eid===id && x.status!=="withdrawn" && x.status!=="declined"; });
