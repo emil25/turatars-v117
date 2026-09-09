@@ -1,807 +1,388 @@
-  const d=Store.myData(); const box=root.querySelector("#ai-msgs"), inp=root.querySelector("#ai-in");
-  const push = () => { box.innerHTML = (d.aiChat||[]).map(m=>{
-    let out = \`<div class="bub \${m.role==="user"?"user":"ai"}">\${m.html||esc(m.text)}</div>\`;
-    if(m.role==="ai"&&m.result) out += aiRecCard(m.result);
-    return out; }).join("") || box.innerHTML;
-    box.scrollTop = box.scrollHeight; wire(); };
-  const wire = () => {
-    root.querySelectorAll("[data-aims]").forEach(b=>b.onclick=()=>{
-      const t = tourById(b.dataset.aims);
-      const tour = Store.newTourFromDraft({ title:t.name, place:t.start.name, region:t.region, lengthKm:t.km, ascent:t.up,
-        durationH:t.h, difficulty:t.diff, tags:t.tags.slice(), img:t.img, desc:t.desc, coords:{...t.start}, date:b.dataset.aidate });
-      toast("Munkaterület létrehozva az AI-tervből — nézd meg a csomaglistát! 🎒","🤖"); NAV.to("#/tura/"+tour.id); });
-  };
-  const send = () => {
-    const text = inp.value.trim(); if(!text) return;
-    inp.value="";
-    if(!d.aiChat) d.aiChat=[];
-    d.aiChat.push({role:"user", text});
-    const res = Store.aiReply(text); res.date = res.date|| Store.nextSatDate();
-    d.aiChat.push({role:"ai", text:"", result:res,
-      html:\`<i class="typing" id="tp"><i></i><i></i></i>\`, _pending:true});
-    Store.save(); push();
-    setTimeout(()=>{
-      const r=res; r.why = r.why||"";
-      const last = d.aiChat[d.aiChat.length-1]; last._pending=false;
-      last.html = \`Ajánlásom: <b>\${esc(r.tour.name)}</b> — \${r.why}. \${fmtDate(r.date)}-án (\${dowHU(r.date).slice(0,3)})<br>
-        <b>Időterv javaslat:</b> \${r.plan.slice(0,5).map(x=>\`\${x.t} — \${esc(x.l)}\`).join(" · ")}.<br>
-        <b>Csomag:</b> \${r.gear.slice(0,5).map(g=>g.icon+" "+esc(g.name)).join(", ")}… · <b>Víz:</b> \${r.water}/fő · \${r.food.map(f=>esc(f.n)).join(", ")}.\`;
-      Store.save(); push();
-    }, 950);
-  };
-  root.querySelector("#ai-send").onclick = send;
-  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") send(); });
-  root.querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>{ inp.value=b.dataset.chip; send(); });
-  wire();
-};
-
-/* ---------- SAJÁT TÉRKÉP ---------- */
-VIEWS.mymap = () => dash("#/terkep")(\`
-  <div class="dash-top"><div><h1>Az én túratérképem 🧭</h1><div class="hello">Zöld: hol jártál már. Kék: hová mész. Piros: hová vágysz még a bakancslistádról.</div></div>
-  <div class="legend" style="margin-top:8px"><span><i style="background:#3E8E5F"></i>Teljesített</span><span><i style="background:#2C6E9B"></i>Tervezett</span><span><i style="background:#C94F4F"></i>Bakancslista</span><span><i style="background:#E07A2F"></i>Esemény</span></div></div>
-  <div class="card panel" style="padding:10px"><div class="mapbox" id="mymap" style="height:calc(100vh - 300px);min-height:380px"></div></div>\`);
-VIEWS.mymap.after = root => {
-  const d = Store.myData();
-  const map = MapKit.make(root.querySelector("#mymap"), {zoom:7});
-  if(!map) return;
-  const pts=[];
-  d.journal.forEach(j=>{ const t=d.tours.find(x=>x.id===j.tourId);
-    if(t&&t.coords){ pts.push(t.coords); MapKit.pin(map,t.coords.lat,t.coords.lng,"pin-done",
-      \`<b>\${esc(t.title)}</b><br>✓ \${fmtDateFull(j.date)} · \${j.km} km · \${j.up} m\`); } });
-  d.tours.filter(t=>(t.status==="tervezés"||t.status==="jelentkezve")&&t.coords).forEach(t=>{ pts.push(t.coords);
-    MapKit.pin(map,t.coords.lat,t.coords.lng,"pin-plan",
-      \`<b><a href="#/tura/\${t.id}">\${esc(t.title)}</a></b><br>✎ \${t.date?fmtDateFull(t.date):"terv"}\`); });
-  d.wishlist.filter(w=>w.lat).forEach(w=>{ pts.push(w);
-    MapKit.pin(map,w.lat,w.lng,"pin-wish",\`❤️ <b>\${esc(w.name)}</b><br>\${esc(w.cat||"")}\`); });
-  d.savedEvents.forEach(eid=>{ const e=EVENTS.find(x=>x.id===eid); const b=e&&e.tour?tourById(e.tour):null;
-    if(b){ pts.push(b.start); MapKit.pin(map,b.start.lat,b.start.lng,"pin-event",\`🎫 <b>\${esc(e.name)}</b><br>\${fmtDateFull(e.date)}\`); }});
-  if(pts.length) MapKit.fit(map, pts);
-};
-
-/* ---------- ÉRTESÍTÉSEK ---------- */
-VIEWS.notifs = () => {
-  const list = Store.notifications();
-  return dash("#/ertesitesek")(\`
-    <div class="dash-top"><div><h1>Értesítések 🔔</h1><div class="hello">Csak olyat jelzünk, ami tényleg számít: időjárás, teendők, események, bakancslista.</div></div>
-    \${list.length?\`<div class="card panel" style="padding:.4rem 0">
-      \${list.map(n=>\`<div class="nrow"><span class="nic">\${n.icon}</span><div style="flex:1">\${esc(n.text)}
-        \${n.link?\`<div><a href="\${n.link}" style="color:var(--sky);font-weight:600;font-size:.84rem">Megnyitás →</a></div>\`:""}</div>
-        <button class="icon-btn" data-nd="\${n.id}" aria-label="Elvetés">✕</button></div>\`).join("")}
-    </div>\`:\`<div class="empty"><span class="em-ico">🍃</span><h3>Nincs semmi figyelmet való</h3><p>A rendszer szól, ha eső közeledik, felszerelések hiányoznak, vagy esemény van a bakancslistád közel.</p></div>\`}\`);
-};
-VIEWS.notifs.after = root => root.querySelectorAll("[data-nd]").forEach(b=>b.onclick=()=>{ Store.dismissNotif(b.dataset.nd); render(); });
-
-/* ---------- BEÁLLÍTÁSOK + PROFIL ---------- */
-VIEWS.settings = () => {
-  const u=Store.me(), p=u.prefsOnb||{};
-  return dash("#/beallitasok")(\`
-    <div class="dash-top"><div><h1>Beállítások ⚙️</h1></div></div>
-    <div class="split2" style="grid-template-columns:1fr">
-    <div class="card panel">
-      <h3>👤 Személyes adatok</h3>
-      <div class="profile-head" style="margin-bottom:1.1rem">
-        <div class="avatar lg">\${initials(u.name)}</div>
-        <div><b style="font-size:1.15rem;font-family:var(--font-display)">\${esc(u.name)}</b>
-        <div class="muted small">\${esc(u.email)} · \${esc(u.city||"—")} · tag \${(u.joined||"").slice(0,4)} óta</div></div></div>
-      <div class="grid g2">
-        <div><label class="f">Név</label><input class="input" id="st-n" value="\${esc(u.name)}"></div>
-        <div><label class="f">Kiinduló helység</label><input class="input" id="st-c" value="\${esc(u.city||"")}" placeholder="Pl. Gyergyószentmárton"></div>
-      </div>
-      <button class="btn btn-primary btn-sm" id="st-save" style="margin-top:1rem">✓ Adatok mentése</button>
-    </div>
-    <div class="card panel">
-      <h3>🧭 Túrázási preferenciák (onboarding)</h3>
-      <p class="small muted mt0">Ezek alapján ajánlunk túrákat és eseményeket. Bármikor finomhangolhatod — töltsd ki újra a 5 kérdést.</p>
-      <button class="btn btn-soft btn-sm" id="st-ob">🔁 Onboarding újra</button>
-      <div class="meta" style="margin-top:.9rem"><span>Gyakoriság: <b>\${esc(p.freq||"—")}</b></span>
-      <span>Túratípusok: <b>\${(p.types||["—"]).join(", ")}</b></span>
-      <span>Nehézség: <b>\${esc(p.diff||"—")}</b></span><span>Indulás: <b>\${esc(p.from||u.city||"—")}</b></span><span>Utazás: <b>\${esc(p.radius||"—")}</b>
-      </div></div>
-    <div class="card panel">
-      <h3>🎯 Éves célok</h3>
-      <div class="grid g2"><div><label class="f">km cél (\${new Date().getFullYear()})</label><input class="input" type="number" id="st-gkm" value="\${Store.myData().goals.km}"></div></div>
-    </div>
-    <div class="card panel">
-      <h3>🖥 Megjelenés és adattárolás</h3>
-      <div class="flex between" style="padding:.4rem 0"><div>Időjárás-ellenőrzés a kezdőoldalon <div class="small muted">A következő túrád helyszínére 14 napos előrejelzéssel.</div></div>
-        <label class="toggle"><input type="checkbox" \${ (u.prefs&&u.prefs.weather!==false) ? "checked":"" }><i></i></label></div>
-      <div class="flex between" style="padding:.4rem 0;border-top:1px solid var(--line)">
-        <div><small>Minden adat csak a saját böngésződben (localStorage) tárolódik — ezért az app offline is működik.</small></div>
-      </div>
-    </div>
-    <div class="card panel">
-      <h3>🔐 Jelszó és fiók</h3>
-      <div class="pw-row"><input class="input" id="st-old" type="password" placeholder="Jelenlegi jelszó" autocomplete="current-password"><button type="button" class="pw-eye" data-t="st-old" aria-label="Mutat">👁</button></div>
-      <div style="height:.5rem"></div>
-      <div class="pw-row"><input class="input" id="st-new" type="password" placeholder="Új jelszó (min. 8, betű + szám)" autocomplete="new-password"><button type="button" class="pw-eye" data-t="st-new" aria-label="Mutat">👁</button></div>
-      <div style="height:.5rem"></div>
-      <div class="pw-row"><input class="input" id="st-new2" type="password" placeholder="Új jelszó újra" autocomplete="new-password"><button type="button" class="pw-eye" data-t="st-new2" aria-label="Mutat">👁</button></div>
-      <p class="field-err hidden" id="st-pw-err" role="alert"></p>
-      <button class="btn btn-primary btn-sm" id="st-pass" style="margin-top:.7rem">Jelszó módosítása</button>
-    </div>
-    <div class="card panel" style="border-color:#f2d3b3" id="theme-card">
-      <h3>🌗 Megjelenés</h3>
-      <div class="filter-row" id="theme-seg">
-        <button class="f-pill" data-th="light">☀️ Világos</button><button class="f-pill" data-th="dark">🌙 Sötét</button><button class="f-pill" data-th="auto">🌗 Rendszer</button></div>
-      <div style="border-top:1px solid var(--line);margin-top:1rem"></div>
-      <h3><span class="warn-ic">⚠️</span> Veszélyes zóna</h3>
-      <div class="flex wrapcol" style="gap:.6rem">
-        <button class="btn btn-danger btn-sm" id="st-reset">🧹 Saját adataim törlése</button>
-        <button class="btn btn-ghost btn-sm" id="st-logout">🚪 Kijelentkezés</button></div>
-    </div></div>\`);
-};
-VIEWS.settings.after = root => {
-  root.querySelectorAll(".pw-eye").forEach(b => b.onclick = () => { const t=root.querySelector("#"+b.dataset.t); t.type = t.type==="password"?"text":"password"; b.textContent = t.type==="password"?"👁":"🙈"; });
-  root.querySelector("#st-pass").onclick = () => { const err=root.querySelector("#st-pw-err"); err.classList.add("hidden");
-    const gv=i=>root.querySelector("#"+i).value;
-    if(gv("st-new")!==gv("st-new2")){ err.textContent="Az új jelszó megerősítése nem egyezik."; err.classList.remove("hidden"); return; }
-    const r=Store.changePassword(gv("st-old"), gv("st-new"));
-    if(r.err){ err.textContent=r.err; err.classList.remove("hidden"); return; }
-    ["st-old","st-new","st-new2"].forEach(i=>root.querySelector("#"+i).value="");
-    toast("A jelszó módosulhat ✔","🔐"); };
-  root.querySelector("#st-save").onclick=()=>{ Store.updateProfile({name:root.querySelector("#st-n").value.trim()||Store.me().name, city:root.querySelector("#st-c").value.trim()}); toast("Adatok mentve","✅"); render(); };
-  root.querySelector("#st-gkm").addEventListener("change",e=>{ Store.myData().goals.km=Math.max(10,+e.target.value||300); Store.save(); });
-  root.querySelectorAll("[data-th]").forEach(b=>{const cur=(Store.getTheme&&Store.getTheme())||"light"; b.classList.toggle("on", b.dataset.th===cur);
-      b.onclick=()=>{ Store.setTheme(b.dataset.th); location.reload(); };});
-    root.querySelector("#st-ob").onclick=()=>{ OB_STEPS && (obStep=0, obAnswer={}); Store.updateProfile({onboarded:false}); NAV.to("#/onboarding"); };
-  root.querySelector("#st-reset").onclick=()=>{ confirmDlg("Az összes túrád, naplód, listád törlődik. Ez nem visszavonható.","Törölj mindent",()=>{
-    const id=Store.me().id; const db=JSON.parse(localStorage.getItem("turavaros_v1")); delete db.data[id];
-    db.data[id]={tours:[],wishlist:[],savedEvents:[],equipment:[],journal:[],teams:[],goals:{km:300,tours:12,summits:3},notifDismiss:[],aiChat:[]};
-    localStorage.setItem("turavaros_v1",JSON.stringify(db)); toast("Adatok törölve","🧹"); render(); }); };
-  root.querySelector("#st-logout").onclick=()=>{ Store.logout(); toast("Kijelentkeztél — várunk a terepen!","👋"); NAV.to("#/"); };
-};
-
-/* ---------- MOBIL PROFIL (a bottom-nav „ Profil” pontja) ---------- */
-VIEWS.profile = () => {
-  const u=Store.me(), s=Store.stats();
-  return dash("#/")(\`
-    <div class="card panel" style="text-align:center;margin-bottom:16px">
-      <div class="avatar lg" style="margin:0 auto .7rem">\${initials(u.name)}</div>
-      <h1 style="font-size:1.5rem;margin:0">\${esc(u.name)}</h1>
-      <div class="muted small">\${esc(u.city||"")} · \${s.tours} túra · \${Math.round(s.km)} km</div></div>
-    <div class="grid g2 smm2">
-      \${[["#/felszereles","🎒 Felszerelésem"],["#/bakancslista","❤️ Bakancslistám"],["#/naplo","📖 Túranaplóm"],["#/statisztikak","📊 Statisztikák"],["#/csapatok","👥 Túracsapatok"],["#/beallitasok","⚙️ Beállítások"],["#/ertesitesek","🔔 Értesítések ("+Store.notifications().length+")"],["#/turaim","🥾 Túráim"]].map(([h,l])=>
-        \`<a class="quickact" href="\${h}" style="align-items:center;text-align:center"><b>\${l}</b></a>\`).join("")}
-    </div>
-    <button class="btn btn-ghost btn-block" style="margin-top:14px" id="pf-out">🚪 Kijelentkezés</button>\`);
-};
-VIEWS.profile.after = root => { root.querySelector("#pf-out").onclick=()=>{ Store.logout(); NAV.to("#/"); }; };
-
-/* ——— Fiók: adatmentés, visszaállítás, törlés a Beállításokon túl ——— */
-(function(){
-  const _origSa = VIEWS.settings.after;
-  VIEWS.settings.after = (root, arg) => { if(_origSa) _origSa(root, arg);
-    const host = root.querySelector("#view .dash-main") || root;
-    const card = document.createElement("div"); card.className="card panel account-card";
-    card.innerHTML = \`<h3>👤 Fiókom — Túratárs-adatmentés</h3>
-      <p class="small muted mt0">Minden adata (túrák, naptár, csomag, élmények, bakancslista) a böngésződ localStorage-ában él — ezt a gombbal viheted magaddal, és más böngészőben vissza is töltheted.</p>
-      <div class="flex wrapcol" style="gap:.5rem">
-        <button class="btn btn-primary btn-sm" id="acc-export">📦 Adatmentés letöltése (JSON)</button>
-        <label class="btn btn-soft btn-sm" style="cursor:pointer">📥 Visszaállítás mentésből<input type="file" id="acc-import" accept=".json,application/json" hidden></label>
-        <a class="btn btn-ghost btn-sm" href="#/profil">🧑 Fiókom – fiók</a></div>\`;
-    host.appendChild(card);
-    card.querySelector("#acc-export").onclick=()=>{
-      const blob=new Blob([Store.exportData()],{type:"application/json"});
-      const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-      a.download="turatears-adatmentes-"+Store.todayISO()+".json"; a.click();
-      setTimeout(()=>URL.revokeObjectURL(a.href),2000); toast("Adatmentés letöltve — őrizz jól!","📦");
-    };
-    card.querySelector("#acc-import").onchange=(e)=>{ const f=e.target.files[0]; if(!f) return;
-      const rd=new FileReader(); rd.onload=()=>{ const r=Store.importData(String(rd.result));
-        if(r.err){ toast(r.err,"⚠️"); return; } toast("Adat visszaállítva","📥"); location.reload(); }; rd.readAsText(f); };
-  };
-})();
-
-/* ==== workspace ==== */
-/* ============================================================
-   TÚRAVAROS — TÚRA-MUNKATERÜLET (workspace)
-   Fejléc adatokkal + 11 fül: áttekintés, útvonal, időterv, felszerelés,
-   résztvevők, utazás, étel és víz, jegyzetek, biztonság, fotók, napló
-   ============================================================ */
-"use strict";
-const WS_TABS = [
- ["attekintes","Áttekintés"], ["utvonal","Útvonal"], ["idoter","Időterv"], ["felszereles","Felszerelés"],
- ["resztvevok","Résztvevők"], ["utazas","Utazás"], ["ete","Étel és víz"], ["jegyzet","Jegyzetek"],
- ["koltseg","💶 Költségek"], ["biztonsag","Biztonság"], ["fotok","Fotók"], ["naplo","Túranapló"]
-];
-let wsTab = "attekintes";
-const pct = a => a.length ? a.filter(x=>x.checked).length/a.length : 1;
-
-VIEWS.workspace = (id) => {
-  const t = Store.getTour(id);
-  if(!t) return dash("#/turaim")+\`<div class="empty"><span class="em-ico">🤔</span><h3>A túra nem található</h3><a class="btn btn-primary" href="#/turaim">Vissza a Túráimhoz</a></div>\`;
-  const catTour = t.coords ? TOURS.find(x=>x.start.name===t.place) : null;
-    const pct = (a)=> a.length? a.filter(x=>x.checked).length/a.length : 1;
-  return dash("#/turaim")(\`
-    <a class="small muted" href="#/turaim" style="display:inline-block;margin-bottom:.7rem;color:var(--sky);font-weight:600">← Túráim</a>
-    <div class="ws-head">
-      <div class="ws-title">
-        <div>
-          \${statusChip(t.status)} \${t.eventCat?\`<span class="chip chip-ember">\${esc(t.eventCat)}</span>\`:""}
-          <h1 style="margin-top:.4rem">\${esc(t.title).toUpperCase()} <span class="muted" style="font-size:.55em;font-weight:500">· \${t.date?fmtDateFull(t.date):"dátum nélkül"}</span></h1>
-          <div class="small muted">Állapot: <b style="text-transform:uppercase">\${t.status==="tervezés"?"tervezés alatt":t.status==="jelentkezve"?"eseményre jelentkeztél":"teljesítve"}</b>\${t.difficulty?" · "+esc(t.difficulty):""}</div>
-        </div>
-        <div class="ws-actions">
-          \${t.status!=="teljesítve"?\`<button class="btn btn-ember btn-sm" data-wsfinish>✓ Teljesítettem</button>\`:""}
-          <button class="btn btn-ghost btn-sm" data-wsshare>🔗 Túraterv megosztása</button>
-          <button class="icon-btn" data-wsdel aria-label="Túra törlése">🗑</button>
-        </div>
-      </div>
-      <div class="ws-stats">
-        <span class="ws-stat">📍 <b>\${esc(t.place||t.region||"nincs megadva")}</b></span>
-        <span class="ws-stat">📅 <b>\${t.date?fmtDateFull(t.date)+" ("+dowHU(t.date).slice(0,3)+")":"—"}</b></span>
-        <span class="ws-stat">📏 <b>\${t.lengthKm||"?"} km</b></span>
-        <span class="ws-stat">⏱ <b>kb. \${t.durationH||"?"} ó</b></span>
-        <span class="ws-stat">⬆ <b>\${t.ascent||"?"} m</b></span>
-        <span class="ws-stat" id="ws-weather">🌦 <b>időjárás betöltése…</b></span>
-      </div>
-    </div>
-    <div class="tabs" role="tablist">\${WS_TABS.map(([k,l])=>\`<button class="\${wsTab===k?"on":""}" data-wstab="\${k}">\${l}</button>\`).join("")}</div>
-    <div id="ws-body">\${wsTabHTML(t, catTour)}</div>\`);
-};
-VIEWS.workspace.after = (root, arg) => {
-  const t = Store.getTour(arg); if(!t) return;
-  root.querySelectorAll("[data-wstab]").forEach(b=>b.onclick=()=>{ wsTab=b.dataset.wstab; render(); });
-  const fin = root.querySelector("[data-wsfinish]"); if(fin) fin.onclick=()=> finishFlow(t);
-  const sh = root.querySelector("[data-wsshare]"); if(sh) sh.onclick=()=> sharePlan(t);
-  const del = root.querySelector("[data-wsdel]"); if(del) del.onclick=()=> confirmDlg(\`A(z) \${t.title} túra törlődik minden tervével.\`, "Törlés", ()=>{ Store.deleteTour(t.id); toast("Túra törölve","🗑"); NAV.to("#/turaim"); });
-  // időjárás + safety jelzés
-  if(t.coords){
-    Weather.get(t.coords.lat,t.coords.lng,t.date||Store.todayISO()).then(r=>{
-      const el=root.querySelector("#ws-weather"); if(!el||!r) { if(el) el.innerHTML=\`🌦 <b>nem érhető el (nincs kapcsolat)</b>\`; return; }
-      el.innerHTML = \`\${r.icon} <b>\${Math.round(r.min)}–\${Math.round(r.max)} °C</b> · \${esc(r.label)}\${r.rain>=50?\` · <span class="warn-ic" style="font-weight:700">\${r.rain}% eső!</span>\`:\` · eső: \${r.rain}%\`}\`;
-      Store.updateTour(t.id,{weatherChecked:true, weatherRain:r.rain>=50});
-    }).catch(()=>{ const el=root.querySelector("#ws-weather"); if(el) el.innerHTML="🌦 <b>—</b>"; });
-  } else { const el=root.querySelector("#ws-weather"); if(el) el.innerHTML="🌦 <b>adj helyszínt az időjáráshoz</b>"; }
-  wireTab(root, t);
-};
-
-/* ---------- FÜL TARTALOMOK ---------- */
-
-function stepRow(txt, j){ return \`<label class="ck" style="border-bottom:1px solid var(--line)" data-j="\${j}"><span style="width:19px;text-align:center;flex:none">◻</span><span>\${txt}</span><span style="margin-left:auto;font-size:.72rem;color:var(--sky);font-weight:700">MEGNYITÁS ›</span></label>\`; }
-function doneRow(){ return \`<label class="ck" style="border-bottom:1px solid var(--line)"><span style="width:19px;text-align:center;flex:none">✅</span><span><b>Minden teendő kész — irány a hegy!</b></span></label>\`; }
-function wsOverview(t, catTour, steps){
-  return \`<div class="ws-grid">
-    <div>
-      <div class="card panel">
-        <h3>📋 Túraterv összefoglaló</h3>
-        <p class="mt0">\${esc(t.desc || "Ehhez a túrához még nem írtál leírást — az Útvonal fülön jelölheted a pontokat.")}</p>
-        <div class="grid g2 smm2" style="margin-top:.6rem">
-          <div class="stat-tile card"><span class="st-ic">🗺</span><b>\${t.lengthKm||"?"} km</b><span>távolság</span></div>
-          <div class="stat-tile card"><span class="st-ic">⛰️</span><b>\${t.ascent||"?"} m</b><span>szintkülönbség</span></div>
-          <div class="stat-tile card"><span class="st-ic">⏱️</span><b>\${t.durationH||"?"} ó</b><span>becsült idő</span></div>
-          <div class="stat-tile card"><span class="st-ic">\${t.days>1?"⛺":"🥾"}</span><b>\${t.days||1} nap</b><span>\${esc(t.difficulty)}</span></div>
-        </div>
-      </div>
-      \${t.meeting?\`<div class="card panel" style="margin-top:14px"><h3>🚏 Találkozás</h3><p class="mb0">\${esc(t.meeting)}</p></div>\`:""}
-      <div class="card panel" style="margin-top:14px">
-        <h3>🚩 Mi a következő lépés?</h3>
-        \${steps.join("")}
-      </div>
-    </div>
-    <div>
-      <div class="card panel">
-        <h3>✔ Felkészültség</h3>
-        \${[["Felszerelés",pct(t.gear)],["Biztonság",pct(t.safety)],["Étel és víz",pct(t.food)]].map(([k,v])=>\`
-          <div class="small" style="margin-top:.55rem">\${k}<b style="float:right">\${Math.round(v*100)}%</b></div>
-          <div class="progress-strip" style="height:9px"><i style="width:\${v*100}%"></i></div>\`).join("")}
-      </div>
-      <div class="card panel" style="margin-top:14px">
-        <h3>👥 \${t.participants.length? t.participants.length+" résztvevő":"Csatlakozók"}</h3>
-        \${t.participants.length? t.participants.map(p=>\`<div class="flex between" style="padding:.3rem 0"><span class="person-chip"><span class="avt">\${initials(p.name)}</span>\${esc(p.name)}</span>
-          <span class="chip \${p.confirmed?"chip-green":"chip-ember"}">\${p.confirmed?"megerősítve":"megerősítésre vár"}</span></div>\`).join("")
-          : \`<p class="muted small mb0">A Résztvevők fülön hívhatod meg a társakat.</p>\`}
-      </div>
-      \${t.participants.length ? "" : \`<div class="card panel" style="margin-top:14px"><h3>🤝 Tervezz csapatot?</h3><p class="small muted mb0">Egy esemény vagy saját túra könnyebb társakkal — nézd meg a <a href="#/csapatok" style="color:var(--sky);font-weight:600">Túracsapatokat</a>.</p></div>\`}
-    </div></div>\`;
-}
-
-function wsTabHTML(t, catTour){
-  switch(wsTab){
-  case "attekintes": {
-    const safeTodo = t.safety.filter(s=>!s.checked).length;
-    const unconfirm = t.participants.filter(p=>!p.confirmed).length;
-    const gearTodo = t.gear.filter(g=>!g.checked).slice(0,2);
-    const steps = [];
-    gearTodo.forEach(g=> steps.push(stepRow(\`Csomagolás: <b>\${esc(g.name)}</b>\`, "felszereles")));
-    if(safeTodo) steps.push(stepRow(\`\${safeTodo} biztonsági pont jelöletlen\`, "biztonsag"));
-    if(unconfirm) steps.push(stepRow(\`\${unconfirm} résztvevő még nem erősített meg\`, "resztvevok"));
-    if(!t.date) steps.push(stepRow("Tedd hozzá a túra dátumát", "attekintes"));
-    const html = wsOverview(t, catTour, steps.length? steps : [doneRow()]);
-    return html;
-  }
-  case "utvonal": {
-    const hasMap = !!t.coords;
-    return \`<div class="ws-grid">
-      <div class="card panel">
-        <div class="flex between wrapcol" style="margin-bottom:.6rem"><h3 style="margin:0">🗺️ Útvonal</h3>
-          <div class="flex" style="gap:.5rem">
-            <label class="btn btn-ghost btn-sm" style="cursor:pointer">📁 GPX feltöltése<input type="file" id="gpx-in" accept=".gpx" hidden></label>
-            <button class="btn btn-ghost btn-sm" id="gpx-out">⬇ GPX mentés</button>
-            <a class="btn btn-primary btn-sm" target="_blank" rel="noopener" id="nav-go" \${hasMap?"":\`href="#!" data-nova="1"\`}>🧭 Navigáció indítása</a>
-          </div></div>
-        <div class="mapbox tall" id="ws-map" style="\${hasMap?"":"min-height:220px"}"></div>
-        <div class="meta" style="margin-top:.7rem"><span>🚗 Kiinduló: <b>\${esc(t.place||"—")}</b></span>\${t.waypoints.length?\`<span>📍 Fontos pontok: \${t.waypoints.map(w=>esc(w.name)).join(", ")}</span>\`:""}</div>
-        <p class="small muted mb0">💡 A GPX feltöltésed a valós útvonalat rajzolja ki a térképre és a profilra — a katalógus-túrákhoz mintaterv érkezik.</p>
-      </div>
-      <div>
-        <div class="card panel">
-          <h3>⛰️ Magassági profil</h3>
-          \${(catTour||t.gpx)?(function(){ const el = t.gpx? t.gpx.elev : catTour.elev;
-            return \`<svg viewBox="0 0 100 34" style="width:100%;height:120px" preserveAspectRatio="none">
-              <polygon points="0,32 \${el.map((v,i)=>\`\${i/(el.length-1)*100},\${32-v/Math.max(...el)*28}\`).join(" ")} 100,32" fill="rgba(47,107,74,.18)"/>
-              <polyline points="\${el.map((v,i)=>\`\${i/(el.length-1)*100},\${32-v/Math.max(...el)*28}\`).join(" ")}" fill="none" stroke="var(--moss)" stroke-width="1.6"/></svg>
-              <div class="meta" style="font-size:.78rem"><span>Min \${Math.min(...el)*10}–\${Math.max(...el)*12} m*</span><span>*becsült skála</span></div>\`;})()
-            : '<p class="muted small mb0">Tölts fel GPX-t, vagy válassz katalógus-túrát a profilhoz.</p>'}
-        </div>
-        <div class="card panel" style="margin-top:14px"><h3>📍 Fontos pontok</h3>
-          <div id="wp-list">\${t.waypoints.map((w,i)=>\`<div class="flex between" style="padding:.25rem 0"><span>#\${i+1} \${esc(w.name)}</span><button class="icon-btn" style="width:26px;height:26px" data-rmwp="\${i}">✕</button></div>\`).join("")||'<p class="muted small mb0">Kattints a térképre pont hozzáadásához.</p>'}</div>
-          <div class="flex" style="margin-top:.6rem;gap:.5rem"><input class="input" id="wp-name" placeholder="Pl. Forrás, kilátó…"><button class="btn btn-soft btn-sm" id="wp-add">Hozzáad</button></div>
-        </div>
-      </div></div>\`;
-  }
-  case "idoter": {
-    return \`<div class="card panel">
-      <div class="flex between wrapcol"><h3 style="margin:0">⏰ Időterv — \${(t.timeline||[]).length} pont</h3>
-        <button class="btn btn-soft btn-sm" id="tl-add">➕ Új időpont</button></div>
-      <p class="small muted">Egyszerű szerkesztés: húzd feljjebb-lejjebbvel a ↕ nyilakkal, vagy írd át közvetlen a szöveget.</p>
-      <div class="grid" style="gap:2px">
-      \${t.timeline.map((x,i)=>\`
-        <div class="tl-item" data-tl="\${x.id}">
-          <input class="input tl-time" size="5" style="width:86px;text-align:center" value="\${esc(x.t)}" data-tlk="\${x.id}:t" aria-label="Időpont">
-          <span class="tl-line"><span class="tl-dot"></span></span>
-          <input class="input flex" style="border:0;background:transparent;box-shadow:none;flex:1;font-weight:500" value="\${esc(x.l)}" data-tlk="\${x.id}:l">
-          <span class="tl-tools flex" style="gap:.2rem">
-            <button class="icon-btn" style="width:26px;height:26px" data-tlmv="\${x.id}:-1" title="Fel">↑</button>
-            <button class="icon-btn" style="width:26px;height:26px" data-tlmv="\${x.id}:1" title="Le">↓</button>
-            <button class="icon-btn" style="width:26px;height:26px" data-tldel="\${x.id}" title="Törlés">✕</button></span>
-        </div>\${i<t.timeline.length-1?'<div style="height:14px;border-left:2px dashed var(--leaf);margin-left:52px"></div>':''}\`).join("")}</div>
-      \${t.status==="teljesítve"?\`<div class="alert-strip" style="margin-top:.8rem;background:#EAF3E8;border-color:#cfe0cf;color:#2C6B2E">✓ ezt a túrát \${fmtDateFull(t.doneAt||t.date)}-án teljesítetted — az időterv a valós ritmusod alapján szerkeszthető a következő alkalomra.</div>\`:""}
-    </div>\`;
-  }
-  case "felszereles": {
-    const todo=t.gear.filter(g=>!g.checked), ok=t.gear.filter(g=>g.checked);
-    return \`<div class="gear-cols">
-      <div class="card panel"><h3>🎒 Ajánlott a túra alapján <span class="chip chip-green">\${Math.round(pct(t.gear)*100)}%</span></h3>
-        <p class="small muted">A rendszer \${t.lengthKm||"?"} km, \${t.durationH||"?"} óra, \${esc(t.difficulty)} szint \${t.weatherRain?"és esős előrejelzés":""} alapján rakta össze.</p>
-        \${ok.concat(todo).map(g=>\`<label class="ck \${g.checked?"done":""}">
-          <input type="checkbox" data-gear="\${g.name.replace(/"/g,"'")}" \${g.checked?"checked":""}> \${g.icon||"🧰"} \${esc(g.name)}
-          \${g.own?'<span class="gear-badge" style="margin-left:auto">a te cuccod ✓</span>':'<span class="gear-badge '+(g.checked?"":"")+'" style="margin-left:auto">'+(g.checked?"beepakolva":"beepakolandó")+'</span>'}
-          </label>\`).join("")}
-      </div>
-      <div class="card panel"><h3>🏠 Saját felszerelésem</h3>
-        \${Store.myData().equipment.map(g=>\`<div class="flex between" style="padding:.35rem 0;border-bottom:1px solid var(--line)">
-          <span>\${g.icon||"🧰"} \${esc(g.name)}</span>
-          <span class="chip \${g.has?"chip-green":"chip-ember"}">\${g.has?"megvan":"nincs meg"}</span></div>\`).join("")}
-        <a class="btn btn-soft btn-sm btn-block" style="margin-top:.8rem" href="#/felszereles">→ Részletes kezelés (állapot, jegyzet)</a>
-        <div class="flex" style="margin-top:.8rem;gap:.5rem"><input class="input" id="gearq" placeholder="Plusz elem hozzáadása ehhez a túrához…"><button class="btn btn-primary btn-sm" id="gearadd">Hozzáad</button></div>
-      </div></div>\`;
-  }
-  case "resztvevok": {
-    return \`<div class="ws-grid"><div class="card panel">
-      <div class="flex between wrapcol"><h3 style="margin:0">👥 Résztvevők (\${t.participants.length})</h3>
-        <div class="flex" style="gap:.5rem"><input class="input" id="pname" placeholder="Név" style="width:160px"><button class="btn btn-primary btn-sm" id="padd">Meghívás</button></div></div>
-      \${t.participants.map(p=>\`<div class="flex between" style="padding:.55rem 0;border-bottom:1px solid var(--line)">
-        <span class="person-chip"><span class="avt">\${initials(p.name)}</span>\${esc(p.name)}</span>
-        <div class="flex" style="gap:.5rem">
-          <button class="btn btn-sm \${p.confirmed?"btn-soft":"btn-ember"}" data-pconf="\${p.id}">\${p.confirmed?"✓ Megvan a megerősítés":"Megerősítés kérése"}</button>
-          <button class="icon-btn" style="width:30px;height:30px" data-prm="\${p.id}">✕</button></div></div>\`).join("")||
-        '<p class="muted">Hívd meg, kivel mész — a lista megjelenik az utazásszervezésnél is.</p>'}
-      </div><div>
-      <div class="card panel"><h3>🔗 Meghívó</h3>
-        <p class="small muted">Hamarosan e-mailben és linkkel is mehet. Addig oszd meg a terved linkjét:
-        <button class="btn btn-soft btn-sm" data-wsshare-like>\${t.shareCode?"🔗 "+t.shareCode.slice(0,10):"Kód generálása"}</button></p></div>
-      </div></div>\`;
-  }
-  case "utazas": {
-    const freeSeats = t.cars.reduce((s,c)=>s+c.seats-c.assigned.length,0);
-    const people = t.participants.map(p=>p.name);
-    const carless = people.filter(n=>!t.cars.some(c=>c.assigned.includes(n)));
-    return \`<div class="ws-grid"><div class="card panel">
-      <h3>🚗 Autók és helyek</h3>
-      <p class="small muted">Találkozási pont: <b>\${esc(t.meeting||"még nincs rögzítve — add meg lent")}</b> · szabad hely: <b>\${freeSeats}</b></p>
-      \${t.cars.map(c=>\`<div class="carbox \${c.assigned.length<c.seats?"":"full"}" style="margin-bottom:.8rem">
-        <div class="flex between"><span class="person-chip"><span class="avt">\${initials(c.driver)}</span>\${esc(c.driver)} sofőr</span>
-          <span class="chip \${c.assigned.length<c.seats?"chip-green":"chip-sand"}">\${c.seats-c.assigned.length} szabad hely</span></div>
-        <div>\${c.assigned.map(a=>\`<span class="seat">\${esc(a)} <button data-seat="\${c.id}:\${a}" aria-label="Leváltatás">✕</button></span>\`).join("")||'<span class="seat empty">— helyek szabadok —</span>'}</div>
-        \${carless.length&&c.assigned.length<c.seats?\`<div class="flex" style="margin-top:.5rem;gap:.4rem"><select class="input" style="max-width:190px" id="as-\${c.id}">\${carless.map(n=>\`<option>\${esc(n)}</option>\`).join("")}</select>
-          <button class="btn btn-soft btn-sm" data-seatadd="\${c.id}">Beül ✚</button></div>\`:""}
-      </div>\`).join("")||'<p class="muted">Még nincs felírva sofőr.</p>'}
-      <div class="flex" style="gap:.5rem;margin-top:1rem"><input class="input" id="cdriver" placeholder="Sofőr neve (pl. te)" value="\${esc(Store.me().name)}" style="max-width:220px">
-        <select class="input" id="cseats" style="width:110px"><option>3</option><option>1</option><option>2</option><option>4</option><option>5</option></select>
-        <button class="btn btn-primary btn-sm" id="addcar">Autó hozzáadása</button></div>
-      <div class="flex" style="gap:.5rem;margin-top:1rem"><input class="input" id="meet-in" placeholder="📍 Találkozás helye és ideje (pl. Csíkszereda, pályaudvar, 05:30)" value="\${esc(t.meeting)}">
-        <button class="btn btn-soft btn-sm" id="meet-save">Mentés</button></div>
-    </div>
-    <div class="card panel"><h3>💡 Ötletek</h3>
-      <ul style="padding-left:1.1rem;color:var(--bark-soft);font-size:.92rem"><li class="mt0">A sofőrök és utasok listája a Biztonság fülön is megjelenik — indulás előtt ellenőrizheted.</li>
-      <li>Távmegbeszélés helyett a résztvevők fülön jelzett “megerősítés” státusz segít: aki nem mondta, az ott sincs.</li>
-      <li>10+ fős csapatnál érdemes két autón oszolni a csomagokat.</li></ul></div></div>\`;
-  }
-  case "ete": {
-    const l = Math.round((t.durationH||3)/2)||1;
-    return \`<div class="ws-grid"><div class="card panel">
-      <h3>💧 Víz- és ételbecslés</h3>
-      <p class="muted small mt0">\${t.durationH||3} órás túrához:</p>
-      <div class="grid g3 smm2">
-        <div class="stat-tile card"><span class="st-ic">💧</span><b>~\${l} l / fő</b><span>vízminimum — melegebb időben +1 l</span></div>
-        <div class="stat-tile card"><span class="st-ic">🥪</span><b>\${t.durationH>=4?"2×":"1×"}</b><span>étkezés + uzsonna</span></div>
-        <div class="stat-tile card"><span class="st-ic">🍌</span><b>gyors energia</b><span>banán, energia-szelet, mogyoró</span></div></div>
-      <div id="gasp"></div>
-      <p class="small muted" style="margin-top:.9rem">A tetőn a legfontosabb a víz megspórolása — a fél óra alatt fél liter is elfogy. \${t.weatherRain?"<span class=\\"warn-ic\\">Esőben mehet termosz forró tea.</span>":""}</p>
-    </div>
-    <div class="card panel"><h3>🧺 Bevásárlólista</h3>
-      \${t.food.map(f=>\`<label class="ck \${f.checked?"done":""}"><input type="checkbox" data-food="\${f.id}" \${f.checked?"checked":""}> \${f.i||""} \${esc(f.n)}</label>\`).join("")}
-      <div class="flex" style="margin-top:.7rem;gap:.5rem"><input class="input" id="fadd" placeholder="Pl. Energiaszelet, sonka,alma"><button class="btn btn-soft btn-sm" id="faddb">Hozzáad</button></div>
-    </div></div>\`;
-  }
-  case "jegyzet": {
-    const catTour2 = TOURS.find(x=>x.start.name===t.place);
-    return \`<div class="card panel">
-      <h3>🗒️ Jegyzetek</h3>
-      <p class="small muted">Ez a túra magán-jegyzetfüzete — a részleteket ne a Messengerbe temesd, ide.</p>
-      <textarea class="input" id="ws-notes" rows="8" placeholder="Pl. Ne felejtsük a fejlámpákat! Zsolt viszi a termoszos kávét.">\${esc(t.notes||"")}</textarea>
-      <div class="flex" style="margin-top:.8rem;justify-content:flex-end"><button class="btn btn-primary btn-sm" id="notes-save">✓ Mentés</button></div>
-      \${catTour2?\`<div style="margin-top:1.2rem" class="muted small"><b>A katalógus szerint:</b> \${esc(catTour2.desc)}</div>\`:""}
-    </div>\`;
-  }
-    case "koltseg": {
-    const B = t.budget || [];
-    const cats = ["Belépő","Szállás / panzió","Étel, ital","Utazás, üzemanyag","Egyéb"];
-    const sumAll = B.reduce((a,x)=>a+(+x.amt||0),0);
-    const sumSplit = B.filter(x=>x.split).reduce((a,x)=>a+(+x.amt||0),0);
-    const heads = 1 + (t.participants||[]).length;
-    return \`<div class="split2" style="grid-template-columns:1.05fr .95fr;gap:18px;align-items:start">
-      <div class="card panel">
-        <h3>💶 Költség-terv — \${esc(t.title)}</h3>
-        <p class="small muted mt0">A csapatostul fizetett tételek (belépő, panzió, csoportétel, bench-üzemanyag) oszlanak fejenként; a saját cucc neked marad.</p>
-        <div class="bud-list">
-        \${B.map(b=>\`<div class="bud-row">
-          <input type="checkbox" data-bsplit="\${b.id}" \${b.split?"checked":""} title="fejenként osztható">
-          <b>\${esc(b.n)}</b><span class="muted small">\${esc(b.cat)}</span>
-          <span class="bud-amt">\${(+b.amt||0).toLocaleString("hu-HU")} € \${b.split?"<small class=\\"muted\\">÷"+heads+" fő ≈ "+((+b.amt||0)/heads).toLocaleString("hu-HU")+" €</small>":""}</span>
-          <button class="icon-btn" style="width:26px;height:26px" data-bdel="\${b.id}" aria-label="törlés">✕</button>
-        </div>\`).join("")||'<p class="muted small">Még nincs tételed — írd be a költéseket, a táblázat adja a fejenkénti_SUM_</p>'}
-        </div>
-        <div class="budget-add">
-          <input class="input" id="bud-n" placeholder="Pl. Panzió, Gyilkostó">
-          <select class="input" id="bud-c">\${cats.map(c=>\`<option>\${c}</option>\`).join("")}</select>
-          <input class="input" id="bud-a" type="number" min="0" placeholder="9" style="width:84px">
-          <label class="ck" style="white-space:nowrap"><input type="checkbox" id="bud-s" checked> csapatos</label>
-          <button class="btn btn-primary btn-sm" id="bud-add">Hozzáad</button>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div class="card panel"><h3>Összegzés</h3>
-          <div class="bud-sum"><b>\${sumAll.toLocaleString("hu-HU")} €</b><span class="muted">az összes költség</span></div>
-          <div class="bud-sum"><b>\${sumSplit.toLocaleString("hu-HU")} €</b><span class="muted">osztható, \${heads} fővel</span></div>
-          <div class="bud-sum"><b>\${sumSplit ? (sumSplit/heads).toLocaleString("hu-HU", {maximumFractionDigits:0}) + " €" : "—"}</b><span class="muted">fejenként (a csoportszám)</span></div>
-          <p class="small muted">Tipp: a saját utazást és a egyéni vacsorát ne pipáld csapatosra — különben mindenki tol egy üres zsebet.</p>
-          <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.settle-up.com">↗ Csoportszámolás (kütyü, ingyenes app)</a>
-        </div>
-        <div class="card panel"><h3>Naptár-adag \${heads}</h3>
-          <p class="small muted mt0 mb0">A \${heads}-fős társaságra számolva: a víz és uzsonna \${heads}× az étel- és víztáblázatra írva — a Felszerelés fül „Víz” tételeit érdemes ennyivel duplicálni.</p></div>
-      </div></div>\`;
-  }
-case "biztonsag": {
-    return \`<div class="ws-grid"><div class="card panel">
-      <h3><span class="warn-ic">🧯</span> Biztonsági ellenőrzőlista — indulás előtt</h3>
-      \${t.safety.map((s,i)=>\`<label class="ck \${s.checked?"done":""}" style="border-bottom:1px solid var(--line)"><input type="checkbox" data-safety="\${i}" \${s.checked?"checked":""}> <span style="font-size:1.35rem;margin-right:.2rem">\${i<3?"⚠️":"✓"}</span>\${esc(s.n)}</label>\`).join("")}
-      <div class="alert-strip" style="margin-top:1rem"><span>🆘</span><div>Baleset esetén a <b>112</b>. Tájékozódás nélkül ne indulj: offline térkép és a megosztott túraplan legyen kéznél.</div></div>
-    </div>
-    <div class="card panel"><h3>🔗 Túraterv megosztása</h3>
-      <p class="small muted">A link birtokában a csapat (vagy a szüleid) látják, merre mész és mikor térsz haza — valódi megosztás hamarosan.</p>
-      <div class="flex"><input class="input" readonly value="\${t.shareCode?\`https://turatars.ro/t/\${t.shareCode.slice(0,20)}\`:"még nincs kód"}" id="share-url">
-        <button class="btn btn-ghost btn-sm" data-wsshare>\${t.shareCode?"⧉ Másolás":"Kód generálása"}</button></div>
-    </div></div>\`;
-  }
-  case "fotok": {
-    return \`<div class="card panel">
-      <div class="flex between wrapcol"><h3 style="margin:0">📸 Fényképek</h3><span class="chip chip-sand">\${t.photos.length} kép</span></div>
-      <p class="small muted">A teljesített túra képei automatikusan ide kerülnek a naplóból — de most is dobj ide egy mood-boardot.</p>
-      \${(t.photos||[]).length? \`<div class="ph-grid" style="margin:1rem 0">\${t.photos.map(p=>\`<label class="img-wrap" style="aspect-ratio:1;border-radius:12px">\${imgTag(p,"túra kép")}<input type="checkbox" data-photo-del="\${p}" style="position:absolute;top:6px;right:6px;accent-color:#B3372A" title="jelöld be, és nyomd a Törlést"></label>\`).join("")}</div>
-        <button class="btn btn-danger btn-sm" id="p-del">Kijelölt képek törlése</button>\`
-        : \`<div class="empty" style="padding:2rem"><span class="em-ico">🖼️</span><p>Még nincs kép</p><label class="btn btn-primary btn-sm" style="cursor:pointer">📷 Kép feltöltése<input type="file" id="p-up" accept="image/*" multiple hidden></label></div>\`}
-      \${t.photos.length?\`<div class="flex" style="margin-top:1rem;gap:.5rem"><label class="btn btn-soft btn-sm" style="cursor:pointer">📷 További képek<input type="file" id="p-up" accept="image/*" multiple hidden></label></div>\`:""}
-    </div>\`;
-  }
-  case "naplo": {
-    const j = Store.myData().journal.find(x=>x.tourId===t.id);
-    let main;
-    if(t.status!=="teljesítve"){
-      main = \`<div class="flex between wrapcol" style="margin-bottom:.4rem"><b>📖 Túranapló</b>
-        <button class="btn btn-ember btn-sm" id="j-complete">✓ Teljesítettem — irány a naplózás</button></div>
-        <p class="muted">Amikor lezárult a túra, a fenti gombbal tudod naplózni: értékelés, jegyzet, képek — a többit (dátum, hely, táv, idő) a rendszer átveszi a tervből.</p>
-        <div class="alert-strip"><span>🤖</span><div>A túra után a rendszer megkérdez: „Teljesítetted a túrát?” — egy koppintás, és itt vagy a naplózásban.</div></div>\`;
-    } else if(j){
-      main = \`<h3>📖 A naplód bejegyzése — \${fmtDateFull(j.date)}</h3>
-        <div class="stars" style="color:var(--ember);font-size:1.3rem">\${"★".repeat(j.rating||0)}\${"☆".repeat(5-(j.rating||0))}</div>
-        <p style="font-size:1.05rem">„\${esc(j.note||"—")}”</p>
-        <div class="meta"><span>📏 \${j.km} km</span><span>⬆ \${j.up} m</span><span>⏱ \${j.h} ó</span></div>
-        \${(j.photos||[]).length?\`<div class="ph-grid" style="margin-top:1rem">\${j.photos.map(p=>\`<div class="img-wrap">\${imgTag(p,"")}</div>\`).join("")}</div>\`:""}
-        <div class="flex" style="margin-top:1rem"><button class="btn btn-soft btn-sm" id="j-edit">✎ Jegyzet szerkesztése</button></div>\`;
-    } else {
-      main = \`<h3>Teljesítetted — de a naplóbejegyzés még hiányzik</h3>
-        <p class="muted">Írd meg pár sorban, milyen volt. Ez a digitális túranaplód lapja lesz.</p>
-        <button class="btn btn-ember" id="j-add">➕ Bejegyzés írása</button>\`;
-    }
-    return \`<div class="ws-grid"><div class="card panel">\${main}</div>
-      <div class="card panel"><h3>📊 Túraadatai (automatikus)</h3>
-        <div class="meta" style="gap:.3rem"><span>📅 \${t.date?fmtDateFull(t.date):"—"}</span><span>📍 \${esc(t.place||t.region||"—")}</span>
-        <span>📏 \${t.lengthKm||"—"} km</span><span>⬆ \${t.ascent||"—"} m</span><span>⏱ \${t.durationH||"—"} ó</span><span>⛰ \${esc(t.difficulty)}</span></div></div></div>\`;
-  }
-  }
-  return "";
-}
-
-/* ---------- FÜL ESEMÉNYKEZELŐK ---------- */
-function wireTab(root, t){
-  const q=s=>root.querySelector(s); const qa=s=>[...root.querySelectorAll(s)];
-  qa(".jumpto").forEach(a=>a.onclick=e=>{e.preventDefault(); wsTab=a.dataset.j; render();});
-  switch(wsTab){
-  case "attekintes":
-    qa("[data-j]").forEach(a=>a.onclick=()=>{ wsTab=a.dataset.j; render(); });
-    break;
-  case "utvonal": {
-    const mapEl=q("#ws-map");
-    if(window.L && mapEl && !mapEl._lmade){
-      mapEl._lmade=true;
-      const m = MapKit.make(mapEl, {zoom:13, center:t.coords?[t.coords.lat,t.coords.lng]:null});
-      if(m){ if(t.coords){ m.setView([t.coords.lat,t.coords.lng], 13);
-          MapKit.pin(m,t.coords.lat,t.coords.lng,"pin-plan",\`🚗 Kiinduló / parkoló<br><b>\${esc(t.place)}</b>\`);
-          const cat = TOURS.find(x=>x.start.name===t.place);
-          if(cat){ // mintaterv: a startból és egy egyenes "ívből" mock útvonal
-            const line=[]; for(let i=0;i<=10;i++){ const ang=i/10*Math.PI*1.6; line.push([cat.start.lat+Math.sin(ang)*0.02*(i%3+1)*0.6, cat.start.lng+Math.cos(ang)*0.028]); }
-            L.polyline(line,{color:"#1C4A36",weight:4,opacity:.85,dashArray:"1 8",lineCap:"round"}).addTo(m);
-            L.polyline(line,{color:"#E07A2F",weight:2,opacity:.9}).addTo(m);
-            m.fitBounds(line);}
-          }
-          if(t.gpx&&t.gpx.line){ L.polyline(t.gpx.line,{color:"#1C4A36",weight:4}).addTo(m); m.fitBounds(t.gpx.line); }
-          t.waypoints.forEach(w=>MapKit.pin(m,w.lat,w.lng,"pin-wish",esc(w.name)));
-          m.on("click", e=>{ const name=t.waypoints.length? t.waypoints.length+1 : 1; t.waypoints.push({id:Store.uid("wp"),name:"Pont "+name,lat:e.latlng.lat,lng:e.latlng.lng}); Store.save(); render(); });
-        }
-    }
-    const gpx=q("#gpx-in");
-    if(gpx) gpx.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
-      r.onload=()=>{ try{
-        const xml=new DOMParser().parseFromString(r.result,"text/xml");
-        const pts=[...xml.querySelectorAll("trkpt")].map(n=>({lat:+n.getAttribute("lat"),lng:+n.getAttribute("lon"),ele:+(n.children[0]&&n.children[0].textContent||0)}));
-        if(!pts.length) throw 0;
-        const line=pts.map(p=>[p.lat,p.lng]);
-        let dist=0; for(let i=1;i<pts.length;i++){ const d=geo(pts[i-1],pts[i]); if(d<2200) dist+=d; } // szegmentumszűrés
-        const eles=[...pts.map(p=>p.ele).filter(x=>x>100), ...pts.map((_,i)=>20)] // fallback profil
-        ; const prof=eles.slice(0,200).length?[...Array(40)].map((_,i)=>{ const p=pts[Math.floor(i/40*pts.length)]; return p.ele||20; }):[...Array(40)].map((_,i)=>20);
-        Store.updateTour(t.id,{ gpx:{pts, line, elev:prof.length===40?prof:[20,40,60,40,20]}, waypoints: pts.filter((_,i)=>i%Math.ceil(pts.length/6)===0).slice(0,6) });
-        toast("GPX beolvasva — a valódi útvonal a térképed! 🗺","📁"); render();
-      }catch(err){ toast("A GPX fájlt nem tudtam beolvasni — ellenőrizd a formátumot.","⚠️"); } };
-      r.readAsText(f); };
-    const goBtn=q("#nav-go");
-    if(goBtn){ if(t.coords) goBtn.href=\`https://www.google.com/maps/dir/?api=1&destination=\${t.coords.lat},\${t.coords.lng}&travelmode=walking\`;
-      else goBtn.onclick=e=>{ e.preventDefault(); toast("Add meg előbb a helyszínt az Új túra folyamatban.","📍"); }; }
-    q("#gpx-out").onclick=()=>{ if(!t.coords){ toast("Nincs mentett útvonal — tölts fel GPX-t vagy válassz katalógus-túrát.","⚠️"); return; }
-      const line = (t.gpx&&t.gpx.pts)||[[t.coords.lat,t.coords.lng]]; const trkpts=line.map(p=>\`<trkpt lat="\${p.lat}" lon="\${p.lng}"></trkpt>\`).join("");
-      const gpxTxt=\`<?xml version="1.0"?><gpx version="1.1" creator="Túratárs" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>\${esc(t.title)}</name><trkseg>\${trkpts}</trkseg></trk></gpx>\`;
-      const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([gpxTxt],{type:"application/gpx+xml"})); a.download=(t.title||"tura")+".gpx"; a.click(); toast("GPX mentve","📁"); };
-    qa("[data-rmwp]").forEach(b=>b.onclick=()=>{ t.waypoints.splice(+b.dataset.rmwp,1); Store.save(); render(); });
-    const add=q("#wp-add"); if(add) add.onclick=()=>{
-      if(!t.coords){ toast("Előbb jelölj ki egy helyszínt — a térképre kattintva adhatsz pontot.","📍"); return; }
-      const n=q("#wp-name").value.trim(); if(!n) return;
-      t.waypoints.push({id:Store.uid("wp"),name:n, lat:t.coords.lat+(Math.random()-.5)/9, lng:t.coords.lng+(Math.random()-.5)/9});
-      Store.save(); render(); };
-    break; }
-  case "idoter":
-    qa("[data-tlk]").forEach(i=>i.onchange=()=>{ const [id,k]=i.dataset.tlk.split(":"); const x=t.timeline.find(y=>y.id===id); if(x) x[k]=i.value; Store.save(); toast("Időterv mentve","⏱"); });
-    qa("[data-tlmv]").forEach(b=>b.onclick=()=>{ const [id,dir]=b.dataset.tlmv.split(":"); const i=t.timeline.findIndex(x=>x.id===id), j=i+ +dir;
-      if(j>=0&&j<t.timeline.length){ [t.timeline[i],t.timeline[j]]=[t.timeline[j],t.timeline[i]]; Store.save(); render(); } });
-    qa("[data-tldel]").forEach(b=>b.onclick=()=>{ t.timeline=t.timeline.filter(x=>x.id!==b.dataset.tldel); Store.save(); render(); });
-    q("#tl-add").onclick=()=>{ t.timeline.push({id:Store.uid("tl"),t:"12:00",l:"Új pont — írd át",ty:"tura"}); t.timeline.sort((a,b)=>a.t.localeCompare(b.t)); Store.save(); render(); };
-    break;
-  case "felszereles":
-    qa("[data-gear]").forEach(c=>c.onchange=()=>{ const g=t.gear.find(x=>x.name===c.dataset.gear); if(g) g.checked=c.checked; Store.save(); renderNotifSafe(); render(); });
-    const gaf=q("#gearadd"); if(gaf) gaf.onclick=()=>{ const n=q("#gearq").value.trim(); if(!n) return;
-      t.gear.push({name:n, cat:"Egyéb", icon:"➕", checked:false, own:false, note:""}); Store.save(); render(); };
-    break;
-  case "resztvevok":
-    q("#padd").onclick=()=>{ const n=q("#pname").value.trim(); if(!n) return;
-      t.participants.push({id:Store.uid("p"),name:n,confirmed:false}); Store.save(); render(); };
-    qa("[data-pconf]").forEach(b=>b.onclick=()=>{ const p=t.participants.find(x=>x.id===b.dataset.pconf);
-      p.confirmed=!p.confirmed; Store.save(); render(); });
-    qa("[data-prm]").forEach(b=>b.onclick=()=>{ t.participants=t.participants.filter(x=>x.id!==b.dataset.prm);
-      t.cars.forEach(c=>c.assigned=c.assigned.filter(n=>t.participants.some(p=>p.name===n)||n===c.driver)); Store.save(); render(); });
-    break;
-  case "utazas":
-    q("#addcar") && (q("#addcar").onclick=()=>{ const d0=q("#cdriver").value.trim(); if(!d0) return;
-      t.cars.push({id:Store.uid("c"),driver:d0,seats:+q("#cseats").value||3,assigned:[]}); Store.save(); render(); });
-    q("#meet-save") && (q("#meet-save").onclick=()=>{ Store.updateTour(t.id,{meeting:q("#meet-in").value}); toast("Találkozás mentve","📍"); render(); });
-    qa("[data-seatadd]").forEach(b=>b.onclick=()=>{ const c=t.cars.find(x=>x.id===b.dataset.seatadd); const n=q("#as-"+c.id).value;
-      if(c.assigned.filter(a=>a!=="—").length<c.seats) c.assigned.push(n); Store.save(); render(); });
-    qa("[data-seat]").forEach(b=>b.onclick=()=>{ const [cid,nm]=b.dataset.seat.split(":");
-      const c=t.cars.find(x=>x.id===cid); c.assigned=c.assigned.filter(a=>a!==nm); Store.save(); render(); });
-    break;
-  case "ete":
-    qa("[data-food]").forEach(c=>c.onchange=()=>{ const f=t.food.find(x=>x.id===c.dataset.food); f.checked=c.checked; Store.save(); render(); });
-    q("#faddb").onclick=()=>{ const n=q("#fadd").value.trim(); if(!n) return; t.food.push({id:Store.uid("fd"),n,i:"🥫",checked:false}); Store.save(); render(); };
-    break;
-  case "jegyzet":
-    q("#notes-save").onclick=()=>{ Store.updateTour(t.id,{notes:q("#ws-notes").value}); toast("Jegyzet mentve","🗒"); };
-    break;
-  case "koltseg": {
-    if (!t.budget) t.budget = [];
-    root.querySelector("#bud-add").onclick = () => {
-      const n = root.querySelector("#bud-n").value.trim();
-      const amt = +root.querySelector("#bud-a").value || 0;
-      if (!n || !amt) { toast("Adj nevet és összeget","🧾"); return; }
-      t.budget.push({ id: Store.uid("bz"), n, cat: root.querySelector("#bud-c").value, amt, split: root.querySelector("#bud-s").checked });
-      Store.save(); render();
-    };
-    root.querySelectorAll("[data-bdel]").forEach(b => b.onclick = () => { t.budget = t.budget.filter(x => x.id !== b.dataset.bdel); Store.save(); render(); });
-    root.querySelectorAll("[data-bsplit]").forEach(c => c.onchange = () => { const b = t.budget.find(x => x.id === c.dataset.bsplit); if (b) b.split = c.checked; Store.save(); render(); });
-    break; }
-  case "biztonsag":
-    qa("[data-safety]").forEach(c=>c.onchange=()=>{ t.safety[+c.dataset.safety].checked=c.checked; Store.save(); render({silent:true}); });
-    break;
-  case "fotok":
-    q("#p-up") && (q("#p-up").onchange = e => {
-      [...e.target.files].slice(0,6).forEach(f=>{ const r=new FileReader();
-        r.onload=()=>{ t.photos.push(r.result); Store.save(); render(); }; r.readAsDataURL(f); }); });
-    const pdel=q("#p-del"); if(pdel) pdel.onclick=()=>{
-      qa("[data-photo-del]").forEach(ch=>{ if(ch.checked) t.photos=t.photos.filter(p=>p!==ch.dataset.photoDel); }); Store.save(); render(); };
-    break;
-  case "naplo":
-    const jc=q("#j-complete"); if(jc) jc.onclick=()=> finishFlow(t);
-    const ja=q("#j-add"); if(ja) ja.onclick=()=> finishFlow(t,true);
-    const je=q("#j-edit"); if(je) je.onclick=()=> finishFlow(t,true);
-    break;
-  }
-}
-function geo(a,b){ const R=6371, dLat=(b.lat-a.lat)*Math.PI/180, dLon=(b.lng-a.lng)*Math.PI/180;
-  const s=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
-  return 2*R*Math.asin(Math.sqrt(s)); }
-function render(){ window.App && App.render && App.render({}) ; }
-
-/* ---------- KÖZÖS FOLYAMATOK ---------- */
-function finishFlow(t, forceLog){
-  if(t.status==="teljesítve" && (forceLog||Store.myData().journal.some(j=>j.tourId===t.id))){ journalModal(t); return; }
-  if(t.status!=="teljesítve"){
-    openModal({ title:\`\${esc(t.title)}\` , body:\`<div class="hcard" style="min-height:120px">\${imgTag(t.img||IMG.erdo,"")}<div class="hb"><b style="font-size:1.05rem">Teljesítetted ezt a túrát?</b><div class="meta"><span>\${t.date?fmtDateFull(t.date):""} · \${t.lengthKm||"?"} km · ⬆ \${t.ascent||"?"} m</span></div></div></div>
-      <p class="muted small">Ha igen: értékelés + jegyzet + képek — és a többi (dátum, hely, táv, idő) automatikusan a naplódra kerül.</p>
-      <div class="flex" style="gap:.6rem;justify-content:flex-end;margin-top:1rem"><button class="btn btn-ghost btn-sm" data-close>Még nem</button>
-      <button class="btn btn-ember btn-lg" id="ff-yes">✓ Teljesítettem</button></div>\`,
-      onOpen(r){ r.querySelector("#ff-yes").onclick=()=>{ closeModal(); journalModal(t, true); }; }});
-  } else journalModal(t);
-}
-function journalModal(t, markDone){
-  openModal({ title:\`📖 Túranapló — \${esc(t.title)}\`,
-    body:\`<p class="muted mt0 small">\${fmtDateFull(t.date||t.doneAt)} · \${esc(t.region||t.place||"")} · \${t.lengthKm} km · ⬆ \${t.ascent} m · ⏱ \${t.durationH} ó</p>
-      <label class="f">Értékelés</label><div id="jm-stars" style="font-size:2rem;display:flex;gap:.15rem">\${[1,2,3,4,5].map(i=>\`<button data-s="\${i}" style="background:none;border:0;cursor:pointer;color:#cfcabb" aria-label="\${i} csillag">★</button>\`).join("")}</div>
-      <label class="f" style="margin-top:.5rem">Saját jegyzet</label><textarea class="input" id="jm-note" rows="3" placeholder="Pl. Gyönyörű idő volt. A felső szakasz sáros volt, de megérte."></textarea>
-      <label class="f" style="margin-top:.7rem">📸 Képek</label><input type="file" id="jm-ph" accept="image/*" multiple class="input" style="padding:.55em">\`,
-    footer:\`<button class="btn btn-primary btn-block btn-lg" id="jm-save">✓ Mentés a túranaplóba</button>\`,
-    onOpen(r){ let stars=5; const draw=()=>r.querySelectorAll("[data-s]").forEach(s=>s.style.color=s.dataset.s<=stars?"var(--ember)":"#cfcabb");
-      r.querySelectorAll("[data-s]").forEach(s=>s.onclick=()=>{stars=+s.dataset.s;draw();}); draw();
-      r.querySelector("#jm-save").onclick=()=>{
-        const fs=[...r.querySelector("#jm-ph").files].slice(0,6);
-        const finalize=()=>{ Store.completeTour(t.id, stars, r.querySelector("#jm-note").value, imgs); if(markDone) Store.updateTour(t.id,{status:"teljesítve"});
-          closeModal(); toast("Felkerült a túranaplódba — ez a te sztorid. 📖","✓"); wsTab="naplo"; render(); };
-        let imgs=t.photos||[];
-        if(fs.length){ let n=0; const tmp=[]; fs.forEach(f=>{ const rd=new FileReader(); rd.onload=()=>{ tmp.push(rd.result); if(++n===fs.length){ imgs=[...tmp, ...imgs]; finalize(); } }; rd.readAsDataURL(f); }); }
-        else finalize(); }; } });
-}
-function sharePlan(t){
-  if(!t.shareCode){ t.shareCode = Store.uid("sh")+Math.random().toString(36).slice(2,8); Store.save(); }
-  openModal({ title:"🔗 Túraterv megosztása",
-    body:\`<p class="muted mt0 small">Ezt a linket elküldheted a csapatnak (és a szüleidnek): látják az útvonalat, az időtervet és a csomaglistát. A megosztás csak olvasható.</p>
-      <div class="flex"><input class="input" id="shr-url" readonly value="https://turatars.ro/t/\${t.shareCode.slice(0,18)}"><button class="btn btn-primary btn-sm" id="shr-copy">⧉ Másolás</button></div>
-      <div class="alert-strip" style="margin-top:1rem"><span>🛠</span><div>A valódi, nyilvános megosztott oldal a következő verzióban élesedik — a kódot már most használhatod.</div></div>\` });
-}
-
-/* ==== upgrade ==== */
-/* ============================================================
-   TÚRAVAROS — BŐVÍTŐ MODUL (bump2) — 1. rész
-   Állapotgép · készültség · ellenőrző · workspace-beépítés · súlyok
+========================================================
+   TÚRAVAROS — PUBLIKUS OLDALAK + AUTH + ONBOARDING
    ============================================================ */
 "use strict";
 
-const CAT7 = {"Hátizsák":"🎒 Alapfelszerelés","Bakancs":"🧦 Lábbelik","Öltözet":"🧥 Ruházat","Ivó":"💧 Víz","Étel":"🍎 Étel","Biztonság":"🩹 Biztonság","Navigáció":"🔦 Navigáció és elektronika","Sátor":"🏕️ Táborozás","Egyéb":"🎒 Alapfelszerelés","Védő":"🩹 Biztonság"};
-const cat7 = c => CAT7[c] || "🎒 Alapfelszerelés";
-const g2kg = g => (g>=1000 ? (g/1000).toFixed(2).replace(".",",")+" kg" : Math.round(g)+" g");
-const escAttr = n => String(n).replace(/"/g,"'").replace(/</g,"&lt;");
-
-/* ---------- 1) TÚRAPROJEKT-ÁLLAPOTOK ---------- */
-function projectedStatus(t){
-  if(t.status==="tervezés" || t.status==="jelentkezve"){
-    const d = Store.dayDiff(t.date);
-    if(d>=0 && d<=3) return "közelgő";
-  }
-  return t.status;
+/* ---------- KÖZÖS KÁRTYÁK ---------- */
+function elevSpark(vals, color){
+  if(!vals||!vals.length) return "";
+  const mx=Math.max(...vals), pts=vals.map((v,i)=>\`\${(i/(vals.length-1)*100).toFixed(1)},\${(24-v/mx*20).toFixed(1)}\`).join(" ");
+  return \`<svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="\${pts}" fill="none" stroke="\${color||"var(--moss)"}" stroke-width="2.2" stroke-linecap="round"/></svg>\`;
 }
-window.statusChip = s => {
-  const m = STATUSES[s] || {ico:"🟡", label:s||"tervezés", cls:"chip-blue"};
-  return \`<span class="chip \${m.cls}" title="Túraprojekt-állapot">\${m.ico} \${esc(m.label)}</span>\`;
+function tourCard(t){
+  return \`<article class="card tcard"><a class="card-link" href="#/turak/\${t.id}">
+    <div class="img-wrap" style="height:168px">\${imgTag(t.img,t.name)}
+      <span class="chip chip-pine">\${esc(t.region)}</span>
+      <span class="rate">★ \${t.rating}</span></div></a>
+    <div class="tbody">
+      <span class="region">\${esc(t.region)} · \${esc(t.difficulty||t.diff)}</span>
+      <h3><a href="#/turak/\${t.id}">\${esc(t.name)}</a></h3>
+      <div class="elevator" title="Magassági profil">\${elevSpark((t.elev||[]).length?t.elev:t.elev)}</div>
+      <div class="meta"><span>📏 \${t.km} km</span><span>⏱ \${t.h} ó</span><span>⬆ \${t.up} m</span></div>
+      <div style="margin-top:.55rem">\${diffChip(t.diff)}</div>
+    </div></article>\`;
+}
+function ecardSmall(e){
+  const [Y,Mo,Da] = (e.date||"—").split("-");
+  const hav = e.date ? MONTHS_HU[+Mo-1].slice(0,2)+". " : "Hamarosan";
+  const nap = e.date ? +Da : "🚲";
+  return \`<article class="card ecard"><div class="img-wrap" style="min-height:150px">\${imgTag(e.img,e.name)}</div>
+    <div class="eb">
+      <div class="flex between eh-row"><span class="edate"><i>\${hav}</i><b>\${nap}</b></span>
+        <span class="chip chip-ember">\${esc(e.cat)}</span></div>
+      <h3 style="margin:.25rem 0 .1rem"><a href="#/esemenyek/\${e.id}">\${esc(e.name)}</a></h3>
+      <div class="meta"><span>📍 \${esc(e.place)}</span><span>👥 \${e.people} fő</span></div>
+      <div class="eorg">Szervező: \${esc(e.org)}\${e.time?\` · 🕐 \${esc(e.time)}\`:""}\${e.src?\` · <a href="\${esc(e.src)}" target="_blank" rel="noopener" style="color:var(--sky);font-weight:600">hivatalos oldal ↗</a>\`:""}</div>
+      <div class="flex" style="margin-top:.3rem"><button class="btn btn-soft btn-sm" data-save-event="\${e.id}">
+        \${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés a saját túráim közé"}</button>\${diffChip(e.diff)}</div>
+    </div></article>\`;
+}
+function handleSaveEvents(root){
+  root.querySelectorAll("[data-save-event]").forEach(b=>b.onclick=()=>{
+    if(!Store.me()){ toast("A mentéshez jelentkezz be vagy regisztrálj","🔐"); NAV.to("#/regisztracio"); return; }
+    const on = Store.isEventSaved(b.dataset.saveEvent);
+    Store.toggleEvent(b.dataset.saveEvent);
+    if(!on){ const ev = EVENTS.find(x=>x.id===b.dataset.saveEvent); const tr = Store.myData().tours.find(x=>x.eventRef===ev.id);
+      if(tr&&(ev.reg||ev.src)&&!(tr.notes||"").includes("Nevezés:")){ tr.notes=((tr.notes||"")+(tr.notes?"\\n":"")+"Nevezés: "+(ev.reg||ev.src)+(ev.time?" · "+ev.time:"")+(ev.place?" · "+ev.place:"")).trim(); Store.save(); }
+      if(tr && (ev.reg||ev.src) && !(tr.notes||"").includes("Nevezés:")){ tr.notes = ((tr.notes||"") + (tr.notes?"\\n":"") + "Nevezés: " + (ev.reg||ev.src) + (ev.time ? " · " + ev.time : "")).trim(); Store.save(); } }
+    toast(on?"Eltávolítva a saját túráid közül.":"Hozzáadva a saját túranaptáradhoz! 🎫","✓");
+    render();
+  });
+}
+
+/* ================= KEZDŐLAP ================= */
+const VIEWS = {};
+VIEWS.home = () => {
+  const upcomingEvents = EVENTS.filter(e=>e.date?e.date>=Store.todayISO():false).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  const popular = TOURS.slice().sort((a,b)=>b.reviews-a.reviews).slice(0,6);
+  const weekend = TOURS.filter(t=>t.h<=4.5).slice(0,3);
+  const best = WISH.slice(0,6);
+  const sunrise = TOURS.filter(t=>t.tags.includes("napkelte")||t.rating>=4.8).slice(0,3);
+  const family = TOURS.filter(t=>t.tags.includes("family"));
+  const easy = TOURS.filter(t=>t.diff==="Könnyű").slice(0,6);
+  const u = Store.me();
+  return \`
+  <section class="hero"><div class="bg">\${imgTag(IMG.hegylanc,"Hegyaljai gerinc")}</div>
+    <div class="wrap hero-in">
+      <span class="kicker">🥾 \${TOURS.length} túraútvonal · \${EVENTS.filter(e=>e.date>=Store.todayISO()).length} közelgő esemény · \${WISH.length} bakancslista-hely</span>
+      <h1>Merre kalandozol <br><i>legközelebb?</i></h1>
+      <p class="sub">Fedezd fel, tervezd meg és őrizd meg minden túrádat egy helyen — Székelyföld hágóitól a Fogarasokig.</p>
+      <p class="hero-proof">Útvonalak, GPX, időterv, felszerelés, társak és napló — egy helyen.</p>
+      <div class="searchbox" role="search" aria-label="Túrák keresése">
+        <div class="sc-field"><label for="q-hova">Hova mennél?</label><input id="q-hova" placeholder="Pl. Mária-kő, Hargita, Bálványos…"></div>
+        <div class="sc-field"><label for="q-mikor">Mikor?</label><select id="q-mikor"><option value="">Bármikor</option><option value="hk">Jövő héten</option><option value="honap">Ebben a hónapban</option><option value="og">A hegyekben</option></select></div>
+        <div class="sc-field"><label for="q-nehezseg">Nehézség</label><select id="q-nehezseg"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
+        <div class="sc-field"><label for="q-id">Mennyi időd van?</label><select id="q-id"><option value="">Bármennyi</option><option value="3">max 3 óra</option><option value="5">max 5 óra</option><option value="24">egész napos / többnapos</option></select></div>
+        <button class="btn btn-primary btn-lg" id="q-go">Túrák keresése</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hs"><b>\${TOURS.length}</b><span>túraútvonal</span></div>
+        <div class="hs"><b>\${EVENTS.length}</b><span>vezetett esemény</span></div>
+        <div class="hs"><b>6</b><span>tájegység a térképen</span></div>
+        <div class="hs"><b>\${u?"Aktív 👋":"Ingyenes"}</b><span>a személyes túraközpont</span></div>
+      </div>
+    </div></section>
+
+  <div class="wrap">
+    <section class="pub-section">
+      <div class="flex" style="gap:.6rem;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap">
+      <div class="sect-head" style="margin:0 2rem 0 0"><div><span class="eyebrow">Naptár</span><h2 class="mb0">Közelgő túraesemények</h2></div>
+        <a class="sect-more" href="#/esemenyek">Összes esemény →</a></div>
+      <a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php/turaterv">🗓 CsEKE éves túraterv ↗</a></div>
+      <div class="p-h-scroll" id="home-events"></div>
+    </section>
+
+    <div class="trail-divider"><span class="trail-blaze"></span></div>
+
+    <section class="pub-section">
+      <div class="sect-head"><div><span class="eyebrow">A közösség kedvencei</span><h2 class="mb0">Népszerű túrák</h2></div>
+        <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
+"      <div class="grid g3">\${popular.map(t=>tourCard(t)).join("")}</div>
+      \${(function(){ const uj=TOURS.filter(t=>t.src).slice(0,4); return uj.length?\`<p class="small muted" style="margin-top:.9rem">Újonnan a kínálatban — forrással a túrakártyákon: \${uj.map(x=>\`<a href="#/turak/\${x.id}" style="color:var(--sky);font-weight:600">\${esc(x.name.split(" (")[0])}</a>\`).join(" · ")}</p>\`:""; })()}
+    </section>
+
+    <section class="pub-section tight">
+      <div class="sect-head"><div><span class="eyebrow">Pihizsák a hétre</span><h2 class="mb0">Hétvégi ajánlatok</h2></div></div>
+      <div class="grid g3" id="weekend-grid"></div>
+    </section>
+
+    <section class="pub-section">
+      <div class="sect-head"><div><span class="eyebrow">Ahol a szívöd lakik</span><h2 class="mb0">Legszebb helyek</h2></div>
+        <a class="sect-more" href="#/helyek">Minden hely →</a></div>
+      <div class="grid g3" id="best-places"></div>
+    </section>
+
+    <div class="trail-divider"><span class="trail-blaze"></span></div>
+
+    <section class="pub-section">
+      <div class="sect-head"><div><span class="eyebrow">Hajnalban a tetőn</span><h2 class="mb0">Napfelkelte túrák</h2></div></div>
+      <div class="p-h-scroll">\${sunrise.map(t=>tourCard(t)).join("")}</div>
+      <div class="sect-head" style="margin-top:2.4rem"><div><span class="eyebrow">Apró lábaknak is</span><h2 class="mb0">Családi túrák</h2></div></div>
+      <div class="p-h-scroll">\${family.map(t=>tourCard(t)).join("")}</div>
+      <div class="sect-head" style="margin-top:2.4rem"><div><span class="eyebrow">Első lépések</span><h2 class="mb0">Kezdőknek ajánlott túrák</h2></div>
+        <a class="sect-more" href="#/felfedezes">Továbbiak →</a></div>
+      <div class="grid g3">\${easy.slice(0,3).map(t=>tourCard(t)).join("")}</div>
+    </section>
+
+    <section class="pub-section">
+      <div class="band band-sand topo">
+        <div class="split2">
+          <div>
+            <span class="eyebrow" style="color:var(--moss)">Térképes felfedezés</span>
+            <h2>Az egész Erdély egy térképen</h2>
+            <p class="muted">Zöld pontok: székelyföldi és erdélyi klasszikus túrák, narancs: közelgő események. Kattints egy pontra, és nyisd meg az adott túra vagy esemény lapját, vagy mentsd el a saját túráim közé.</p>
+            <a class="btn btn-primary" href="#/felfedezes">Térképes felfedezés</a>
+            <a class="btn btn-ghost" href="#/hagymas" style="margin-left:.5rem">🕹 Hagymás útvonalak</a>
+          </div>
+          <div class="mapbox tall" id="home-map" aria-label="Túratérkép"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pub-section">
+      <div class="band band-green topo">
+        <div class="split2">
+          <div>
+            <span class="eyebrow" style="color:#9ec6a5">🤖 AI Túratervező · béta</span>
+            <h2>Írd le, milyen túrát szeretnél — ő össze is rakja</h2>
+            <p>"Szombaton szeretnék egy közepes nehézségű, max 5 órás túrát gyönyörű kilátással" — és az AI ajánl útvonalat, időtervet,felszerelést, étel- és vízmennyiséget. Egy gombbal új túraként is elmentheted a munkaterületedre.</p>
+            <a class="btn btn-ember btn-lg" href="#/ai">💬 Kipróbálom az AI Túratervezőt</a>
+          </div>
+          <div class="ai-prev" aria-hidden="true">
+            <div class="bub user">Könnyű, családi vízesésnap, 2–3 óra?</div>
+            <div class="bub ai"><b>Szakadát-vízesés és a Békás-szoros</b> · Gyergyó · 9 km · 3 ó<br>Árnyékos szurdokösvény, a tóparton piknikező. Csomag: bakancs, esőkabát, 2 l víz…</div>
+            <div class="bub ai" style="align-self:flex-start"><button class="btn btn-soft btn-sm">Mentés új túraként</button></div>
+          </div>
+        </div>
+      </div>
+      \${u? "" : \`
+      <div class="band" style="margin-top:22px;background:linear-gradient(120deg,#fff,#f2f6ef);text-align:center;border:1px solid var(--line)">
+        <h2>Az ösvény itt nem ér véget — innen indul a te túraközpontod</h2>
+        <p class="muted">Regisztráció után saját túráid, idoterved, felszereléslistád, naptárad, naplód és statisztikáid egy helyen.</p>
+        <div class="flex center" style="justify-content:center;gap:.7rem;flex-wrap:wrap">
+          <a class="btn btn-primary btn-lg" href="#/regisztracio">Ingyenes regisztráció</a>
+          <a class="btn btn-ghost btn-lg" href="#/belepes">Bejelentkezés</a>
+        </div>
+
+      </div>\`}
+    </section>
+  </div>
+  \${footer()}\`;
 };
-function statusMenu(t){
-  const opts=["ötlet","bakancs","tervezés","teljesítve","archiválva"];
-  openModal({ title:"Túraprojekt állapota",
-    body:\`<p class="muted small mt0">Életciklus: 💡 ötlet → ❤️ bakancslista → 🟡 tervezés → 🔵 közelgő (automatikus, 3 napon belül) → 🟢 teljesítve → 📖 archiválva.</p>
-      <div class="opt-grid">\${opts.map(s=>\`<button class="opt \${t.status===s?"sel":""}" data-st="\${s}"><span class="oi">\${STATUSES[s].ico}</span><span>\${STATUSES[s].label}</span></button>\`).join("")}</div>\`,
-    onOpen(r){ r.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{
-      const s=b.dataset.st;
-      if(s==="teljesítve"){ closeModal(); finishWizard(t); return; }
-      if(s==="archiválva"){ Store.archiveTour(t.id); toast("A túra az archívumba került — az élmény megmarad.","📖"); }
-      else { Store.setStatus(t.id, s); toast("Állapot: "+STATUSES[s].label, STATUSES[s].ico); }
-      closeModal(); render(); }); } });
-}
-
-/* ---------- 2) KÉSZÜLTSÉGI MUTATÓ + 3) ELLENŐRZŐ ---------- */
-function readiBar(t){
-  if(t.status==="teljesítve"||t.status==="archiválva") return "";
-  const r = Store.readiness(t);
-  return \`<div class="readi">
-    <div class="flex between" style="width:100%">
-      <span><b>Felkészültség</b> <span class="readi-pct">\${r.pct}% kész</span></span>
-      <button class="btn btn-ember btn-sm" id="rdi-check">Ellenőrizd a túrámat →</button></div>
-    <div class="readi-track" role="progressbar" aria-valuenow="\${r.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:\${r.pct}%"></i></div>
-    <div class="small readi-missing">\${r.missing.length ? \`Még \${r.missing.length} dolog van hátra: \${r.missing.slice(0,3).map(m=>\`<span class="readi-chip">☐ \${esc(m.label)}</span>\`).join("")}\${r.missing.length>3?\`<span class="readi-chip">+\${r.missing.length-3} többi</span>\`:""}\`
-      : "🟢 Indulásra kész — jó utat! 🥾"}</div></div>\`;
-}
-function readiCheckModal(t){
-  const c = Store.tourCheck(t);
-  openModal({ title:"🛃 Túra-ellenőrző — "+esc(t.title),
-    body:\`<p class="muted mt0"><b>\${esc(c.head)}</b> · Felkészültség: <b>\${c.pct}%</b></p>
-      <div class="checker-list">\${c.rows.map(x=>\`<div class="checker \${x.ok?"ok":""}">
-        <span>\${x.ok?"✅":"☐"} \${esc(x.label)}</span>
-        \${!x.ok&&x.goto?\`<button class="btn btn-soft btn-sm" data-jump="\${x.goto}">Kijavítom</button>\`:""}</div>\`).join("")}</div>\`,
-    footer:\`<button class="btn btn-primary btn-block" data-close>Értelmezve</button>\`,
-    onOpen(r){ r.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{ closeModal(); wsTab=b.dataset.jump; render(); }); } });
-}
-function saveTemplateModal(t){
-  openModal({ title:"📐 Túrasablon ebből a túrából",
-    body:\`<p class="muted small mt0">A sablon magával viszi egy új túrába: csomaglista súlyostul, időterv, étel- és itallista, nehézség és napoksám.</p>
-      <label class="f">Sablon neve</label><input class="input" id="tp-n" value="\${esc(t.title)} — sablon">
-      <label class="f" style="margin-top:.6rem">Ikon</label><input class="input" id="tp-i" maxlength="4" value="\${/napkel|napfelk/.test((t.tags||[]).join()+t.title)?"🌄":(t.days>1?"🏕️":"🥾")}">
-      <p class="small muted" style="margin-top:.5rem">\${t.gear.length} csomag · \${t.timeline.length} időpont · \${t.food.length} étel tétel kerül a sablonba.</p>\`,
-    footer:\`<button class="btn btn-primary btn-block" id="tp-save">Sablon mentése</button>\`,
-    onOpen(r){ r.querySelector("#tp-save").onclick=()=>{
-      Store.saveTemplateFromTour(t.id, r.querySelector("#tp-n").value.trim()||t.title, r.querySelector("#tp-i").value.trim());
-      closeModal(); toast("Sablon elmentve — új túránál egy koppintással előhívhatod.","📐"); }; } });
-}
-
-/* ---------- WORKSPACE-beépítés: állapotchip, készültség, gombok ---------- */
-const _origWSafter2 = VIEWS.workspace.after;
-VIEWS.workspace.after = (root, id) => {
-  _origWSafter2(root, id);
-  const t = Store.getTour(id); if(!t || !root.querySelector(".ws-title h1")) return;
-  const ps = projectedStatus(t), sm = STATUSES[ps]||{};
-  const sp=document.createElement("span"); sp.className="chip "+(sm.cls||"chip-blue"); sp.id="st-chip";
-  sp.innerHTML=(sm.ico||"•")+" "+esc(sm.label||ps); sp.style.cursor="pointer"; sp.title="Állapot átállítása";
-  sp.onclick=()=>statusMenu(t);
-  root.querySelector(".ws-title h1").appendChild(sp);
-  const actEl = root.querySelector(".ws-actions");
-  if(actEl && !actEl.querySelector("#tmode-btn")){
-    const b1=document.createElement("button"); b1.id="tmode-btn"; b1.className="btn btn-ghost btn-sm"; b1.innerHTML="⚡ Túra mód"; b1.onclick=()=>NAV.to("#/turamod/"+t.id);
-    const b2=document.createElement("button"); b2.className="btn btn-soft btn-sm"; b2.innerHTML="📐 Sablonba mentés"; b2.onclick=()=>saveTemplateModal(t);
-    actEl.prepend(b1); actEl.appendChild(b2);
-  }
-  const head = root.querySelector(".ws-stats");
-  if(head && !root.querySelector(".readi")){
-    const wrap=document.createElement("div"); wrap.innerHTML=readiBar(t);
-    if(wrap.firstChild) head.parentNode.insertBefore(wrap.firstChild, head);
-    const cb=root.querySelector("#rdi-check"); if(cb) cb.onclick=()=>readiCheckModal(t);
+VIEWS.home.after = (root) => {
+  root.querySelector("#home-events").innerHTML =
+    EVENTS.filter(e=>e.date>=Store.todayISO()).slice(0,6).map(ecardSmall).join("");
+  const wday = new Date(); const wsat = Store.addDays(Store.todayISO(), (6-wday.getDay()+7)%7);
+  root.querySelector("#weekend-grid").innerHTML =
+    TOURS.filter(t=>t.h<=3.5).slice(0,3).map(t=>tourCard(t)).join("");
+  root.querySelector("#best-places").innerHTML = WISH.slice(0,6).map(w=>
+    \`<div class="hcard">\${imgTag(w.img,w.name)}<div class="hb"><span class="chip chip-pine">\${esc(w.cat)}</span><h3 style="margin-top:.35rem">\${esc(w.name)}</h3><div class="meta"><span>\${esc(w.place)}</span><span>\${esc(w.diff)}</span></div></div></div>\`).join("");
+  handleSaveEvents(root);
+  const go = root.querySelector("#q-go");
+  if(go) go.onclick = () => {
+    const q = encodeURIComponent(root.querySelector("#q-hova").value.trim());
+    const diff = encodeURIComponent(root.querySelector("#q-nehezseg").value);
+    const h = root.querySelector("#q-id").value;
+    sessionStorage.setItem("tvq", JSON.stringify({q:decodeURIComponent(q), diff:decodeURIComponent(diff), h}));
+    NAV.to("#/felfedezes"); };
+  const map = MapKit.make(root.querySelector("#home-map"), {zoom:7});
+  if(map){
+    TOURS.forEach(t=>MapKit.pin(map,t.start.lat,t.start.lng,"pin-cat",
+      \`<b><a href="#/turak/\${t.id}">\${esc(t.name)}</a></b><br>\${esc(t.region)} · \${t.km} km · \${esc(t.diff)}\`));
+    EVENTS.filter(e=>e.date>=Store.todayISO()).forEach(e=>{
+      const base=e.tour?tourById(e.tour):null; if(!base) return;
+      MapKit.pin(map,base.start.lat+((Math.random()-.5)/9),base.start.lng+((Math.random()-.5)/9),"pin-event",
+        \`<b><a href="#/esemenyek/\${e.id}">\${esc(e.name)}</a></b><br>\${fmtDate(e.date)} · \${esc(e.place)}\`); });
   }
 };
 
-/* ---------- 6+7) CSOMAGOLÁS V2: kategóriák, súlyok, hátizsák-kalkulátor ---------- */
-const _origTab = wsTabHTML;
-wsTabHTML = (t, catTour) => {
-  if(wsTab==="felszereles") return gearV2(t);
-  let h = _origTab(t, catTour);
-  if(wsTab==="biztonsag") h += securityCardHTML(t);
-  if(wsTab==="utvonal")   h = terepStripHTML(t) + h;
-  return h;
+/* ================= LÁBLÉC ================= */
+function footer(){ return \`<footer class="pub-foot"><div class="wrap">
+  <div><div class="fbrand">Túratárs</div>
+    <p class="small" style="max-width:34ch;color:#bcd6c2">A túrázók személyes digitális központja. Tervezés · szervezés · teljesítés · dokumentálás — egy helyen, magyarul.</p></div>
+  <div><h4>Felfedezés</h4><a href="#/felfedezes">Túrák</a><a href="#/esemenyek">Események</a><a href="#/helyek">Helyek</a></div>
+  <div><h4>Fiók</h4><a href="#/regisztracio">Regisztráció</a><a href="#/belepes">Bejelentkezés</a><a href="##/vezerlopult">Vezérlőpult</a></div>
+  <div><h4>Közösség</h4><a href="#/csapatok">Túracsoportok</a><a href="#/ai">AI Túratervező</a><a href="#/terkep">Túratérkép</a></div>
+  <div class="fine"><span>© 2026 Túratárs · turatars.ro · Képek: Unsplash, Nagyhagymás KKT · Eseményforrások: CsEKE, SzATT, visitharghita.ro</span><span>Készült: 🌲 a Bakban és a Székelyföldön</span></div>
+</div></footer>\`; }
+
+/* ================= FELFEDEZÉS ================= */
+VIEWS.discover = () => {
+  const saved = (()=>{ try{return JSON.parse(sessionStorage.getItem("tvq")||"{}")}catch(e){return {}} })();
+  return \`<div class="wrap pub-section tight">
+    <div class="sect-head"><div><span class="eyebrow">\${TOURS.length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
+    <div class="searchbox" style="margin-top:0;grid-template-columns:1.4fr .8fr .8fr .8fr .9fr" id="discfilters">
+      <div class="sc-field"><label for="d-q">Keresés</label><input id="d-q" value="\${esc(saved.q||"")}" placeholder="Név, tájegység…"></div>
+      <div class="sc-field"><label for="d-diff">Nehézség</label><select id="d-diff"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
+      <div class="sc-field"><label for="d-id">Idő</label><select id="d-id"><option value="">Bármennyi</option><option value="3">max 3 ó</option><option value="5">max 5 ó</option><option value="99">bármilyen hosszú</option></select></div>
+      <div class="sc-field"><label for="d-reg">Tájegység</label><select id="d-reg"><option value="">Mindegy</option>\${[...new Set(TOURS.map(t=>t.region))].map(r=>\`<option>\${esc(r)}</option>\`).join("")}</select></div>
+      <div class="sc-field"><label>Nézet</label><button class="input" id="d-toggle" style="cursor:pointer;text-align:left;background:transparent">🗺️ Térkép</button></div>
+    </div>
+    <div class="grid g3" id="disc-results" style="margin-top:22px"></div>
+    <div class="mapbox hidden" id="disc-map" style="margin-top:22px;height:460px"></div>
+    <div class="trail-divider"><span class="trail-blaze"></span></div>
+    <p class="muted small">A találatok frissülnek, ahogy szűrsz: a térképnézet pontjaira kattintva azonnal megnyithatod a túrát.</p>
+  </div>\${footer()}\`;
 };
-function bpackBarsHTML(b){
-  return b.rows.map(r=>\`<div class="bar-row"><span class="bl">\${esc(r.cat.replace(/^[^ ]+ /,""))}</span><span class="bt"><i style="width:\${b.total?r.g/b.total*100:0}%"></i></span><span class="bv">\${g2kg(r.g)}</span></div>\`).join("");
+VIEWS.discover.after = (root)=>{
+  const els = { q:root.querySelector("#d-q"), diff:root.querySelector("#d-diff"), h:root.querySelector("#d-id"), reg:root.querySelector("#d-reg") };
+  try{ const saved=JSON.parse(sessionStorage.getItem("tvq")||"{}"); if(saved.diff)els.diff.value=saved.diff; if(saved.h)els.h.value=saved.h; }catch(e){}
+  let showMap=false, discMap=null;
+  const apply = () => {
+    const q=els.q.value.toLowerCase().trim(), f = t =>
+      (!els.diff.value || t.diff===els.diff.value) &&
+      (!els.reg.value || t.region===els.reg.value) &&
+      (els.h.value==="99" || !els.h.value || t.h <= +els.h.value || els.h.value==="99") &&
+      (!q || (t.name+" "+t.region+" "+t.desc+" "+t.tags.join(" ")).toLowerCase().includes(q));
+    const res = TOURS.filter(f);
+    root.querySelector("#disc-results").innerHTML = res.length ? res.map(t=>tourCard(t)).join("")
+      : \`<div class="empty" style="grid-column:1/-1"><span class="em-ico">🧭</span><h3>Nincs találat</h3><p>Lazíts a szűrőkön — vagy kérj tippot az AI Túratervezőtől.</p><a class="btn btn-soft btn-sm" href="#/ai">Kérj ajánlást</a></div>\`;
+    if(showMap){ if(discMap&&discMap.remove) discMap.remove();
+      discMap = MapKit.make(root.querySelector("#disc-map"),{zoom:7});
+      res.forEach(t=>{ MapKit.pin(discMap, t.start.lat, t.start.lng, "pin-cat",
+        \`<b><a href="#/turak/\${t.id}">\${esc(t.name)}</a></b><br>\${esc(t.region)} · \${t.km} km · \${esc(t.diff)}\`); });
+    }
+  };
+  ["q","diff","h","reg"].forEach(k=>{ els[k].addEventListener("input",apply); els[k].addEventListener("change",apply); });
+  root.querySelector("#d-toggle").onclick = () => { showMap=!showMap;
+    els.q.closest(".searchbox").querySelector("button").textContent = showMap?"📋 Lista":"🗺️ Térkép";
+    root.querySelector("#disc-results").classList.toggle("hidden",showMap);
+    root.querySelector("#disc-map").classList.toggle("hidden",!showMap);
+    apply(); };
+  apply(); bindTourCards();
+};
+window.bindTourCards = ()=>{};
+
+/* ================= ESEMÉNYEK ================= */
+let evFilter = "";
+VIEWS.events = () => {
+  const cats = [...new Set(EVENTS.map(e=>e.cat))];
+  const list = EVENTS.filter(e=>(!evFilter||e.cat===evFilter) && (!e.date || e.date>=Store.todayISO())).sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
+  return \`<div class="wrap pub-section tight">
+    <div class="sect-head"><div><span class="eyebrow">Túraesemény-naptár</span><h1 class="mb0" style="font-size:2rem">Események</h1></div></div>
+    <p class="muted">Válaszd ki, milyen kalandot keresel, majd egy kattintással mentsd a saját túráid közé — automatikusan megjelenik a túranaptáradban és a munkaterületeden.</p>
+    <div class="filter-row"><button class="f-pill \${!evFilter?"on":""}" data-cat="">Mind</button>
+      \${cats.map(c=>\`<button class="f-pill \${evFilter===c?"on":""}" data-cat="\${esc(c)}">\${esc(c)}</button>\`).join("")}</div>
+    <div class="org-band">
+      <b class="small">🤝 Szervezői hálózat</b>
+      <a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php">CsEKE főoldal</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php/turaterv">🗓 CsEKE éves túraterv</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php/beszamolok">📖 Túrabeszámolók</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://szatt.cseke.ro">🏔 Szent Anna-tó teljesítménytúra</a>
+      <a class="btn btn-ghost btn-sm" href="#/hagymas">🕹 Hagymás útvonalhálózat</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://hu.wikiloc.com/nyomvonalak/turazas/romania/harghita">🌐 Wikiloc · Hargita</a>
+      <a class="btn btn-ember btn-sm" href="#/szatt">🏔 SZATT 2026 — 3 táv (10/16/40 km)…</a>
+      <span class="muted small" style="margin-left:auto">ℹ️ A Vit-havas túra (szept. 5.) az szervező értesülése szerint elhalasztva.</span>
+    </div>
+    <div class="grid g2">\${list.map(ecardSmall).join("")}</div>
+    \${list.length?"":'<div class="empty"><span class="em-ico">🗓️</span><h3>Ebben a kategóriában most nincs program</h3><p>Nézd meg a többi eseményt!</p></div>'}
+  </div>\${footer()}\`;
+};
+VIEWS.events.after = (root)=>{
+  root.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{ evFilter=b.dataset.cat; render(); });
+  handleSaveEvents(root);
+};
+
+/* ESEMÉNY RÉSZLETE (modal) */
+function eventModal(eid){
+  const e = EVENTS.find(x=>x.id===eid); if(!e) return;
+  const base = e.tour?tourById(e.tour):null;
+  openModal({ title:esc(e.name),
+   body:\`<div class="img-wrap" style="height:170px;border-radius:14px;margin-bottom:1rem">\${imgTag(e.img,e.name)}</div>
+     <div class="meta" style="margin-bottom:1rem"><span>📅 <b>\${e.date?fmtDateFull(e.date):"Hamarosan — a szervező adja meg"}</b>\${e.date?", "+dowHU(e.date):""}</span>
+     <span>📍 \${esc(e.place)}</span><span>👥 <b>\${e.people}</b>/\${e.cap} résztvevő</span><span>🎒 \${esc(e.cat)}</span><span>\${diffChip(e.diff)}</span></div>
+     \${e.place && /Gyergy/.test(e.place) ? \`<a class="tour-src" href="#/hagymas" style="margin-bottom:.4rem">🕹 🕹 A Hagymás hálózat összes útvonala itt →</a>\` : ""}
+     <p>\${esc(e.desc)}</p>
+     \${e.src?\`<a class="tour-src" target="_blank" rel="noopener" href="\${esc(e.src)}">🔗 Részletes program (szervező oldala)</a>\`:""}
+     \${base?\`<div class="card" style="padding:1rem;display:flex;gap:1rem;align-items:center;border-radius:14px">
+       <div class="img-wrap" style="width:64px;height:64px;border-radius:12px;flex:none">\${imgTag(base.img,base.name)}</div>
+       <div><b>\${esc(base.name)}</b><div class="meta"><span>📏 \${base.km} km</span><span>⏱ \${base.h} ó</span><span>⬆ \${base.up} m</span></div></div></div>\`:""}
+     <div class="progress-strip" style="margin-top:1rem"><i style="width:\${Math.round(e.people/e.cap*100)}%"></i></div>
+     <p class="small muted" style="margin:.4rem 0 0">\${e.people} helyfoglalás · \${e.cap-e.people} szabad hely</p>
+      \${e.time?\`<div class="meta" style="margin-top:.5rem"><span>🕐 <b>\${esc(e.time)}</b></span></div>\`:""}
+      \${(e.reg||e.src)?\`<div class="flex wrapcol" style="gap:.5rem;margin-top:.7rem">
+        \${e.reg?\`<a class="btn btn-ember btn-sm" target="_blank" rel="noopener" href="\${esc(e.reg)}">📝 Nevezés / regisztráció</a>\`:""}
+        \${e.src?\`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${esc(e.src)}">🔗 Hivatalos oldal / program</a>\`:""}
+     </div>\`:""}\`,
+   footer:\`<div class="flex" style="justify-content:flex-end;gap:.6rem;flex-wrap:wrap">
+     <button class="btn btn-ghost btn-sm" data-close>Bezárás</button>
+     \${e.reg?\`<a class="btn btn-ember btn-sm" id="btn-event-reg" target="_blank" rel="noopener" href="\${esc(e.reg)}">📝 Nevezés</a>\`:""}
+     <button class="btn btn-primary" id="ev-save">\${Store.me()&&Store.isEventSaved(e.id)?"✓ Elmentve a túráim közé":"Mentés a saját túráim közé"}</button>\`,
+   onOpen: r => r.querySelector("#ev-save").onclick = () => { if(!Store.me()){ NAV.to("#/regisztracio"); return; }
+     Store.toggleEvent(e.id);
+     { const tr=Store.myData().tours.find(x=>x.eventRef===e.id); if(tr&&(e.reg||e.src)&&!(tr.notes||"").includes("Nevezés:")){ tr.notes=((tr.notes||"")+(tr.notes?"\\n":"")+"Nevezés: "+(e.reg||e.src)+(e.time?" · "+e.time:"")).trim(); Store.save(); } }
+     closeModal(); toast("Hozzáadtuk a túranaptáradhoz! 📅","✓"); render(); } });
 }
-function gearV2(t){
-  const b = Store.backpack(t);
-  const groups={}; t.gear.forEach(g=>{ const c=cat7(g.cat); (groups[c]=groups[c]||[]).push(g);
+
+/* ================= HELYEK ================= */
+VIEWS.places = () => {
+  const groups = WISH_CATS.map(c=>({ ...c, items: WISH.filter(w=>w.cat===c.name) }));
+  return \`<div class="wrap pub-section tight">
+    <div class="sect-head"><div><span class="eyebrow">Gyűjtsd a helyeket, amiket látni akarsz</span><h1 class="mb0" style="font-size:2rem">Legszebb helyek</h1></div></div>
+    \${groups.map(g=>\`<h2 style="font-size:1.3rem;margin-top:2rem">\${g.icon} \${g.name}</h2>
+      <div class="grid g4 smm2 places-grid">\${g.items.map(w=>\`<div class="card" style="overflow:hidden;border-radius:16px">
+        <div class="img-wrap" style="height:130px">\${imgTag(w.img,w.name)}</div>
+        <div style="padding:.8rem .95rem"><b style="font-family:var(--font-display);font-size:1rem">\${esc(w.name)}</b>
+        <div class="meta" style="margin-top:.3rem"><span>\${esc(w.place)}</span><span>\${esc(w.diff)}</span></div>
+        <div class="flex" style="margin-top:.6rem"><button class="btn btn-soft btn-sm" data-wish="\${w.id}">\${Store.me()&&Store.inWish(w)?"❤️ A listádban":"❤️ Mentés"}</button></div></div></div>\`).join("")}</div>\`).join("")}
+  </div>\${footer()}\`;
+};
+VIEWS.places.after = root => {
+  root.querySelectorAll("[data-wish]").forEach(b=>b.onclick=()=>{
+    if(!Store.me()){ toast("A mentéshez jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
+    const w = WISH.find(x=>x.id===b.dataset.wish);
+    Store.toggleWish(w); toast(Store.inWish(w)?"Felkerült a bakancslistára ❤️":"Eltávolítva","❤️"); render(); });
+};
+
+/* ================= SZERVEZŐKNEK ================= */
+VIEWS.szervezoknek = () => {
+  const u = Store.me();
+  return \`<div class="wrap pub-section organizer-public">
+    <section class="band band-green organizer-public-hero">
+      <span class="eyebrow" style="color:#b9d9be">🏢 Szervezőknek</span>
+      <h1>Szervezz túrát a Túratársban</h1>
+      <p>A meglévő túrázó fiókodból egy lépéssel szervezői központot nyithatsz. Kezeld egy helyen a túraeseményeidet, a GPX-útvonalat és a jelentkezőket.</p>
+      <div class="flex" style="gap:.65rem;flex-wrap:wrap;margin-top:1.2rem">
+        <a class="btn btn-ember btn-lg" href="\${u?"#/szervezo":"#/regisztracio"}">\${u?"Megnyitom a szervezői központot":"Szervezőként csatlakozom"} →</a>
+        \${u?"":\`<a class="btn btn-ghost btn-lg" style="color:#fff;border-color:rgba(255,255,255,.55)" href="#/belepes">Már van fiókom</a>\`}
+      </div>
+    </section>
+    <section class="pub-section tight organizer-public-body">
+      <div class="sect-head"><div><span class="eyebrow">Ami már be van építve</span><h2 class="mb0">A túraötlettől a jelentkezőkig</h2></div></div>
+      <div class="grid g3">
+        <article class="card organizer-feature"><span class="e2-big">👤</span><h3>Szervezői profil</h3><p class="muted">Név, bemutatkozás, régió és kapcsolati adatok a saját szervezői központodban.</p></article>
+        <article class="card organizer-feature"><span class="e2-big">🗺️</span><h3>Esemény és GPX</h3><p class="muted">Hozz létre piszkozatot, csatolj útvonalat, majd publikáld vagy zárd le az eseményt.</p></article>
+        <article class="card organizer-feature"><span class="e2-big">👥</span><h3>Jelentkezők kezelése</h3><p class="muted">Lásd a jelentkezőket, kezeld a státuszokat és kövesd a férőhelyeket.</p></article>
+      </div>
+      <div class="card organizer-note"><b>Ugyanaz a túraközpont marad.</b><span class="muted">A szervezői mód a meglévő fiókodhoz kapcsolódik, a saját túráid és helyi adataid változatlanul megmaradnak.</span></div>
+    </section>
+  </div>\${footer()}\`;
+};
+
+/* ---------- TÚRA RÉSZLETE (publikus, módosítatlan katalógusnézet) ---------- */
+function tourModal(tid){
+  const t = tourById(tid); if(!t) return;
+  openModal({ title:esc(t.name),
+    body:\`<div class="img-wrap" style="height:190px;border-radius:14px;margin-bottom:1rem">\${imgTag(t.img,t.name)}</div>
+      <div class="meta" style="margin-bottom:.8rem"><span>📍 <b>\${esc(t.start.name)}</b> · \${esc(t.region)}</span>
+      <span>📏 \${t.km} km</span><span>⏱ \${t.h} ó</span><span>⬆ \${t.up} m</span><span>★ \${t.rating} (\${t.reviews} értékelés)</span>\${diffChip(t.diff)}</div>
+      <p>\${esc(t.desc)}</p>
+      \${t.gpxUrl?\`<div class="flex" style="gap:.5rem;flex-wrap:wrap;margin-top:.3rem"><a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="\${esc(t.gpxUrl)}">⬇ GPX letöltése</a>\${t.src?\`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="\${esc(t.src)}">\${esc(t.srcn||"🔗 Hivatalos távleírás")}</a>\`:""}</div>\`:""}
+      \${t.src?\`<a class="tour-src" id="tourSrc" target="_blank" rel="noopener" href="\${esc(t.src)}">🔗 \${(t.srcn||"Forrás és nyomvonal")}</a>\`:""}
+     \${t.src2?\`<a class="tour-src" target="_blank" rel="noopener" href="\${t.src2}">🧭 \${(t.src2n||'Nyomvonal')} — Komoot</a>\`:""}
+     \${t.src3?\`<a class="tour-src" target="_blank" rel="noopener" href="\${t.src3}">🧭 \${(t.src3n||'Nyomvonal 2')} — Komoot</a>\`:""}
+      <div style="height:44px">\${elevSpark(t.elev)}</div>
+      <p class="small muted">💡 Regisztráció után egy kattintással átemelheted a saját túráid közé, és a rendszer automatikusan javasol felszerelést, időtervet és étellistát.</p>\`,
+    footer:\`<div class="flex" style="justify-content:space-between"><button class="btn btn-ghost btn-sm" data-close>Bezárás</button>
+      <button class="btn btn-primary" id="tm-save">➕ Mentés a saját túráim közé</button></div>\`,
+    onOpen: r => r.querySelector("#tm-save").onclick = () => {
+      if(!Store.me()){ toast("Előbb jelentkezz be vagy regisztrálj","🔐"); NAV.to("#/regisztracio"); return; }
+      const d = Store.myData();
+      if(!d.tours.some(x=>x.place===t.start.name && x.status==="tervezés" && x.date>=Store.todayISO())){
+        Store.newTourFromDraft({ title:t.name, place:t.start.name, region:t.region, lengthKm:t.km, ascent:t.up,
+          durationH:t.h, difficulty:t.diff, tags:t.tags.slice(), img:t.img, desc:t.desc, coords:{...t.start}, date:Store.nextSatDate() });
+      }
+      closeModal(); toast("Mentve a tervezett túráid közé — nyisd meg a munkaterületet! 🥾","✓"); NAV.to("#/turaim"); } });
+}
+
+/* ---------- HASH: #/turak/:id és #/esemenyek/:id → mod

@@ -1,528 +1,304 @@
-")+'"></div>'+
-    '<div><label class="f">Max létszám</label><input class="input" id="pv_cap" type="number" min="1" placeholder="nincs limit"></div><div><label class="f">Jelentkezési határidő</label><input class="input" id="pv_dl" type="date"></div></div>'+
-    '<label class="f">Rövid leírás</label><textarea class="input" id="pv_ds" rows="2">'+esc3((t.desc||"").slice(0,240))+"</textarea>"+
-    ((t.routeId)?"<p class='small muted'>🗺️ GPX útvonal csatolva az előnézethez.</p>":"<p class='small muted'>🗺️ Nincs GPX útvonal — a jelentkezők nem látnak ilyet.</p>")+
-    '<p id="pv_err" class="e2-err" style="display:none"></p></div>',
-   footer:'<button class="btn btn-ghost" data-close>Mégse (nem publikál)</button> <button class="btn btn-primary" id="pv_go">📢 Előnézetből létrehozás (piszkozat)</button>',
-   onOpen:function(m){ m.querySelector("#pv_go").onclick=function(){ var v=function(id2){ var e=m.querySelector(id2); return e?String(e.value||"").trim():""; };
-     var cap=v("#pv_cap"); var t2=Store.getTour(id); if(!t2) return;
-     t2.title=v("#pv_t"); t2.date=v("#pv_d"); t2.place=v("#pv_p");
-     if(!t2.title){ var er=m.querySelector("#pv_err"); er.textContent="Cím kötelező."; er.style.display=""; return; }
-     var ev=publishTour(id,{ cap:cap?parseInt(cap,10):null, deadline:v("#pv_dl") }); if(ev){ closeModal(); toast("🗂️ Közösségi esemény piszkozat létrehozva — a Szervezői központban publikálhatod","📢"); try{ App.render(); }catch(e){} } }; } }); }
-/* ---------- delegált akciók ---------- */
-var _doc=document;
-_doc.addEventListener("click", function(evt){ try{ var b=evt.target&&evt.target.closest?evt.target.closest("[data-c53add],[data-c53dec],[data-c53leave]"):null; if(!b) return;
-  var ad=b.getAttribute("data-c53add"); if(ad){ connAdd(ad); refreshAll(); return; }
-  var de=b.getAttribute("data-c53dec"); if(de){ var q=String(de).split(":"); connDecide(q[0], q[1]||"none"); refreshAll(); return; }
-  var lv=b.getAttribute("data-c53leave"); if(lv){ leaveShared(lv); refreshAll(); return; } }catch(e){} });
-function refreshAll(){ try{ if(window.App&&App.render) App.render(); }catch(e){} }
-/* ---------- V50 profil blokk + értesítés-gomb ---------- */
-(function(){ var _p=VIEWS.profile&&VIEWS.profile.after;
-  VIEWS.profile.after=function(root){ try{ _p&&_p(root); }catch(e){}
-    try{ if(!root||root.querySelector("#c53psec")) return; var u=curU(); if(!u) return; var P5=myProf(); var me=uidNow();
-      var fr=C().connections.filter(function(x){ return (x.a===me||x.b===me)&&x.status==="accepted"; }).length;
-      var sec=document.createElement("section"); sec.className="card panel p5-sec"; sec.id="c53psec";
-      var s2=userStats(me);
-      sec.innerHTML="<h2>👥 Közösség</h2>"+ (P5? '<div class="e2row"><div><b>'+ (P5.av?'<img src="'+esc3(P5.av)+'" class="c53-av img sm" alt="">':'👤')+" "+esc3(P5.name)+"</b><span class='mut'>"+fr+" túratárs · 🥾 "+s2.tours+" · 🏆 "+s2.badges+"</span></div><a class='btn btn-soft btn-sm' href='#/tarsak'>👥 Túratársak</a></div>"
-        : "<p class='muted mb0' style='margin:.1rem 0 .4rem'>Megjelenhetsz másoknak is, mint túratársjelölt — állíts be közösségi profilt.</p><a class='btn btn-primary btn-sm' href='#/tarsak'>👤 Közösségi profil</a>");
-      var last=root.querySelector(".p5 > section:nth-last-child(3)"); var host=root.querySelector(".p5"); if(host&&last) host.insertBefore(sec, last.nextSibling); else if(host) host.appendChild(sec); }catch(e){} }; })();
-/* ---------- dashboard mini blokk ---------- */(function(){ var _pd=VIEWS.dash&&VIEWS.dash.after;
-  VIEWS.dash.after=function(root){ try{ _pd&&_pd(root); }catch(e){}
-    try{ if(!root||!root.querySelector) return; if(root.querySelector("#c53mini")) return; var w=root.querySelector("#widgets"); if(!w) return;
-      ensureDemo(); var me=uidNow(); var rows=[];
-      C().connections.forEach(function(cn){ if((cn.a===me||cn.b===me)&&cn.status==="pending"&&cn.req!==me){ var o=cn.a===me?cn.b:cn.a; var p=profOf(o); rows.push("🟠 "+ (p&&p.name||o) + " jelölne — fogadd a Túratársaknál"); } });
-      C().invites.forEach(function(iv){ if(iv.status==="active"&&(!iv.uid||iv.uid===me)){ var st=Store.findTourAnywhere(iv.tourId); if(st) rows.push("🔗 Meghívás: "+(st.tour.title||"túra")); } });
-      sharedToursOfMe().forEach(function(x){ if(x.tour.date) rows.push("🥾 "+x.tour.title+" · "+x.tour.date); });
-      var box=document.createElement("section"); box.className="wsec"; box.id="c53mini";
-      if(!rows.length){ box.innerHTML='<div class="wpan c53mini"><b>👥 Túratársak</b><p class="muted small" style="margin:.2rem 0">Még nincs közös túrád.</p><a class="btn btn-soft btn-sm" href="#/tarsak">Keresek társakat</a></div>'; }
-      else box.innerHTML='<div class="wpan c53mini"><b>👥 Túratársak</b>'+ rows.slice(0,3).map(function(x,i){ var href = x.indexOf("🥾")===0? "#/tarsak" : "#/tarsak"; void href; return '<span class="e2minir"><b>'+esc3(x.slice(0,60))+"</b></span>"; }).join("")+'<a class="btn btn-soft btn-sm" href="#/tarsak">👥 Túratársak</a></div>';
-      var ref=root.querySelector("#e2mini")||root.querySelector("#e50mini")||root.querySelector("#f9mini")||root.querySelector("#p50mini"); if(ref&&ref.parentNode) ref.parentNode.insertBefore(box, ref.nextSibling); else w.appendChild(box); }catch(e){} }; })();
-/* ---------- szervezői központ: közösségi túrák szekció ---------- */
-(function(){ var _sz=VIEWS.szervezo, _sza=VIEWS.szervezo&&VIEWS.szervezo.after;
-  VIEWS.szervezo=function(){ var base=_sz?_sz.apply(this,arguments):""; try{ ensureDemo(); var evs=communityEventsOfMine();
-    var extra='<section class="card panel e2sec"><h2>🥾 Közösségi túráim</h2>'+ (evs.length? evs.map(function(e){ var cnt=window.e2?null:null; void cnt; var tot=countsFor(e.id), cap=e.cap||null; var free=cap!=null?Math.max(0,cap-tot):"—"; var st=Store.findTourAnywhere(e.projectId);
-      return '<div class="e2row"><div><b>🥾 '+esc3(e.name)+(e.status==="draft"?" (piszkozat)":"")+"</b><span class='mut'>"+esc3(e.date||"")+" · "+((st&&st.tour)?'📋 projekt is van':'📋 nincs projekt')+"</span></div><div class='e2rowbtns'><span class='chip "+(cap!=null&&tot>=cap?"chip-rose":"chip-sand")+"'>👥 "+tot+(cap!=null?("/"+cap):"")+" · szabad: "+free+"</span>"+
-        (e.status==="draft"? "<button class='btn btn-primary btn-sm' data-e2st='"+e.id+":published'>🌐 Publikálom</button>":"")+
-        "<button class='btn btn-soft btn-sm' data-e2app='"+e.id+"'>📋 Jelentkezők</button>"+( (st&&st.tour)? "<a class='btn btn-ghost btn-sm' href='#/tura/"+e.projectId+"'>🥾 Projekt</a>":"")+
-        (e.status!=="completed"&&e.status!=="cancelled"? "<button class='btn btn-ghost btn-sm' data-e2st='"+e.id+":completed'>✓ Lezárás</button>":"")+"</div></div>"; }).join("") : '<p class="muted small">Még nincs közösségi túrád — a saját projektedből egy gombdal hirdetheted meg (🥾 projekt → 📢 Meghirdetem).</p>')+"</section>";
-    return base.replace(/<\\/div>$/, extra+"</div>"); }catch(e){ return base; } };
-  VIEWS.szervezo.after=function(root){ try{ _sza&&_sza(root); }catch(e){} };
-  function countsFor(eid){ try{ var L=Store.platform().participants.filter(function(x){ return x.eid===eid && x.status!=="withdrawn" && x.status!=="declined"; }); return L.length; }catch(e){ return 0; } } })();
-/* ---------- Store.notifications kibővítése közösségi elemekkel ---------- */
-(function(){ try{ var _n=Store.notifications;
-  Store.notifications=function(){ var base=[]; try{ base=_n?_n():[]; }catch(e){} var mine=[]; try{ mine=myNotifs().map(function(x){ return { id:"c53-"+x.id, icon:"🔔", text:x.text, link:x.link, at:x.at }; }); }catch(e){}
-    try{ if((location.hash||"").indexOf("ertesitesek")>-1 && mine.length){ var read=C().notifs.filter(function(x){return x.to===uidNow() && !x.read;}).map(function(x){return x.id;}).join(","); if(!window.__c53mark||window.__c53mark!==read){ window.__c53mark=read; setTimeout(markNotifsRead,900); } } }catch(e){}
-    var seen={}; return base.concat(mine).filter(function(o){ if(seen[o.id]) return false; seen[o.id]=1; return true; }); };
-} catch(e){} })();
-window.__V53=1; window.c53={ connAdd:connAdd, connDecide:connDecide, connOf:connOf, createInvite:createInvite, joinByInvite:joinByInvite, declineInvite:declineInvite, leaveShared:leaveShared, sharedToursOfMe:sharedToursOfMe, memberRowOf:memberRowOf, publishTour:publishTour, profOf:profOf, setMyProf:setMyProf, communityEventsOfMine:communityEventsOfMine, ensureDemo:ensureDemo, C:C, myNotifs:myNotifs };
-})();
-
-/* ==== v54 ==== */
-/* ============ V54.1 — Valódi felhasználói fiók + güvenli felhő-alapú mentés (ALAPOK) ============
-   AUDIT (V53): minden adat a böngésző localStorage-jában (kulcs: turavaros_v1):
-     db = { users{id→user}, data{id→myData}, session, platform, community }. A community-azonosítás e-mail.
-     Jelszó edsig sós-olatlan djb2 volt; a helyi login szinkron (V41–V53 oldalon át nem törhető).
-   PLATFORM: a live Page static (category immutable) és egy session egy Page-et bír → valós szerver-felhő
-     EBBEN a session-ben nem provizionálható. Ezért V54.1: CLOUD-READY réteg:
-     - adapter-interfész ( signup/login/save/load/logout ) — REST adapter: window.V54_CLOUD_BASE_URL beállítástól
-      活的; ha nincs → helyi trezorszekrény (elkülönített localStorage namespace, PBKDF2-jelszó ellenőrzés, token).
-     - UI soha nem állítja, hogy többeszközös felhő él: a blokk neve és állapota őszinte.
-   Migráció: LOCAL→CLOUD (soha nem töröl helyit), restore: CLOUD→LOCAL (prefix-biztonsági snapshot előtt),
-   dedup: uid-vault+ snap id-cserés idempotent írás. Offline: full local function + sáv+"online回来 szink" state. */
+><span class="small muted">\${g.current} / \${g.target}\${g.unit==="db"?"":" "+g.unit}</span></div>
+      <div class="goal-bar \${g.pct>=100?"done":""}"><i style="width:\${Math.min(100,g.pct)}%"></i></div>
+      <div class="flex between"><span class="small muted">\${g.pct}%</span><span><button class="icon-btn goal-delta" data-goal="\${g.id}" data-sgn="1" aria-label="hozzáad">+</button></span></div></div>\`).join("")}</div>
+    <div class="flex" style="margin-top:.8rem;gap:.5rem;flex-wrap:wrap">\${ach.slice(0,4).map(a=>\`<span class="chip \${a.now>=a.target?"chip-ember":"chip-green"}" style="text-transform:none">\${a.now>=a.target?"🏅 ":"☐ "}\${esc(a.name)} — \${Math.min(a.now,a.target)}/\${a.target}</span>\`).join("")}
+      <a class="btn btn-soft btn-sm" href="#/statisztikak">→ Részletes statisztikák</a>
+      <button class="btn btn-ghost btn-sm" id="goal-new">➕ Saját cél</button></div></div>\`;
+  const cals = (function(){ const now=new Date(); const mo=(now.getMonth()+1).toString().padStart(2,"0");
+    const iso0=\`\${Store.todayISO()}\`; const cells=[]; const first=new Date(now.getFullYear(),now.getMonth(),1); const st=(first.getDay()+6)%7; const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+    for(let i=1;i<=dim;i++){ const iiso=\`\${now.getFullYear()}-\${mo}-\${String(i).padStart(2,"0")}\`;
+      const pl=d.tours.filter(t=>t.date===iiso && t.status!=="teljesítve"), dn=d.tours.filter(t=>t.date===iiso&&t.status==="teljesítve"),
+      ev=(EVENTS.concat(window.e2Events?window.e2Events():[])).filter(e=>e.date===iiso && d.savedEvents.includes(e.id));
+      cells.push(\`<div class="mini-cal-c \${iiso===iso0?"today":""}">\${i}\${pl.length?' <i class="mc-do cp-plan"></i>':""}\${ev.length?' <i class="mc-do cp-event"></i>':""}\${dn.length?' <i class="mc-do cp-done"></i>':""}</div>\`); }
+    return \`<div class="mini-cal-wrap">\${DOW_HU.map(x=>\`<span class="mini-cal-d">\${x}</span>\`).join("")}\${cells.join("")}</div>\`; })();
+  W.cal = \`<h2 style="font-size:1.25rem">Naptár <span class="small"><a href="#/naptar" style="color:var(--sky);font-weight:600">→ Teljes</a></span></h2>\${cals}
+    \${evNext?\`<div class="card panel" style="margin-top:10px"><span class="chip chip-ember">\${esc(evNext.cat)}</span><div style="margin-top:.4rem"><b>\${esc(evNext.name)}</b></div><div class="meta"><span>📅 \${fmtDateFull(evNext.date)}</span><span>📍 \${esc(evNext.place)}</span><span>👥 \${evNext.people}/\${evNext.cap}</span></div></div>\`:""}\`;
+  W.chall = (()=>{ const wl=d.wishlist.length?d.wishlist.map(w=>w.name):(TOURS.filter(t=>!Store.myData().tours.some(x=>x.title===t.name)).slice(0,6).map(t=>t.name.split("(")[0].trim()));
+    const weeks=Math.floor((Date.now()-Date.UTC(new Date().getUTCFullYear(),0,1))/6048e5);
+    const pool=[["köd- és aranyórás fotóséta","a hét végén, lemenőben, 2 óra"],["napfelkelte-kiruccanás","kelte előtt 45 perccel, fejlámpa"],["holdfény-sétáltetés","szombat este, fejlámpával"],["csendes gerinc-kör","hétköznap este, 90 perc"],["forrás-vadászat a gyerekekkel","szombat délelőtt"],["éjjeli bagoly-les","péntek szürkületben"]];
+    const p=pool[weeks%pool.length], wname=wl.length?wl[weeks%wl.length]:"Bálványos";
+    return \`<div class="card panel chall-card" style="margin-bottom:18px"><div class="flex between wrapcol"><h3 style="margin:0">🎯 Heti kihívás</h3><span class="chip chip-ember">\${(weeks%52)+1}. hét</span></div>
+      <p style="margin:.55rem 0"><b>\${esc(p[0])}</b> — helyszín: <b>\${esc(wname)}</b>, idő: \${esc(p[1])}.</p>
+      <div class="flex wrapcol" style="gap:.5rem">
+        <button class="btn btn-ember btn-sm" data-chall="1">Elfogadom — tervezés</button>
+        <span class="small muted" id="chall-wx">— holdfázis és időjárás ellenőrzése a közelgőn…</span></div></div>\`; })();
+  const mems = d.journal.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,2);
+  W.memory = \`<h2 style="font-size:1.25rem">Élménykönyv <span class="small"><a href="#/naplo" style="color:var(--sky);font-weight:600">→ Nyitva</a></span></h2>
+    \${mems.length?\`<div class="grid g2">\${mems.map(j=>\`<a class="card" href="#/naplo" style="overflow:hidden;border-radius:16px;display:block">
+      <div class="img-wrap" style="height:110px">\${imgTag((j.photos&&j.photos[0])||IMG.erdo,"")}</div>
+      <div style="padding:.7rem .9rem"><b class="small">\${esc(j.title)}</b><span class="mood-chip">\${j.mood||""}</span>
+      \${j.rating?\`<span class="stars" style="color:var(--ember)">★</span>\`:""}<p class="small muted mb0" style="font-style:italic">„\${esc(j.note||"")}"</p></div></a>\`).join("")}</div>\`
+      : \`<p class="muted small">A teljesített túráid élményei itt jelennek meg először.</p>\`}\`;
+  const rs = Store.fieldReports().slice(0,2);
+  W.terep = \`<h2 style="font-size:1.25rem">Terepi infók <span class="small"><a href="#/terepi" style="color:var(--sky);font-weight:600">→ Mind</a></span></h2>
+    <div class="card panel" style="padding:.3rem 0">\${rs.map(r=>terepRow(r,{compact:1}).replace('class="nrow terep','class="terep-sm nrow terep')).join("")}</div>\`;
+  const widgets = order.map(k=>\`<section class="wsec" data-w="\${k}" draggable="false"><div class="wsec-grip" title="Húzd átrendezéshez">⠿</div>\${W[k]}</section>\`).join("");
+  return dash("#/vezerlopult")(\`
+    <div class="dash-top">
+      <div><div class="hello">\${new Date().getHours()<10?"Jó reggelt":new Date().getHours()<18?"Kellemes napot":"Kellemes estet"} · \${fmtDateFull(Store.todayISO())} · \${u.city?esc(u.city):"jó kirándulást"}</div>
+      <h1>Szia, \${esc((u.name||"útitárs").split(" ")[0])}! Merre kalandozunk legközelebb? 🥾</h1></div>
+      <div class="flex" style="gap:.5rem;flex-wrap:wrap"><a class="btn btn-ember" href="#/uj-tura">➕ Új túra tervezése</a>
+        <button class="btn btn-ghost btn-sm" id="dw-edit">\${dwOn?"✓ Kész":"⠿ Widgetek átrendezése"}</button></div></div>
+    <div id="widgets">\${widgets}</div>\`);
+};
+let dwOn=false;
+VIEWS.dash.after = root=>{
+  const t=Store.upcoming()[0];
+  root.querySelectorAll("[data-ptask]").forEach(c=>c.onchange=()=>{ if(t){ const x=c.dataset.ptask; t.notes = c.checked? (t.notes? t.notes+" | ":"")+x+" ✓" : (t.notes||"").replace(x+" ✓","").trim(); Store.save(); } });
+  const hw=root.querySelector("#hw-log"); if(hw) hw.onclick=()=>{ const lastDone=Store.myData().tours.filter(x=>x.status==="teljesítve").sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""))[0]; if(lastDone) finishWizard(lastDone); };
+  root.querySelectorAll(".goal-delta").forEach(b=>b.onclick=()=>{ const rows=Store.goalRows(); const g=rows.find(x=>x.id===b.dataset.goal); Store.goalDelta(g.id,+b.dataset.sgn); render(); });
+  const gn=root.querySelector("#goal-new"); if(gn) gn.onclick=goalNewModal;
+  // === Túrakalkulátor + Nap/hold widget ===
+  { const dd=Store.myData();
+    const cn=id=>root.querySelector(id);
+    const recalc=()=>{ const o=root.querySelector("#cn-res"); if(!o) return;
+      const km=+cn("#cn-km").value||0, up=+cn("#cn-up").value||0, w=+cn("#cn-w").value||75;
+      const h=Math.max(.5, km/4 + up/500 + (w>90?0.2:0));
+      o.textContent=(Math.round(h*10)/10)+" ó becsült tiszta gyalogidő";
+      root.querySelector("#cn-kcal").textContent="≈ "+Math.round(h*6.5*w)+" kcal";
+      dd.calc={km:String(km||""),up:String(up||""),w:String(w)}; Store.save(); };
+    if(cn("#cn-km")){ ["#cn-km","#cn-up","#cn-w"].forEach(id=>cn(id).addEventListener("input",recalc)); recalc(); }
+    const sbox=root.querySelector("#sun-mini");
+    if(sbox){ const nx=Store.upcoming()[0];
+      if(nx && nx.coords && nx.date){
+        (async()=>{ try{
+          const res=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+nx.coords.lat+"&longitude="+nx.coords.lng+
+            "&daily=sunrise,sunset,daylight_duration,moon_phase&timezone=auto&forecast_days=16");
+          const j=await res.json(); let idx=j.daily.time.indexOf(nx.date); if(idx<0) idx=0;
+          const hh=t=>(t||"").slice(11,16)||"—";
+          const dl=Math.round(j.daily.daylight_duration[idx]/60);
+          const ph=j.daily.moon_phase[idx], ill=Math.round((1-Math.cos(2*Math.PI*ph))/2*100);
+          const t0=(nx.timeline&&nx.timeline[0]&&nx.timeline[0].t)||"09:00";
+          const lastT=(nx.timeline&&nx.timeline.length)?nx.timeline[nx.timeline.length-1].t:"";
+          sbox.innerHTML='<h3>☀️ Nap &amp; hold — '+esc(nx.title.slice(0,20))+'</h3>'+
+            '<div class="sunline"><span>🌅 Kelte <b>'+hh(j.daily.sunrise[idx])+'</b></span>'+
+            '<span>🌇 Nyugta <b>'+hh(j.daily.sunset[idx])+'</b></span>'+
+            '<span>🌙 Hold <b>'+ill+'%</b> '+(ill>55?'<em class=muted>(telihold közelében)</em>':'')+'</span></div>'+
+            '<p class="small muted mb0">Nappal: '+Math.floor(dl/60)+'ó '+(dl%60)+'p'+
+            (t0<hh(j.daily.sunrise[idx])?' · sötétben indulsz — <b>fejlámpa</b> a zsebedbe':'')+
+            (lastT&&lastT>hh(j.daily.sunset[idx])?' · <b>várhatóan sötétben érsz vissza</b> — count'+ (dl<600?'olj +25% időt':'') :'.')+'</p>';
+        }catch(e){ sbox.querySelector("#sun-hint").textContent="Az időjárás-api most nem elérhető – a widget helyben marad."; } })();
+      } else { sbox.querySelector("#sun-hint").textContent="Kövesd a túra helyszínét — ha van koordináta, itt mutatjuk a keltét, nyugtát és a hold fázisát."; }
+    }
+  }
+  const ch=root.querySelector("[data-chall]"); if(ch) ch.onclick=challPlan;
+  const clr=root.querySelectorAll("[data-chall-link]"); clr.forEach(b=>b.onclick=()=>{ const t=Store.getTour(b.dataset.challLink); if(t){ if(!t.shareCode){t.shareCode=Store.uid("sh").replace("sh","ch")+Date.now().toString(36); Store.save();}
+    navigator.clipboard && navigator.clipboard.writeText(location.origin+location.pathname+"#/osztott/"+t.shareCode).then(()=>toast("Emlékeztető link kimásolva — dobjad be a csoportba!","📣"),()=>toast("Az link: #/osztott/"+t.shareCode,"📣")); } });
+  const wx=root.querySelector("#chall-wx"); if(wx){ const nx=Store.upcoming()[0]; if(nx&&nx.coords){ (async()=>{ try{const res=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+nx.coords.lat+"&longitude="+nx.coords.lng+"&daily=precipitation_probability_max&forecast_days=2"); const j=await res.json(); wx.textContent = "Eső esélye a kihivás napján: "+ (j.daily.precipitation_probability_max[1]||0) + "%"; }catch(e){ wx.textContent="−"; } })(); } else wx.textContent=""; }
+  const eb=root.querySelector("#dw-edit"); if(eb) eb.onclick=()=>{ dwOn=!dwOn; root.querySelectorAll(".wsec").forEach(s=>{ s.draggable=dwOn; s.classList.toggle("editing",dwOn); }); eb.textContent=dwOn?"✓ Kész":"⠿ Widgetek átrendezése";
+    if(!dwOn){ const d=Store.myData(); d.widgets=[...root.querySelectorAll("#widgets .wsec")].map(s=>s.dataset.w); Store.save(); toast("Widget-elrendezés mentve","🧩"); } };
+  const box=root.querySelector("#widgets"); let dragEl=null;
+  box.querySelectorAll(".wsec").forEach(s=>{ s.addEventListener("dragstart",()=>{dragEl=s;s.classList.add("dragging");}); s.addEventListener("dragend",()=>{dragEl&&dragEl.classList.remove("dragging");});
+    s.addEventListener("dragover",e=>{ if(!dragEl||dragEl===s) return; e.preventDefault(); const r=s.getBoundingClientRect(); const after=(e.clientY-r.top)>r.height/2; box.insertBefore(dragEl, after?s.nextSibling:s); }); });
+};
+function goalNewModal(){
+  openModal({ title:"➕ Személyes cél", body:\`<label class="f">Cél megnevezése</label><input class="input" id="gn-l" placeholder="Pl. új csúcsok idén">
+    <label class="f" style="margin-top:.7rem">Célérték</label><input class="input" id="gn-t" type="number" value="5">
+    <label class="f" style="margin-top:.7rem">Egység</label><input class="input" id="gn-u" value="db">\`,
+    footer:\`<button class="btn btn-primary btn-block" id="gn-ok">Cél létrehozása</button>\`,
+    onOpen(r){ r.querySelector("#gn-ok").onclick=()=>{ const l=r.querySelector("#gn-l").value.trim(); if(!l){toast("Adj nevet","⚠️");return;}
+      Store.addGoal({icon:"🎯", label:l, metric:"custom", target:+r.querySelector("#gn-t").value||5, unit:r.querySelector("#gn-u").value||"db", manual:0});
+      closeModal(); toast("Cél felvéve — a + gombokkal jelzed a haladást.","🏆"); render(); }; } });
+}
+/* ---------- FEJLÉC: terepi + téma gombok ---------- */
 (function(){
-"use strict";
-var VKEY="turatars_v54_vault_v1";        /* local vault namespace — separate key, NOT db */
-var SKEY="turatars_v54_settings_v1";     /* device settings: linked emails, last-offer ts */
-/* ---------- helpers ---------- */
-function b64(buf){ var s=String.fromCharCode.apply(null, new Uint8Array(buf)); return btoa(s); }
-function rnd(n){ var a=new Uint8Array(n); (self.crypto||window.crypto).getRandomValues(a); return a; }
-function hex(bytes){ return Array.prototype.map.call(bytes,function(b){return ("0"+b.toString(16)).slice(-2);}).join(""); }
-function sha256hex(str){ if(!(self.crypto&&self.crypto.subtle)){ /* fallback */ return "legacy:"+djb(str); }
-  try{ return self.crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)).then(function(h){ return hex(new Uint8Array(h)); }); }catch(e){ return Promise.resolve("legacy:"+djb(str)); } }
-function djb(s){ var h=5381; for(var i=0;i<s.length;i++) h=(h*33^s.charCodeAt(i))>>>0; return "h"+h.toString(36); }
-function pbkdf2(pass, saltB64, iters){ if(!(self.crypto&&self.crypto.subtle)) return Promise.resolve(null);
-  var enc=new TextEncoder();
-  return self.crypto.subtle.importKey("raw", enc.encode(String(pass||"")), "PBKDF2", false, ["deriveBits"])
-   .then(function(k){ return self.crypto.subtle.deriveBits({name:"PBKDF2", salt: Uint8Array.from(atob(saltB64), function(c){return c.charCodeAt(0);}), iterations: iters||120000, hash:"SHA-256"}, k, 256); })
-   .then(function(bits){ return hex(new Uint8Array(bits)); }).catch(function(){ return null; }); }
-function sget(k){ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } }
-function sset(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
-function vault(){ var v=sget(VKEY); if(!v){ v={ accounts:{}, snaps:{} }; } v.accounts=v.accounts||{}; v.snaps=v.snaps||{}; return v; }
-function saveVault(v){ return sset(VKEY, v); }
-function settings(){ return sget(SKEY)||{offers:{}}; }
-function setSettings(s){ sset(SKEY, s); }
-function uidGen(){ return "uid_"+Date.now().toString(36)+hex(rnd(4)); }
-/* ---------- SNAPSHOT (uid-bound) ---------- */
-function buildSnapshot(email){ try{
-  var email1=normEmail(email);
-  var db=(function(){ try{ return JSON.parse(localStorage.getItem("turavaros_v1")||"{}"); }catch(e){ return {}; } })();
-  var u=null, k; for(k in db.users){ if(db.users[k].email===email1){ u=db.users[k]; break; } }
-  if(!u) return null;
-  var d=(db.data&&db.data[u.id])||{};
-  var c=db.community||{}; var p=db.platform||{};
-  var mineConn=(c.connections||[]).filter(function(x){ return x.a===email1||x.b===email1; });
-  var mineInv=(c.invites||[]).filter(function(x){ return x.email===email1||x.by===email1||x.uid===email1; });
-  var relTourIds={}; ((d.tours)||[]).forEach(function(t){ relTourIds[t.id]=1; });
-  mineInv.forEach(function(iv){ if(iv.tourId) relTourIds[iv.tourId]=1; });
-  var mineNotifs=(c.notifs||[]).filter(function(x){ return x.to===email1; });
-  var snap={ schema:"v54.1", v:1, uid:u.email? ("uid_map:"+email1):u.id, linkedEmail:email1, localUserId:u.id,
-    ts:new Date().toISOString(),
-    user:{ id:u.id, name:u.name, email:u.email, city:u.city, onboarded:true, joined:u.joined||"", bio:u.bio||null },
-    data: d,
-    routes: d.routes||[],
-    platform: { organizers:(p.organizers||[]).filter(function(o){ return o.owner===email1; }),
-      events:(p.events||[]).filter(function(e){ var o=(p.organizers||[]).find(function(x){return x.id===e.orgId;}); return (o&&o.owner===email1) || e.projectOwner===email1 || (e.id&&(p.participants||[]).some(function(x){return x.eid===e.id&&x.uid===email1;})); }),
-      participants:(p.participants||[]).filter(function(x){ return x.uid===email1 || (p.events.some(function(e){ var o=(p.organizers||[]).find(function(x2){return x2.id===e.orgId;}); return e.id===x.eid&&o&&o.owner===email1; })); }) },
-    community: { profiles:(c.profiles||[]).filter(function(x){ return x.uid===email1; }),
-      connections:mineConn, invites:mineInv, notifs:mineNotifs, seeded:true },
-    /* shared projektek meta (only own ones fully) */
-    sharedMeta:{ note:"A V53 meghívásos megosztás a szervezetlen adatot helyben hagyja — restore után a másik fél projektje a meghívó tokenmel újra betölthető." }
-  };
-  return snap; }catch(e){ return null; } }
-function snapshotSize(snap){ try{ return JSON.stringify(snap).length; }catch(e){ return 0; } }
-/* ---------- ADAPTERS ---------- */
-var Adapter = {
-  name: "local-vault",
-  signup: function(email, pass, name){ return localSignup(email,pass,name); },
-  login: function(email, pass){ return localLogin(email,pass); },
-  save: function(token, snap){ return localSave(token, snap); },
-  load: function(token){ return localLoad(token); },
-  logout: function(token){ return Promise.resolve(true); },
-  whoami: function(token){ return Promise.resolve(localWho(token)); }
-};
-var RestAdapter = {
-  name:"cloud-http",
-  signup: function(email,pass,name){ return api("POST","/api/signup",{email:email,password:pass,name:name}); },
-  login: function(email,pass){ return api("POST","/api/login",{email:email,password:pass}); },
-  save: function(token,snap){ return api("POST","/api/vault",{snapshot:snap},{auth:token}); },
-  load: function(token){ return api("GET","/api/vault",null,{auth:token}); },
-  logout: function(token){ return api("POST","/api/logout",null,{auth:token}).catch(function(){ return true; }); },
-  whoami: function(token){ return api("GET","/api/whoami",null,{auth:token}); }
-};
-var SupabaseAdapter = window.__TT_SUPABASE_ADAPTER||null;
-function base(){ return (window.V54_CLOUD_BASE_URL||"").replace(/\\/+$/,""); }
-function getActive(){
-  if(sess&&sess.provider==="local-vault") return Adapter;
-  if(sess&&sess.provider==="cloud-http") return RestAdapter;
-  if(sess&&sess.provider==="supabase-snapshot"&&SupabaseAdapter) return SupabaseAdapter;
-  if(SupabaseAdapter&&navigator.onLine!==false) return SupabaseAdapter;
-  return base()?RestAdapter:Adapter; }
-function isRemote(){ return getActive().name!=="local-vault"; }
-function remoteBase(){ var a=getActive(); return a&&a.baseUrl?a.baseUrl:base(); }
-function api(method, path, body, opt){ var url=base()+path; var h={ "content-type":"application/json" };
-  var out={ method:method, headers:h };
-  if(opt&&opt.auth) h["authorization"]="Bearer "+opt.auth;
-  if(body!=null) out.body=JSON.stringify(body);
-  return fetch(url, out).then(function(r){ if(!r.ok) { return r.json().catch(function(){return {};}).then(function(j){ var e=new Error((j&&j.error)||("http_"+r.status)); e.status=r.status; throw e; }); }
-    return r.json(); }); }
-/* ---------- local vault impl ---------- */
-function normEmail(e){ return String(e==null?"":e).trim().toLowerCase(); }
-function localSignup(email, pass, name){ email=normEmail(email);
-  if(!/^[^@\\s]+@[^@\\s]+/.test(email)) return Promise.reject({error:"bad_email"});
-  if(!pass||String(pass).length<8) return Promise.reject({error:"weak_password"});
-  var v=vault(); var ex=v.accounts[email];
-  if(ex && ex.uid) { return pbkdf2(pass, ex.salt, 120000).then(function(hh){ if(hh!==ex.hash) throw {error:"bad_password"};
-    var vv=vault(); var tok="tk_"+hex(rnd(8)); vv.tokens=vv.tokens||{}; vv.tokens[tok]=email; if(!saveVault(vv)) throw {error:"storage_full"}; return {token:tok, uid:ex.uid, email:email, reused:true}; }); }
-  var saltB64=b64(rnd(16));
-  return pbkdf2(pass, saltB64, 120000).then(function(h){ if(!h) throw {error:"crypto_unavailable"};
-    var vv=vault(); vv.accounts[email]={ uid:"uid_"+djb(email)+"_"+hex(rnd(3)), email:email, salt:saltB64, hash:h, name:name||"Túrázó", createdAt:new Date().toISOString() };
-    var tok="tk_"+hex(rnd(8)); vv.tokens=vv.tokens||{}; vv.tokens[tok]=email; if(!saveVault(vv)) throw {error:"storage_full"};
-    return { token:tok, uid:vv.accounts[email].uid, email:email }; }); }
-function localLogin(email, pass){ email=normEmail(email); var acc=vault().accounts[email];
-  if(!acc){ var r=localSignup(email, pass, (Store.me()&&Store.me().name)||"Túrázó"); return r; }
-  return pbkdf2(pass, acc.salt, 120000).then(function(h){ if(h!==acc.hash){ throw {error:"bad_password"}; }
-    var v=vault(); var tok="tk_"+hex(rnd(8)); v.tokens=v.tokens||{}; v.tokens[tok]=email; if(!saveVault(v)) throw {error:"storage_full"};
-    return { token:tok, uid:acc.uid, email:email }; }); }
-function localWho(token){ var v=vault(); var e=(v.tokens||{})[token]||null; if(!e) return null; var a=v.accounts[e]; return a?{uid:a.uid,email:a.email,name:a.name}:null; }
-function localSave(token, snap){ var w=localWho(token); if(!w) return Promise.reject({error:"unauthorized"});
-  if(snapshotSize(snap) > 4400000) return Promise.reject({error:"too_large", size:snapshotSize(snap)});
-  var v=vault(); v.snaps[w.uid]= { at:new Date().toISOString(), size:snapshotSize(snap), snap:snap };
-  if(!saveVault(v)) return Promise.reject({error:"storage_full"});
-  return Promise.resolve({ok:true, size:snapshotSize(snap)}); }
-function localLoad(token){ var w=localWho(token); if(!w) return Promise.reject({error:"unauthorized"});
-  var vn=vault(); var s=vn.snaps[w.uid]; return Promise.resolve(s? s : {error:"empty"}); }
-/* ---------- session state (device) ---------- */
-var sess = { token:null, uid:null, email:null, name:null, status:"checking", lastAt:0, err:null, pending:false, provider:null, remoteVersion:null };
-function st(){ return sess; }
- function sset_(){ try{ localStorage.setItem("turatars_v54_state", JSON.stringify({token:sess.token,uid:sess.uid,email:sess.email,provider:sess.provider,remoteVersion:sess.remoteVersion,pending:!!sess.pending})); }catch(e){} }
-function sget_(){ try{ return JSON.parse(localStorage.getItem("turatars_v54_state")||"null"); }catch(e){ return null; } }
-function clearSess(){ sess.token=sess.uid=sess.email=sess.provider=null; sess.remoteVersion=null; sess.pending=false; sess.status="signed-out"; try{ localStorage.removeItem("turatars_v54_state"); }catch(e){} }
-window.__V54={ build:buildSnapshot, vault:{ get:vault }, api:{ signup:function(e,p,n){ return getActive().signup(e,p,n); }, login:function(e,p){ return getActive().login(e,p); }, save:function(snap){ if(!sess.token) return Promise.reject({error:"signed_out"}); return getActive().save(sess.token, snap, sess.remoteVersion); }, load:function(){ if(!sess.token) return Promise.reject({error:"signed_out"}); return getActive().load(sess.token); }, logoutNow:function(){ var t=sess.token, a=getActive(); if(t&&a.name!=="local-vault") a.logout(t); clearSess(); return Promise.resolve(true); } },
-  st:st, settings:settings, setSettings:setSettings, isRemote:isRemote, activeName:function(){ return getActive().name; },
-  restoreApply:applySnapshot, preSnapName:("v54_pre1") };
-/* ---------- SNAPSHOT restore (CLOUD→LOCAL, uid-hez kötve; idempotens) ---------- */
-function mergeFields(old, row){ var out=Object.assign({},old||{});
-  Object.keys(row||{}).forEach(function(k){ var v=row[k];
-    if(v && typeof v==="object" && !Array.isArray(v) && out[k] && typeof out[k]==="object" && !Array.isArray(out[k])) out[k]=mergeFields(out[k],v);
-    else out[k]=v; }); return out; }
-function upsertById(arr, rows){ var m={}, out=(arr||[]).slice(); out.forEach(function(x){ if(x&&x.id!=null) m[String(x.id)]=out.indexOf(x); });
-  (rows||[]).forEach(function(r){ if(!r||r.id==null){ if(r) out.push(r); return; } var k=String(r.id);
-    if(m[k]!=null) out[m[k]]=mergeFields(out[m[k]],r); else { out.push(r); m[k]=out.length-1; } }); return out; }
-function union(a,b){ var m={}; var o=[]; (a||[]).concat(b||[]).forEach(function(x){ var k=(x&&x.id)?String(x.id):String(x); if(!m[k]){ m[k]=1; o.push(x); } }); return o; }
-function applySnapshot(snap, opts){ try{
-  if(!snap||!snap.snap) return {ok:false, err:"empty"}; var s=snap.snap;
-  if(s.schema!=="v54.1") return {ok:false, err:"schema"};
-  if(String(s.linkedEmail).toLowerCase()!==normEmail(sess.email)) return {ok:false, err:"email_mismatch"};
-  var db; try{ db=JSON.parse(Store.exportData()); }catch(e){ return {ok:false,err:"local_data"}; } if(!db) return {ok:false,err:"local_data"};
-  db.users=db.users||{}; db.data=db.data||{};
-  // Work on a detached candidate; neither persistence nor Store.db changes yet.
-  var before=JSON.stringify(db);
-  var uid=s.localUserId||("u_"+djb(normEmail(s.linkedEmail)));
-  var exU=null, ek; for(ek in db.users){ if(db.users[ek].email===normEmail(s.linkedEmail)){ exU=ek; break; } }
-  var key=exU||uid; var lu=(db.users[key]=db.users[key]||{ id:key, email:normEmail(s.linkedEmail), joined:new Date().toISOString().slice(0,10) });
-  lu.name=(s.user&&s.user.name)||lu.name||"Túrázó"; lu.city=(s.user&&s.user.city)||lu.city||""; lu.onboarded=true;
-  if(s.user && s.user.bio!==undefined) lu.bio=s.user.bio;
-  if(!lu.pass) lu.pass=djb(normEmail(s.linkedEmail)+":v54restored");
-  var old=db.data[key]||{};
-  var d=s.data||{};
-  var merged=mergeFields(old,d);
-  ["tours","journal","routes","wishlist","equipment","inbox","teams","templates","terepi","budget","challenges"].forEach(function(f){ merged[f]=upsertById(old[f], (d[f]||[])); });
-  ["widgets","prefs","aiChat","goals","goalList"].forEach(function(f){ merged[f]= (d[f]!=null? d[f] : old[f]); });
-  merged.savedEvents=union(old.savedEvents, d.savedEvents); merged.notifDismiss=union(old.notifDismiss, d.notifDismiss);
-  merged.reports=upsertById(old.reports, d.reports||[]);
-  db.data[key]=merged;
-  /* platform + community merge (own uid-scoped rows only, upsert by id → no dup) */
-  db.platform=db.platform||{ organizers:[], events:[], participants:[] };
-  var pp=s.platform||{};
-  db.platform.organizers=upsertById(db.platform.organizers, pp.organizers);
-  /* only events that belong to this user are restored (never global others) */
-  if((pp.events||[]).length){ var em={}; pp.events.forEach(function(e){ em[String(e.id)]=1; });
-    db.platform.events=upsertById(db.platform.events.filter(function(e){ return !(em[String(e.id)] && pp.events.some(function(x){return x.id===e.id;})) || em[String(e.id)]===1 ? true : true; }), pp.events);
-  }
-  db.platform.participants=upsertById(db.platform.participants.filter(function(x){ return x.uid!==normEmail(s.linkedEmail) && !((pp.participants||[]).some(function(y){ return y.id===x.id; })); }), pp.participants);
-  db.community=db.community||{ profiles:[], connections:[], invites:[], notifs:[] };
-  var cc=s.community||{};
-  db.community.profiles=upsertById(db.community.profiles.filter(function(x){ return x.uid!==normEmail(s.linkedEmail); }), (cc.profiles||[]).map(function(x){ return Object.assign({id:(x.uid||"p")}, x); }));
-  db.community.connections=upsertById(db.community.connections, cc.connections);
-  db.community.invites=upsertById(db.community.invites, cc.invites);
-  db.community.notifs=upsertById(db.community.notifs, cc.notifs);
-  db.community.demoSeeded=true;
-  db.session=key;
-  var candidate=JSON.stringify(db);
-  if(candidate!==before){
-    var previousBackup=localStorage.getItem("turatars_v54_pre1");
-    if(!preSave(JSON.parse(before))) return {ok:false, err:"pre_restore_failed"};
-    var imp=Store.importData(candidate);
-    if(!imp||!imp.ok){
-      // importData leaves both the old memory and DB key intact on write failure.
-      try{ if(previousBackup===null) localStorage.removeItem("turatars_v54_pre1"); else localStorage.setItem("turatars_v54_pre1",previousBackup); }catch(e){}
-      return {ok:false, err:"storage_full"};
+  const origRH = window.renderHeader || renderHeader;
+  window.renderHeader = function(){
+    origRH();
+    const u = Store.me(), nav = document.querySelector(".pub-links");
+    if(nav && u && !nav.querySelector('[href="#/terepi"]')){
+      nav.insertAdjacentHTML("beforeend", '<a href="#terepi">Terepi infók</a><a href="#/sablonok">Sablonok</a>'); }
+    const cta = document.querySelector(".pub-cta");
+    if(cta && !cta.querySelector("#theme-btn")){
+      const th = (Store.getTheme && Store.getTheme()) || "light";
+      const b = document.createElement("button");
+      b.id="theme-btn"; b.type="button"; b.className="icon-btn"; b.title="Téma: "+th;
+      b.textContent = th==="dark" ? "🌙" : th==="auto" ? "🌗" : "☀️";
+      b.onclick = ()=>{ const cur=(Store.getTheme&&Store.getTheme())||"light";
+        const next = cur==="light"?"dark":cur==="dark"?"auto":"light";
+        if(Store.setTheme){ Store.setTheme(next); location.reload(); } };
+      cta.prepend(b);
     }
-  }
-  sess.restoredTs=snap.at||"";
-  return {ok:true, tours:(merged.tours||[]).length, routes:(merged.routes||[]).length, journal:(merged.journal||[]).length};
-}catch(e){ return {ok:false, err:"exception:"+String(e&&e.message).slice(0,60)}; } }
-function preSave(db){ try{
-  db=db||JSON.parse(Store.exportData()); if(!db) return false;
-  var raw=JSON.stringify({ts:new Date().toISOString(),db:db});
-  localStorage.setItem("turatars_v54_pre1",raw);
-  return localStorage.getItem("turatars_v54_pre1")===raw;
-}catch(e){ return false; } }
-function rollback(){ try{
-  var pre=JSON.parse(localStorage.getItem("turatars_v54_pre1")||"null"); if(!pre||!pre.db) return false;
-  var result=Store.importData(JSON.stringify(pre.db)); return !!(result&&result.ok);
-}catch(e){ return false; } }
-/* ---------- UI: Fiók & sync blokk a V50 profilban ---------- */
-function esc4(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
-function fmtT(ts){ try{ return new Date(ts).toLocaleString("hu-HU",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}); }catch(e){ return ""; } }
-function acctModal(prefillEmail, intent){ var em=prefillEmail||((Store.me()||{}).email||"");
-  openModal({ title: intent==="restore"? "☁️ Fiók a visszaállításhoz" : "☁️ Fiók létrehozása és mentés", body:
-    '<div class="e2form"><label class="f">E-mail *</label><input class="input" id="v4_e" type="email" value="'+esc4(em)+'">'+
-    '<label class="f">Jelszó (min. 8 char) *</label><input class="input" id="v4_p" type="password">'+
-    (isRemote()? '<p class="small muted">💾 A mentés a szerverre megy: '+esc4(remoteBase())+"</p>" :
-     '<p class="small muted">🔒 Ezen az eszközön elkülönített trezorba mentünk (PBKDF2). Valódi szerver-csatlakozás után ugyanígy a felhőbe — az UI ugyanaz marad.</p>')+
-    '<p class="small muted">E-mail + jelszó bejelentkezés. Google bejelentkezés jelenleg nem elérhető.</p>'+
-    '<p id="v4_err" class="e2-err" style="display:none"></p></div>',
-   footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="v4_go">'+(intent==="restore"?"🔓 Belépés és visszaállítás":"☁️ Fiók és mentés most")+"</button>",
-   onOpen:function(m){ m.querySelector("#v4_go").onclick=function(){ var e4=m.querySelector("#v4_e").value, p4=m.querySelector("#v4_p").value; var er=m.querySelector("#v4_err");
-     var show=function(t){ er.textContent=t; er.style.display=""; };
-     var A=getActive(); sess.provider=A.name;
-     Promise.resolve(A.signup(normEmail(e4), p4, (Store.me()&&Store.me().name)||"Túrázó"))
-      .then(function(sg){ sess.token=sg.token||null; sess.email=normEmail(e4); sess.uid=sg.uid||null; sess.pending=!!sg.pending;
-        if(sess.pending){ sess.status="pending"; sset_(); renderBlock(); show("Erősítsd meg az e-mail címedet a Supabase levelében, majd jelentkezz be újra."); return false; }
-        sess.status="ready"; sset_();
-         return finishIntent(intent, e4); })
-      .catch(function(e1){ /* signup collision? try login */ if(e1&&String(e1.error||"").match(/exist|password|reused|email/i)){
-          return Promise.resolve(A.login(normEmail(e4), p4)).then(function(l){ sess.token=l.token||null; sess.email=normEmail(e4); sess.uid=l.uid||null; sess.pending=!!l.pending; sess.status=sess.pending?"pending":"ready"; sset_(); if(sess.pending){ show("Az e-mail cím még nincs megerősítve."); return false; } return finishIntent(intent, e4); }).catch(function(e2){ show(mapErr(e2)); }); }
-        show(mapErr(e1)); }); }; } }); }
-function mapErr(e){ var c; try{ c=String((e&&e.error)||e||""); }catch(x){ c="error"; } try{ if(/fetch|network|Failed/i.test(String(e&&e.message||e))) c="network"; }catch(y){}
-  return ({bad_password:"A jelszó nem egyezik.", unauthorized:"A fiók-munkamenet lejárt — lépj be újra.", email_confirmation_required:"Előbb erősítsd meg az e-mail címedet.", expected_version_required:"Előbb töltsd be a felhő aktuális állapotát.", version_conflict:"A felhőben újabb mentés van. Töltsd vissza azt, majd ments újra.", invalid_snapshot:"A helyi mentés hiányos, ezért nem küldtük fel.", credentials_not_allowed:"A mentés tiltott fiókadatot tartalmaz, ezért nem küldtük fel.", email_mismatch:"A helyi és a felhőfiók e-mail címe nem egyezik.", too_large:"A mentés túl nagy ehhez a tárolóhoz — törölj régi GPX-fájlokat.", storage_full:"A böngésző tárhelye tele — a HELYI adataid érintetlenek maradtak.", bad_email:"Az e-mail formátum hibás.", weak_password:"A jelszónak legalább 8 karakter kell lennie.", network:"Nincs kapcsolat — a módosítások helyben mentve."}
-    [c]) || ("A művelet most nem sikerült ("+c+"). A helyi adataid érintetlenek."); }
-function finishIntent(intent, e4){ var A=getActive(); if(A.name!=="supabase-snapshot"){ if(intent==="restore") return doLoad(true); return doSave(true); }
-  return Promise.resolve(A.load(sess.token)).then(function(remote){
-    if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); if(intent==="save") return doSave(true); toast("A fiókodban még nincs mentés","☁️"); return null; }
-    if(!remote||remote.error) throw (remote||{error:"cloud_error"});
-    sess.remoteVersion=Number(remote.version); sset_();
-    if(intent==="restore") return doLoad(true,remote);
-    sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false;
-  }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; }); }
-function curLocalEmail(){ var u=Store.me(); return u&&u.email? normEmail(u.email): (sess.email||null); }
-function doSave(silentOk){ var em=curLocalEmail(); if(!em){ toast("Előbb jelentkezz be a helyi fiókodba","🔑"); return Promise.resolve(false); }
-  sess.status="saving"; renderBlock();
-  var snap=buildSnapshot(em);
-  if(!snap){ sess.status="error"; sess.err="nincs local user ezzel az emaillel"; renderBlock(); return Promise.resolve(false); }
-  var A=getActive();
-  if(A.name==="supabase-snapshot" && !Number.isSafeInteger(sess.remoteVersion)){
-    return Promise.resolve(A.load(sess.token)).then(function(remote){ if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); return doSave(silentOk); }
-      if(remote&&!remote.error){ sess.remoteVersion=Number(remote.version); sset_(); sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false; }
-      throw (remote||{error:"cloud_error"}); }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; });
-  }
-  return Promise.resolve(A.save(sess.token, snap, sess.remoteVersion)).then(function(r){ if(r&&r.error){ throw {error:r.error}; }
-    if(r&&Number.isSafeInteger(Number(r.version))) sess.remoteVersion=Number(r.version);
-    sess.status="saved"; sess.lastAt=(r&&r.at)||Date.now(); sess.err=null; sset_();
-    var sets=settings(); sets.linked=sets.linked||{}; sets.linked[sess.email]=1; setSettings(sets);
-    renderBlock(); toast(silentOk? "☁️ Adatok a fiókba mentve (példány: "+((r&&r.size)?Math.round(r.size/1024)+" KB":"kész")+")":"☁️ Szinkronizálva","☁️"); return true; })
-   .catch(function(e){ var err=(e&&e.error)||(e&&e.message)||""; if(/TypeError|toLowerCase|undefined/.test(err)){ err="internal"; } sess.status="error"; sess.err=err?mapErr(e):'ismeretlen'; renderBlock(); toast(sess.err,"⚠️"); return false; }); }
- function doLoad(auto,preloaded){ var A=getActive();
-  return Promise.resolve(preloaded||A.load(sess.token)).then(function(snap){ if(!snap||snap.error==="empty"){ if(snap&&Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_(); toast("A fiódban még nincs mentés","☁️"); if(auto) return; return null; }
-     if(snap.error){ if(!auto) toast(mapErr(snap),"⚠️"); return null; }
-    if(Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_();
-    var res=applySnapshot(snap);
-    if(!res.ok){ if(res.err==="email_mismatch"){ toast("Ez a mentés másik fiókhoz tartozik — a privát adatok így is védve maradnak.","🔒"); } else toast("A visszaállítás nem sikerült — a helyi adatok érintetlenek maradtak. ("+res.err+")","⚠️"); renderBlock(); return null; }
-    toast("📥 Fiókból visszaállítva. (Biztonsági pillanatkép: "+((res.tours||0))+" túra, "+(res.routes||0)+" route) Előző állapot: „vissza az előzőhöz”.", "☁️");
-    try{ App.render(); }catch(e){} renderBlock(); sess.status="restored"; return res; }); }
-var _v54Shown=0;
-function v54Busy(){ try{ return _v54Shown || !!document.querySelector("[data-modal]"); }catch(e){ return true; } }
-/* ---------- offer logic ---------- */
-function maybeOffer(){ try{ if(v54Busy()) return; var u=Store.me(); if(!u) return; var sets=settings();
-  if(sess.email) return; var lastOffer=(sets.offers&&sets.offers[normEmail(u.email)])||0;
-  if(Date.now()-lastOffer < 1000*60*60*24*7) return; /* 1/day max */
-  var d=(function(){ try{ var dd=JSON.parse(localStorage.getItem("turavaros_v1")); return dd&&dd.data&&dd.data[u.id]; }catch(e){ return null; } })();
-  if(!d) return; if(!( (d.tours||[]).length || (d.journal||[]).length || (d.routes||[]).length || (d.wishlist||[]).length )) return void 0;
-  sets.offers=sets.offers||{}; sets.offers[normEmail(u.email)]=Date.now(); setSettings(sets);
-  _v54Shown=1; openModal({ title:"☁️ Fiók és adatbiztonság", body:'<p class="muted mt0" style="font-weight:600">☁️ Mentsük el az adataidat a fiókodba?</p><p class="small muted" style="margin:.2rem 0">Eddig csak ezen a böngészőn tároltuk — e-mail + jelszó (PBKDF2) védett tárolóba mentjük; szerver csatlakozása után ugyanígy a felhőbe.</p>'+
-    "<p class=\\"small\\">🥾 "+((d.tours||[]).length)+" projekt · 🗺️ "+((d.routes||[]).length)+" útvonal · 📖 "+((d.journal||[]).length)+" élmény — helyben maradnak, nem törlődnek semmi caso-ban sem.</p>",
-    footer:'<button class="btn btn-ghost" id="v4_later">Most kihagyom</button> <button class="btn btn-primary" id="v4_now">☁️ Mentés a fiókba</button>',
-    onOpen:function(m){ m.querySelector("#v4_now").onclick=function(){ closeModal(); acctModal(u.email,"save"); }; m.querySelector("#v4_later").onclick=function(){ closeModal(); }; } });
-}catch(e){} }
-/* ---------- profile block ---------- */
-function c54Inner(){ var s=sess; var remote=isRemote();
-  var linked=!!s.email; var u=Store.me()||{};
-  var stat = !linked? '<span class="chip chip-sand">☁️ Nincs fiók összekötve</span>'
-    : s.status==="pending"? '<span class="chip chip-amber">✉️ E-mail megerősítésre vár</span>'
-    : (s.status==="saved"||s.status==="restored")? '<span class="chip chip-green">☁️ Szinkronizálva · '+esc4(fmtT(s.lastAt||s.restoredTs||Date.now()))+"</span>"
-    : s.status==="saving"? '<span class="chip chip-amber">☁️ Mentés folyamatban…</span>'
-    : s.status==="error"? '<span class="chip chip-rose">☁️ Hiba: '+esc4(String(s.err||"") )+"</span>"
-    : '<span class="chip chip-sand">☁️Fiók: '+esc4(s.email)+ (navigator.onLine===false?" — offline":"")+"</span>";
-  var line = remote? "💾 Cél: szerver ("+esc4(remoteBase())+")" : "🔒 Cél: ehhez az eszközhöz rendelt titkosított trezor";
-  return '<h2>☁️ Fiók és szinkronizálás</h2>'+
-    '<div class="c54row">'+stat+"<span class='chip chip-sand'>🧍 "+esc4(u.name||"Túrázó")+(u.email?" · "+esc4(u.email):"")+"</span>"+(!navigator.onLine? "<span class='chip chip-amber'>Offline – a módosítások helyben mentve.</span>":"")+ (u.pass&&false?"":"")+"</div>"+
-    '<p class="small muted mb0">'+line+"</p>"+
-    '<div class="c54btns">'+ (!linked? '<button class="btn btn-primary btn-sm" id="c54-link">🔗 Fiók létrehozása mentéshez</button>'
-      : (s.linkedEmail&&s.linkedEmail!==normEmail(u.email))? '<button class="btn btn-soft btn-sm" id="c54-rel">🔁 Újrakereseli a jelenlegi userhez</button>'
-      : '<button class="btn btn-soft btn-sm" id="c54-save">💾 Mentés a fiókba / Szinkron most</button>')+
-      (linked&&normEmail(u.email)!==sess.email? "":'')+
-      (linked? '<button class="btn btn-soft btn-sm" id="c54-load">📥 Visszaállítás a fiókból</button>':'')+
-      '<button class="btn btn-ghost btn-sm" id="c54-out">🚪 Fiók kilépés</button>'+
-      '<button class="btn btn-ghost btn-sm" id="c54-back">↩️ Előző helyi állapot vissza&lt;fordítás&gt;</button>'+
-    "</div>"+
-    '<p class="small muted">E-mail + jelszó belépés aktív. A Google bejelentkezés jelenleg nem elérhető.</p>'; }
-function renderBlock(){ try{ var root=document.getElementById("c54sec"); if(!root) return; root.innerHTML=c54Inner(); wireBlock(); }catch(e){} }
-function wireBlock(){ var $=function(id){ return document.getElementById(id); };
-  var b=$("c54-link"); if(b) b.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
-  var sv=$("c54-save"); if(sv) sv.onclick=function(){ if(!isRemote()&&navigator.onLine===false){ toast("Offline — a szinkronizálás later, a helyi mentés él.","📡"); } doSave(false); };
-  var ld=$("c54-load"); if(ld) ld.onclick=function(){ if(!confirmRestore()) return; doLoad(false); };
-  var ro=$("c54-rel"); if(ro) ro.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
-  var out=$("c54-out"); if(out) out.onclick=function(){ window.__V54.api.logoutNow(); toast("Kijelentkeztél a fiókból — a helyi app tovább működik","☁️"); try{ App.render(); }catch(e){} };
-  var bb=$("c54-back"); if(bb) bb.onclick=function(){ try{ var pre=JSON.parse(localStorage.getItem("turatars_v54_pre1")||"null"); if(!pre){ toast("Nincs előző pillanatkép","↩️"); return; } if(!rollback()){ toast("Nem sikerült a visszaállítás — a helyi adatok változatlanok","⚠️"); return; } toast("Visszaállítva az előző helyi állapotot ("+fmtT(pre.ts)+")","↩️"); try{ App.render(); }catch(e){} }catch(e){ toast("Nem sikerült","⚠️"); } }; }
-function confirmRestore(){ try{ var d=(Store.myData()||{}); if(((d.tours||[]).length)) { return confirm("A visszaállítás FELÜLÍRJA a jelenlegi helyi adatokat a fiókod mentésével (a mentés magától biztonsági pillanatképet készít). Folytassam?"); } }catch(e){} return true; }
-(function(){ var _p50=VIEWS.profile&&VIEWS.profile.after;
-  VIEWS.profile.after=function(root){ try{ _p50&&_p50(root); }catch(e){}
-    try{ if(!root||root.querySelector("#c54sec")||root.querySelector(".c54x")) return; var host=root.querySelector(".p5"); if(!host) return;
-      var sec=document.createElement("section"); sec.className="card panel p5-sec c54x"; sec.id="c54sec"; sec.innerHTML=c54Inner();
-      var last=root.querySelector(".p5 > section:nth-last-child(4)"); if(last&&last.parentNode===host){ host.insertBefore(sec, last.nextSibling); } else host.insertBefore(sec, host.querySelector(".p5-hero")); 
-      wireBlock(); }catch(e){} }; })();
-/* offline sáv */
-(function(){ function banner(){ var ex=document.getElementById("c54band");
-    if(!navigator.onLine){ if(!ex){ var d=document.createElement("div"); d.id="c54band"; d.className="c54-band chip chip-amber"; d.textContent="Offline – a módosítások helyben mentve."; document.body.appendChild(d); } }
-    else if(ex){ ex.remove(); if(sess.email){ sess.status="ready"; renderBlock(); toast("🌐 Online — szinkronizálhatsz a Fiók & szinkronizálás blokkból","☁️"); } } }
-  window.addEventListener("online", banner); window.addEventListener("offline", function(){ sess.status="offline"; banner(); }); banner();
-  var t=setInterval(banner, 20000); })();
-/* session resume + first offer on load hook */
-(function(){ var s0=sget_(); if(s0&&s0.email){ sess.token=s0.token||null; sess.email=s0.email; sess.uid=s0.uid||null; sess.pending=!!s0.pending; sess.remoteVersion=Number.isSafeInteger(Number(s0.remoteVersion))?Number(s0.remoteVersion):null; sess.provider=s0.provider||((s0.token&&/^tk_/.test(s0.token))?"local-vault":(SupabaseAdapter?"supabase-snapshot":(base()?"cloud-http":"local-vault")));
-    if(sess.pending&&!sess.token){ sess.status="pending"; renderBlock(); return; }
-    if(!sess.token) return;
-    sess.status="ready"; getActive().whoami(s0.token).then(function(w){ if(w){ sess.uid=w.uid; if(w.token) sess.token=w.token; sess.status="ready"; sset_(); renderBlock(); } else { clearSess(); renderBlock(); } }).catch(function(e){ if(navigator.onLine===false||/network/i.test(String((e&&e.error)||e||""))){ sess.status="offline"; renderBlock(); } else { clearSess(); renderBlock(); } }); } })();
-/* friss eszközre相同 sessionnel: restore-ajánlat */
-setTimeout(function(){ try{ if(v54Busy() || !sess.email || Store.me()) return;
-  var A=getActive(); A.load(sess.token).then(function(s){ try{
-    if(!s||s.error||!s.snap) return; if(sess.restoreOffered) return; sess.restoreOffered=1;
-    var n=(s.snap.data&&s.snap.data.tours||[]).length;
-    _v54Shown=1; openModal({ title:"☁️ Üdv újra — ez az eszköz még üres", body:'<p class="muted mt0">A fiókodban találtunk mentést ('+esc4(s.snap.linkedEmail)+", "+n+" túra, "+fmtT(s.at||s.snap.ts)+"). Visszaállítsuk ide?</p>",
-      footer:'<button class="btn btn-ghost" data-close>Most kihagyom</button> <button class="btn btn-primary" id="v4_rst">☁️ Visszaállítás a fiókból</button>',
-      onOpen:function(m){ var g=m.querySelector("#v4_rst"); if(g) g.onclick=function(){ doLoad(true); closeModal(); }; } });
-  }catch(e){} }); }catch(e){} }, 2300);
-setTimeout(function(){ try{ maybeOffer(); }catch(e){} }, 1700);
-window.__V54.api.restoreApply=applySnapshot;
-window.__V54.api.preSave=function(){ return preSave(); };
-window.__V54.api.rollback=rollback;
-window.__V54.uid=function(){ return sess.uid; };
+  };
+  
 })();
 
-/* ==== app ==== */
-/* ============================================================
-   TÚRAVAROS — ROUTER + BOOT
-   ============================================================ */
-"use strict";
-const App = {
-  render(){
-    const raw = (location.hash || "#/").replace(/^#/, "");
-    const [path, qs] = raw.split("?");
-    const seg = path.split("/").filter(Boolean);
-    const params = Object.fromEntries(new URLSearchParams(qs || ""));
-    const route = seg[0] || "";
-    const arg = seg[1];
-    const ROUTES = {
-      "": "home", felfedezes: "discover", esemenyek: "events", helyek: "places",
-      turak: "tourDetail", belepes: "login", regisztracio: "register", onboarding: "onboarding",
-      vezerlopult: "dash", turaim: "tours", "uj-tura": "newTour", tura: "workspace", naptar: "calendar",
-      bakancslista: "wishlist", felszereles: "equipment", csapatok: "teams", naplo: "journal",
-      statisztikak: "stats", hagymas: "hagymas", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
-      utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", tarsak: "tarsak", meghivo: "meghivo"
-    };
-    const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo"];
-    let key = ROUTES[route] || "404";
+/* ---------- 10) ÉLMÉNYKÖNYV — a naplólap felváltása gazdagabb nézetre ---------- */
+(function(){
+  const _journal = VIEWS.journal;
+  VIEWS.journal = () => {
+    const d = Store.myData();
+    if(!d.journal.length) return _journal();
+    const js = d.journal.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const priv = p => !p||p==="privát" ? '<span class="chip chip-sand">🔒 Privát</span>' : p==="csak túratársak" ? '<span class="chip chip-green">👥 Csak túratársak</span>' : '<span class="chip chip-blue">🌍 Nyilvános</span>';
+    const head = \`<div class="dash-top"><div><span class="eyebrow" style="color:var(--leaf);font-size:.72rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase">A TE SZEMÉLYES ALBUMOD</span><h1 class="mb0">Élménykönyv 📖</h1><div class="hello">\${d.journal.length} teljesített túra · \${d.journal.reduce((s,j)=>s+(j.photos||[]).length,0)} emlék · \${d.journal.map(j=>j.mood).filter(Boolean).join(" ")}</div></div>
+      \${Store.upcoming()[0]?\`<a class="btn btn-primary" href="#/tura/\${Store.upcoming()[0].id}">Közelgő túra nyitása</a>\`:\`<a class="btn btn-primary" href="#/uj-tura">➕ Új túra</a>\`}</div>\`;
+    const album = \`<div class="mem-album">\${js.map(j=>\`
+      <div class="card mem">
+        <div class="img-wrap" style="height:190px">\${imgTag(j.photos&&j.photos[0]||IMG.erdo,"")}</div>
+        <div class="mem-b">
+          <div class="flex between wrapcol"><div><b>\${esc(j.title)}</b><div class="small muted">\${fmtDateFull(j.date)} · \${esc(j.place||"")}</div></div>
+          <div class="flex" style="gap:.35rem;align-items:center">\${j.mood?\`<span class="mood-chip" title="Hangulat">\${j.mood}</span>\`:""}\${priv(j.privacy)}</div></div>
+          <div class="stars" style="color:var(--ember);margin:.4rem 0">\${"★".repeat(j.rating||0)}\${'<span style="opacity:.25">'+"★".repeat(5-(j.rating||0))+"</span>"}</div>
+          \${j.note?\`<p style="margin:.2rem 0;font-size:.98rem">„\${esc(j.note)}”</p>\`:""}
+          \${j.fav?\`<p class="small" style="margin:.25rem 0;color:var(--ember)">❤️ \${esc(j.fav)}</p>\`:""}
+          <p class="small" style="margin:.3rem 0"><span class="chip chip-sand" style="background:#FBF4DE;color:#8a6d12;font-style:italic">💡 \${esc(j.lesson||"")||"Mit tanultál? Írd meg a ✎ gombbal."}</span></p>
+          \${j.audio?\`<audio controls src="\${j.audio}" style="width:100%;height:36px;margin:.3rem 0"></audio>\`:""}
+          <div class="meta" style="font-size:.78rem"><span>📏 \${j.km||"?"} km</span><span>⬆ \${j.up||"?"} m</span><span>⏱ \${j.h||"?"} ó</span></div>
+          <div class="flex wrapcol" style="gap:.5rem;margin-top:.6rem">
+            <button class="btn btn-soft btn-sm" data-jedit="\${j.id}">✎ Történet és tanulság</button>
+            \${j.tourId?\`<a class="btn btn-ghost btn-sm" href="#/tura/\${j.tourId}">📁 Munkaterület</a>\`:""}
+            \${!j.archived?\`<button class="btn btn-ghost btn-sm" data-jarch="\${j.id}">📖 Archiválás</button>\`:"<span class='chip chip-sand'>archiválva</span>"}</div>
+          <div class="flex" style="gap:5px;margin-top:.5rem;flex-wrap:wrap">\${(j.photos||[]).slice(1).map(p=>\`<img src="\${p}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px">\`).join("")}</div>
+        </div></div>\`).join("")}</div>\`;
+  return _journal ? (function(){ const base=_journal();
+    // a régi lista tetejére rendereljük az albumot, alulra a részletes listát ne — cseréljük teljes egészében:
+    return dash("#/naplo")(head + album); })():head+album;
+};
+VIEWS.journal.after = (root)=>{
+  root.querySelectorAll("[data-jedit]").forEach(b=>b.onclick=()=>{
+    const j=Store.myData().journal.find(x=>x.id===b.dataset.jedit);
+    openModal({ title:"✎ "+esc(j.title),
+      body:\`<label class="f">Hangulat</label><div class="mood-row">\${[["😫","Nagyon nehéz"],["🙂","Jó"],["😍","Fantasztikus"]].map(m=>\`<button class="mood-pick \${j.mood===m[0]?"sel":""}" data-m="\${m[0]}">\${m[0]}<small>\${m[1]}</small></button>\`).join("")}</div>
+        <label class="f" style="margin-top:.7rem">Történet</label><textarea class="input" id="je-n" rows="3">\${esc(j.note||"")}</textarea>
+        <label class="f" style="margin-top:.6rem">💡 Mit tanultam ebből a túrából?</label><input class="input" id="je-l" value="\${esc(j.lesson||"")}" placeholder="Pl. Legközelebb több vizet viszek.">
+        <label class="f" style="margin-top:.6rem">Értékelés</label><input class="input" id="je-r" type="number" min="1" max="5" value="\${j.rating||5}">
+        <label class="f" style="margin-top:.6rem">Láthatóság</label>
+        <select class="input" id="je-p">\${["privát","csak túratársak","nyilvános"].map(o=>\`<option \${j.privacy===o?"selected":""}>\${o}</option>\`).join("")}</select>
+        <label class="f" style="margin-top:.6rem">🎤 Hangjegyzet</label><input type="file" id="je-a" accept="audio/*" class="input" style="padding:.55em">
+        <label class="f" style="margin-top:.6rem">📸 Képek</label><input type="file" id="je-ph" accept="image/*" multiple class="input" style="padding:.55em">\`,
+      footer:\`<button class="btn btn-primary btn-block" id="je-save">✓ Mentés</button>\`,
+      onOpen(r){ let mood=j.mood||"";
+        r.querySelectorAll("[data-m]").forEach(b2=>b2.onclick=()=>{ mood=b2.dataset.m; r.querySelectorAll("[data-m]").forEach(x=>x.classList.toggle("sel",x===b2)); });
+        r.querySelector("#je-save").onclick=()=>{
+          const patch={ note:r.querySelector("#je-n").value, lesson:r.querySelector("#je-l").value, rating:+r.querySelector("#je-r").value, privacy:r.querySelector("#je-p").value, mood };
+          const ph=r.querySelector("#je-ph").files[0];
+          const au=r.querySelector("#je-a").files[0];
+          let tasks=0, done=0, finish=()=>{ if(au&&tasks<2){} };
+          const store=()=>{ Store.updateJournal(j.id, patch); closeModal(); toast("Esemény frissítve","✎"); render(); };
+          if(ph){ tasks++; const rd=new FileReader(); rd.onload=()=>{ patch.photos=[...new Set([...(j.photos||[]),rd.result])].slice(0,9); if(++done===tasks)store(); }; rd.readAsDataURL(ph); }
+          if(au){ tasks++; const rd=new FileReader(); rd.onload=()=>{ if(rd.result.length<800000) patch.audio=rd.result; if(++done===tasks)store(); }; rd.readAsDataURL(au); }
+          if(!tasks) store(); }; }});
+  });
+  root.querySelectorAll("[data-jarch]").forEach(b=>b.onclick=()=>{ const j=Store.myData().journal.find(x=>x.id===b.dataset.jarch); j.archived=true; Store.save(); toast("Archiválva — az emlék megmarad.","📖"); render(); });
+  wireTerepLinks(root);
+};
+})();
 
-    if (DASHY.includes(key) && !Store.me()) {
-      toast("Ez a személyes túraközpont — előbb jelentkezz be", "🔐");
-      location.hash = "#/belepes";
-      key = "login";
-    }
-    document.body.classList.remove("in-dash");
+function wireTerepLinks(root){ (root||document).querySelectorAll("[data-ackr]").forEach(a=>a.onclick=()=>{ if(Store.me()){ Store.ackFieldReport(a.dataset.ackr); render(); } }); 
+  (root||document).querySelectorAll("[data-jreport]").forEach(a=>a.onclick=()=>{ const tr=Store.myData() && (function(){ const t=Store.upcoming()[0]; return t?{region:t.region}:null;})(); reportModal(tr||{}); }); }
 
-    const root = document.getElementById("view");
-    closeModal();
+/* ---------- 14+15) Statisztikák: célok + kihívások szekció hozzáadása ---------- */
+(function(){
+  const _s = VIEWS.stats;
+  VIEWS.stats = () => { const base=_s(); const d=Store.myData();
+    const rows = Store.goalRows();
+    const ach = Store.achievements();
+    const ch = d.challenges||[];
+    const extra = \`<section id="bump-goals"></div>\`;
+    return base.replace('</div>\`','') && base; // tartalom később DOM-ból
+  };
+})();
+window.statsBumpInstall = function(AppObj){
+  try{ if(Store.applyTheme) Store.applyTheme(); }catch(e){}
+  window.statsBumpCheck = ()=>{ if((location.hash||"").indexOf("statisztikak")>=0) statsBumpAppend(); };
+  const q = ()=>{ if((location.hash||"").indexOf("statisztikak")>=0){ setTimeout(window.statsBumpCheck, 150); setTimeout(window.statsBumpCheck, 700); } };
+  document.addEventListener("hashchange", q);
+  const _origRender = AppObj.render;
+  AppObj.render = function(...a){ _origRender.apply(this,a); q(); };
+  setInterval(()=>{ if((location.hash||"").indexOf("statisztikak")>=0 && !document.getElementById("bump-goals-wrap")) window.statsBumpCheck(); }, 200);
+};
+function statsBumpAppend(){ if((location.hash||"").indexOf("statisztikak")<0) return;
+  if(document.getElementById("bump-goals-wrap")) return;
+  const d = Store.myData(); if(!d||!d.goalList) return;
+  const rows = Store.goalRows(), ach = Store.achievements(), ch = d.challenges||[];
+  const el = document.createElement("section"); el.id="bump-goals-wrap";
+  el.innerHTML = \`<div class="split2" style="grid-template-columns:1.05fr .95fr;gap:18px;margin-top:20px;align-items:start">
+    <div class="card panel"><h3>🎯 Személyes céljaim</h3>
+      \${rows.map(g=>\`<div class="goal-row">
+        <div class="flex between wrapcol"><b class="small">\${g.icon} \${esc(g.label)}</b><span class="small \${g.pct>=100?"goal-done":""}"><b>\${g.current}</b> / \${g.target}\${g.unit&&g.unit!=="db"?" "+esc(g.unit):""} \${g.pct>=100?"🏅 elérvé!" : " ("+g.pct+"%)"}</span></div>
+        <div class="goal-bar \${g.pct>=100?"done":""}"><i style="width:\${Math.min(100,g.pct)}%"></i></div>
+        <div class="flex" style="justify-content:flex-end"><button class="icon-btn" data-goal="\${g.id}:1" title="Egy kattintásnyi haloml" style="width:26px;height:26px">＋</button>
+        <button class="icon-btn" data-goalrm="\${g.id}" title="Cél törlése" style="width:26px;height:26px">✕</button></div></div>\`).join("")}
+      <button class="btn btn-soft btn-sm" id="bump-goalnew" style="margin-top:.6rem">➕ Saját cél hozzáadása</button></div>
+    <div class="card panel"><h3>🧗 Kihívások — teljesítmények</h3>
+      <div class="ach-row">\${ach.map(a=>\`<span class="ach \${a.now>=a.target?"done":""}">\${a.icon} \${a.now>=a.target?"✔":"☐"} \${esc(a.name)} <b class="muted">\${a.now}/\${a.target}</b></span>\`).join("")}</div>
+      \${ch.map(c=>{ const done=c.items.filter(x=>x.done).length; return \`<div class="chal-card">
+        <div class="flex between wrapcol"><b>\${c.icon} \${esc(c.name)} <span class="muted small">(\${c.desc||""})</span></b><span class="chip chip-blue">\${done}/\${c.items.length}</span></div>
+        <div class="readi-track" style="margin:.35rem 0 .2rem"><i style="width:\${c.items.length?done/c.items.length*100:0}%;background:linear-gradient(90deg,var(--sky),#78a4c2)"></i></div>
+        \${c.items.map((it,i)=>\`<label class="ck" style="padding:.22em .4em"><input type="checkbox" data-chal="\${c.id}" data-chal-item="\${i}" \${it.done?"checked":""}> \${it.done?"☑️":"☐"}&nbsp;\${esc(it.l)}</label>\`).join("")}</div>\`;}).join("")}
+      <button class="btn btn-soft btn-sm" id="bump-chalnew" style="margin-top:.6rem">➕ Új kihívás</button></div>
+  </div>\`;
+  const view = document.querySelector("#view .dash-main"); if(!view) return; view.appendChild(el);
+  el.querySelectorAll("[data-goal]").forEach(b=>b.onclick=()=>{ const [id,sgn]=b.dataset.goal.split(":"); Store.goalDelta(id,+sgn); statsBumpReflow(); });
+  el.querySelectorAll("[data-goalrm]").forEach(b=>b.onclick=()=>{ Store.rmGoal(b.dataset.goalrm); statsBumpReflow(); });
+  el.querySelectorAll("[data-chal]").forEach(c=>c.onchange=()=>{ Store.toggleChallengeItem(c.dataset.chal,+c.dataset.chalItem); statsBumpReflow(); });
+  const gn=el.querySelector("#bump-goalnew"); if(gn) gn.onclick=goalNewModal2;
+  const cn=el.querySelector("#bump-chalnew"); if(cn) cn.onclick=chalNewModal;
+}
+function statsBumpReflow(){ const s=document.getElementById("bump-goals-wrap"); if(s) s.remove(); statsBumpAppend(); }
+function goalNewModal2(){ openModal({ title:"➕ Személyes cél",
+  body:\`<label class="f">Cél neve *</label><input class="input" id="g2-n" placeholder="Pl. bepakolni a székelyföldi csúcsokat">
+    <div class="grid g2" style="margin-top:.6rem"><div><label class="f"> célérték</label><input class="input" id="g2-t" type="number" value="10"></div>
+    <div><label class="f">Egység</label><input class="input" id="g2-u" value="km"></div></div>
+    <label class="f" style="margin-top:.6rem">Automatikus mérés? (írd be: km, túrák, csúcsok, napkelte — vagy üresen hagyva manüls + gombok)</label><select class="input" id="g2-m"><option value="custom">manuális (+ gombbal)</option><option value="km">megtett km</option><option value="tours">teljesített túrák</option><option value="summits">megmászt csúcsok</option><option value="napkelte">napkelte-s túrák</option></select>\`,
+  footer:\`<button class="btn btn-primary btn-block" id="g2-ok">Cél létrehozása</button>\`,
+  onOpen(r){ r.querySelector("#g2-ok").onclick=()=>{ const n=r.querySelector("#g2-n").value.trim(); if(!n){toast("Adj nevet","🙂");return;}
+    Store.addGoal({icon:"🎯", label:n, metric:r.querySelector("#g2-m").value, target:+r.querySelector("#g2-t").value||10, unit:r.querySelector("#g2-u").value||"db", manual:0});
+    closeModal(); toast("Cél felvéve — hajrá! 🎯","🏁"); statsBumpAppend(); }; } }); }
+function chalNewModal(){ openModal({ title:"➕ Új helyi kihívás",
+  body:\`<label class="f">Neve *</label><input class="input" id="c2-n" placeholder="Pl. Hagymás-kör: hat csúcs">
+    <label class="f" style="margin-top:.6rem">Ikon</label><input class="input" id="c2-i" maxlength="4" value="🧗">
+    <label class="f" style="margin-top:.6rem">Helyszínek / tételek — soronként egy</label><textarea class="input" id="c2-l" rows="4" placeholder="Kőris-hegy&#10;Melegő-hát&#10;Góbi-bérc"></textarea>\`,
+  footer:\`<button class="btn btn-primary btn-block" id="c2-ok">Kihívás létrehozása</button>\`,
+  onOpen(r){ r.querySelector("#c2-ok").onclick=()=>{ const items=r.querySelector("#c2-l").value.split("\\n").map(x=>x.trim()).filter(Boolean);
+    if(items.length<2){toast("Kell legalább két tétel","⚠️");return;}
+    Store.addChallenge({name:r.querySelector("#c2-n").value.trim()||"Új kihívás", icon:r.querySelector("#c2-i").value||"🧗", items:items.map(l=>({l,done:false})), desc:"saját kihívás"});
+    closeModal(); toast("Kihívás elmentve — irány a lista tetejére 🧗","🎯"); statsBumpAppend(); }; } }); } 
 
-    if (key === "tourDetail") {
-      const t = tourById(arg);
-      
-      root.innerHTML = VIEWS.discover();
-      if (VIEWS.discover.after) VIEWS.discover.after(root);
-      renderHeader(); renderMobileNav();
-      if (t) tourModal(t.id); else toast("Ilyen túra nem található a katalógusban", "🤔");
-      return;
-    }
-    if (key === "events" && arg) {
-      const e = EVENTS.find(x => x.id === arg);
-      root.innerHTML = VIEWS.events();
-      VIEWS.events.after(root);
-      renderHeader(); renderMobileNav();
-      if (e) eventModal(e.id); else history.replaceState(0, "", "#esemenyek");
-      return;
-    }
 
-    const v = App.view(key);
-    let html;
-    if (key === "404") {
-      html = \`<div class="wrap" style="padding:80px 20px;text-align:center"><h1>Az ösvény itt elfogy 🧭</h1>
-        <p class="muted">Ez az oldal nem létezik (még).</p><a class="btn btn-primary" href="#/">Kezdőlap</a></div>\`;
-    } else if (key === "workspace" || key === "security") {
-      html = VIEWS[key](arg);
-    } else if (key === "tourmode") {
-      html = VIEWS.tourmode(arg);
-    } else if (key === "share") {
-      html = VIEWS.share(arg);
-    } else if (key === "terepi") {
-      html = VIEWS.terepi();
-    } else if (key === "templates") {
-      html = VIEWS.templates();
-    } else if (key === "newTour") {
-      html = VIEWS.newTour(params);
-    } else {
-      html = VIEWS[key]();
-    }
-    root.innerHTML = html;
-
-    const afterFn = { home: VIEWS.home.after, share: VIEWS.share.after, dash: VIEWS.dash.after, tours: VIEWS.tours.after, discover: VIEWS.discover.after,
-      events: VIEWS.events.after, places: VIEWS.places.after, login: VIEWS.login.after, register: VIEWS.register.after,
-      onboarding: VIEWS.onboarding.after, newTour: VIEWS.newTour.after, calendar: VIEWS.calendar.after,
-      wishlist: VIEWS.wishlist.after, equipment: VIEWS.equipment.after, teams: VIEWS.teams.after,
-      journal: VIEWS.journal.after, stats: VIEWS.stats.after, routes: VIEWS.routes && VIEWS.routes.after ? VIEWS.routes.after : null, hagymas: VIEWS.hagymas && VIEWS.hagymas.after ? VIEWS.hagymas.after : null, ai: VIEWS.ai.after, mymap: VIEWS.mymap.after, inbox: VIEWS.inbox && VIEWS.inbox.after,
-      notifs: VIEWS.notifs.after, settings: VIEWS.settings.after, profile: VIEWS.profile.after, szervezo: (VIEWS.szervezo&&VIEWS.szervezo.after)||null, tarsak: (VIEWS.tarsak&&VIEWS.tarsak.after)||null, meghivo: (VIEWS.meghivo&&VIEWS.meghivo.after)||null, szatt: null,
-      terepi: VIEWS.terepi && VIEWS.terepi.after ? VIEWS.terepi.after : null, templates: VIEWS.templates && VIEWS.templates.after ? VIEWS.templates.after : null }[key];
-    const wsAfter = key === "workspace" ? VIEWS.workspace.after : (key === "tourmode" ? VIEWS.tourmode.after : null);
-    (wsAfter || afterFn) && (wsAfter || afterFn)(root, arg, params);
-
-    renderHeader();
-    renderMobileNav();
-    if (DASHY.includes(location.hash.replace(/^#\\/?/, "").split("/")[0]) || location.hash.startsWith("#/tura/")) document.body.classList.add("in-dash");
-    if (!location.hash.startsWith("#/tura/")) window.scrollTo(0, 0);
-
-    // „Teljesítetted?” — szándékosan elfeledett, lejárt túrák naplózása (képernyőnként egyszer)
-    if (key === "dash" && !sessionStorage.getItem("tv-prompted")) {
-      const over = Store.myData().tours.find(t => t.status === "tervezés" && t.date && t.date < Store.todayISO());
-      if (over) {
-        sessionStorage.setItem("tv-prompted", "1");
-        setTimeout(() => openModal({
-          title: "Lejárt egy túraterved 🥾",
-          body: \`<p class="mt0">A(z) <b>\${esc(over.title)}</b> terve \${fmtDateFull(over.date)}-ra szólt — mi történt?
-            Ha megvolt, naplózd fel pár sorban; ha elmaradt, tervezd újra egy nieuwe dátumra.</p>\`,
-          footer: \`<div class="flex" style="gap:.5rem;justify-content:flex-end;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" data-close>Később</button>
-            <button class="btn btn-soft btn-sm" id="pm-move">Újratervezem</button>
-            <button class="btn btn-ember" id="pm-done">✓ Megvolt — naplózom!</button></div>\`,
-          onOpen(r) {
-            r.querySelector("#pm-done").onclick = () => { closeModal(); finishFlow(over); };
-            r.querySelector("#pm-move").onclick = () => {
-              closeModal();
-              Store.updateTour(over.id, { date: Store.addDays(Store.todayISO(), 7), status: "tervezés" });
-              toast("Új dátum: egy hét múlva. Hajrá! 💪", "📅"); render();
-            };
-          }
-        }));
+/* ---------- WIZARD: sablonválasztó csipák (a form lépésben) ---------- */
+(function(){
+  const _nta = VIEWS.newTour.after;
+  VIEWS.newTour.after = (root,arg)=>{
+    _nta && _nta(root,arg);
+    if(wiz && (wiz._step==="detail" || wiz._step==="form") && wiz.kind!=="event"){
+      const box=root.querySelector(".wiz-nav");
+      if(box && !root.querySelector(".tpl-strip")){
+        const strip=document.createElement("div"); strip.className="tpl-strip";
+        strip.innerHTML=\`<div class="small" style="width:100%"><b>📐 Kiindulás sablonból:</b></div>
+          \${Store.allTemplates().map(t=>\`<button class="f-pill \${wiz.template===t.id?"on":""}" data-tpl="\${t.id}">\${t.icon} \${esc(t.name)}</button>\`).join("")}
+          <div class="small muted" style="width:100%">A sablon a létrehozáskor a csomaglistát, időtervet és étellistát cseréli — a többi adat megmarad, amit megadsz.</div>\`;
+        box.parentNode.insertBefore(strip, box);
+        const go2 = root.querySelector("#wz-go");
+        if(go2 && !go2._tplw){ const oc=go2.onclick; go2._tplw=1;
+          go2.onclick = (e)=>{ const before=Store.myData().tours.map(x=>x.id);
+            oc && oc.call(go2,e);
+            if(wiz && wiz.template){ const after=Store.myData().tours.map(x=>x.id); const newId=after.find(id=>before.indexOf(id)<0);
+              if(newId){ const dateVal=(root.querySelector("#wz-date")||{}).value; if(dateVal && !Store.getTour(newId).date){ Store.updateTour(newId,{date:dateVal}); }
+                Store.applyTemplate(newId, wiz.template); } } }; }
+        strip.querySelectorAll("[data-tpl]").forEach(b=>b.onclick=()=>{ wiz.template=b.dataset.tpl;
+          const t=Store.templateById(t.id); if(t){ wiz.title=wiz.title||t.name; wiz.difficulty=t.difficulty||wiz.difficulty; }
+          strip.querySelectorAll("[data-tpl]").forEach(x=>x.classList.toggle("on",x===b));
+          toast("Sablon kiválasztva — a létrehozáskor becsomagolja a csomaglistát, időtervet, kaját.","📐"); });
       }
     }
-  },
-  view(id) { return VIEWS[id]; }
-};
-window.App = App;
-function render() { App.render(); }
+  };
+  // létrehozáskor érvénybe lép a selected sablon
+  const _n = Store.myData; // no-op
+})();
 
-window.addEventListener("hashchange", () => App.render());
-window.addEventListener("DOMContentLoaded", () => { if (!location.hash) location.hash = "#/";
-  if (window.statsBumpInstall) window.statsBumpInstall(App);
-  App.render(); });
-;window.Store=Store;window.VIEWS=VIEWS;window.tourReview=tourReview;window.smartPlanner=smartPlanner;(function(){ ["EVENTS","IMG","TOURS","TEMPLATES_DEFAULT"].forEach(function(k){ try{ window[k]=eval(k); }catch(e){} }); })();`,Fn=Symbol.for("@supabase/supabase-js.traceContextExtractor");function Bn(){return globalThis[Fn]}function tt(n,e){var t={};for(var s in n)Object.prototype.hasOwnProperty.call(n,s)&&e.indexOf(s)<0&&(t[s]=n[s]);if(n!=null&&typeof Object.getOwnPropertySymbols=="function")for(var a=0,s=Object.getOwnPropertySymbols(n);a<s.length;a++)e.indexOf(s[a])<0&&Object.prototype.propertyIsEnumerable.call(n,s[a])&&(t[s[a]]=n[s[a]]);return t}function Hn(n,e,t,s){function a(r){return r instanceof t?r:new t(function(i){i(r)})}return new(t||(t=Promise))(function(r,i){function o(d){try{c(s.next(d))}catch(u){i(u)}}function l(d){try{c(s.throw(d))}catch(u){i(u)}}function c(d){d.done?r(d.value):a(d.value).then(o,l)}c((s=s.apply(n,e||[])).next())})}const Vn=n=>n?(...e)=>n(...e):(...e)=>fetch(...e);class wt extends Error{constructor(e,t="FunctionsError",s){super(e),this.name=t,this.context=s}toJSON(){return{name:this.name,message:this.message,context:this.context}}}class Un extends wt{constructor(e){super("Failed to send a request to the Edge Function","FunctionsFetchError",e)}}class St extends wt{constructor(e){super("Relay Error invoking the Edge Function","FunctionsRelayError",e)}}class xt extends wt{constructor(e){super("Edge Function returned a non-2xx status code","FunctionsHttpError",e)}}var ut;(function(n){n.Any="any",n.ApNortheast1="ap-northeast-1",n.ApNortheast2="ap-northeast-2",n.ApSouth1="ap-south-1",n.ApSoutheast1="ap-southeast-1",n.ApSoutheast2="ap-southeast-2",n.CaCentral1="ca-central-1",n.EuCentral1="eu-central-1",n.EuWest1="eu-west-1",n.EuWest2="eu-west-2",n.EuWest3="eu-west-3",n.SaEast1="sa-east-1",n.UsEast1="us-east-1",n.UsWest1="us-west-1",n.UsWest2="us-west-2"})(ut||(ut={}));class Gn{constructor(e,{headers:t={},customFetch:s,region:a=ut.Any}={}){this.url=e,this.headers=t,this.region=a,this.fetch=Vn(s)}setAuth(e){this.headers.Authorization=`Bearer ${e}`}invoke(e){return Hn(this,arguments,void 0,function*(t,s={}){var a,r;let i,o,l;try{const{headers:c,method:d,body:u,signal:m,timeout:p}=s;let h={},{region:f}=s;f||(f=this.region);const g=new URL(`${this.url}/${t}`);f&&f!=="any"&&(h["x-region"]=f,g.searchParams.set("forceFunctionRegion",f));let y;const w=!!c&&Object.keys(c).some(ke=>ke.toLowerCase()==="content-type");u&&!w?typeof Blob<"u"&&u instanceof Blob||u instanceof ArrayBuffer?(h["Content-Type"]="application/octet-stream",y=u):typeof u=="string"?(h["Content-Type"]="text/plain",y=u):typeof FormData<"u"&&u instanceof FormData?y=u:(h["Content-Type"]="application/json",y=JSON.stringify(u)):u&&typeof u!="string"&&!(typeof Blob<"u"&&u instanceof Blob)&&!(u instanceof ArrayBuffer)&&!(typeof FormData<"u"&&u instanceof FormData)?y=JSON.stringify(u):y=u;let k=m;p&&(o=new AbortController,i=setTimeout(()=>o.abort(),p),m?(k=o.signal,l=()=>o.abort(),m.addEventListener("abort",l)):k=o.signal);const S=yield this.fetch(g.toString(),{method:d||"POST",headers:Object.assign(Object.assign(Object.assign({},h),this.headers),c),body:y,signal:k}).catch(ke=>{throw new Un(ke)}),M=S.headers.get("x-relay-error");if(M&&M==="true")throw new St(S);if(!S.ok)throw new xt(S);let x=((a=S.headers.get("Content-Type"))!==null&&a!==void 0?a:"text/plain").split(";")[0].trim().toLowerCase(),j;return x==="application/json"?j=yield S.json():x==="application/octet-stream"||x==="application/pdf"?j=yield S.blob():x==="text/event-stream"?j=S:x==="multipart/form-data"?j=yield S.formData():j=yield S.text(),{data:j,error:null,response:S}}catch(c){return{data:null,error:c,response:c instanceof xt||c instanceof St?c.context:void 0}}finally{i&&clearTimeout(i),l&&((r=s.signal)===null||r===void 0||r.removeEventListener("abort",l))}})}}var me=class extends Error{constructor(n){super(n.message),this.name="PostgrestError",this.details=n.details,this.hint=n.hint,this.code=n.code}toJSON(){return{name:this.name,message:this.message,details:this.details,hint:this.hint,code:this.code}}};const mn=3,_t=n=>Math.min(1e3*2**n,3e4),Wn=[520,503],hn=["GET","HEAD","OPTIONS"];function Ee(n){"@babel/helpers - typeof";return Ee=typeof Symbol=="function"&&typeof Symbol.iterator=="symbol"?function(e){return typeof e}:function(e){return e&&typeof Symbol=="function"&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e},Ee(n)}function Jn(n,e){if(Ee(n)!="object"||!n)return n;var t=n[Symbol.toPrimitive];if(t!==void 0){var s=t.call(n,e);if(Ee(s)!="object")return s;throw new TypeError("@@toPrimitive must return a primitive value.")}return(e==="string"?String:Number)(n)}function Xn(n){var e=Jn(n,"string");return Ee(e)=="symbol"?e:e+""}function Yn(n,e,t){return(e=Xn(e))in n?Object.defineProperty(n,e,{value:t,enumerable:!0,configurable:!0,writable:!0}):n[e]=t,n}function jt(n,e){var t=Object.keys(n);if(Object.getOwnPropertySymbols){var s=Object.getOwnPropertySymbols(n);e&&(s=s.filter(function(a){return Object.getOwnPropertyDescriptor(n,a).enumerable})),t.push.apply(t,s)}return t}function ae(n){for(var e=1;e<arguments.length;e++){var t=arguments[e]!=null?arguments[e]:{};e%2?jt(Object(t),!0).forEach(function(s){Yn(n,s,t[s])}):Object.getOwnPropertyDescriptors?Object.defineProperties(n,Object.getOwnPropertyDescriptors(t)):jt(Object(t)).forEach(function(s){Object.defineProperty(n,s,Object.getOwnPropertyDescriptor(t,s))})}return n}function Et(n,e){return new Promise(t=>{if(e?.aborted){t();return}const s=setTimeout(()=>{e?.removeEventListener("abort",a),t()},n);function a(){clearTimeout(s),t()}e?.addEventListener("abort",a)})}function Zn(n,e,t,s){return!(!s||t>=mn||!hn.includes(n)||!Wn.includes(e))}async function fn(n,e,t,s){let a=0;for(;;){const o=ae({},t.headers);a>0&&(o["X-Retry-Count"]=String(a));let l;try{l=await n(e,{method:t.method,headers:o,body:t.body,signal:t.signal})}catch(c){if(c?.name==="AbortError"||c?.code==="ABORT_ERR"||!hn.includes(t.method))throw c;if(s&&a<mn){const d=_t(a);a++,await Et(d,t.signal);continue}throw c}if(Zn(t.method,l.status,a,s)){var r,i;const c=(r=(i=l.headers)===null||i===void 0?void 0:i.get("Retry-After"))!==null&&r!==void 0?r:null,d=c!==null?Math.max(0,parseInt(c,10)||0)*1e3:_t(a);await l.text(),a++,await Et(d,t.signal);continue}return l}}var Qn=class{constructor(n){var e,t,s,a,r;this.shouldThrowOnError=!1,this.retryEnabled=!0,this.method=n.method,this.url=n.url,this.headers=new Headers(n.headers),this.schema=n.schema,this.body=n.body,this.shouldThrowOnError=(e=n.shouldThrowOnError)!==null&&e!==void 0?e:!1,this.signal=n.signal,this.isMaybeSingle=(t=n.isMaybeSingle)!==null&&t!==void 0?t:!1,this.shouldStripNulls=(s=n.shouldStripNulls)!==null&&s!==void 0?s:!1,this.urlLengthLimit=(a=n.urlLengthLimit)!==null&&a!==void 0?a:8e3,this.retryEnabled=(r=n.retry)!==null&&r!==void 0?r:!0,n.fetch?this.fetch=n.fetch:this.fetch=fetch}throwOnError(){return this.shouldThrowOnError=!0,this}stripNulls(){if(this.headers.get("Accept")==="text/csv")throw new Error("stripNulls() cannot be used with csv()");return this.shouldStripNulls=!0,this}setHeader(n,e){return this.headers=new Headers(this.headers),this.headers.set(n,e),this}retry(n){return this.retryEnabled=n,this}then(n,e){var t=this;if(this.schema===void 0||(["GET","HEAD"].includes(this.method)?this.headers.set("Accept-Profile",this.schema):this.headers.set("Content-Profile",this.schema)),this.method!=="GET"&&this.method!=="HEAD"&&this.headers.set("Content-Type","application/json"),this.shouldStripNulls){const i=this.headers.get("Accept");i==="application/vnd.pgrst.object+json"?this.headers.set("Accept","application/vnd.pgrst.object+json;nulls=stripped"):(!i||i==="application/json")&&this.headers.set("Accept","application/vnd.pgrst.array+json;nulls=stripped")}const s=this.fetch;let r=(async()=>{const i={};t.headers.forEach((l,c)=>{i[c]=l});const o=await fn(s,t.url.toString(),{method:t.method,headers:i,body:JSON.stringify(t.body,(l,c)=>typeof c=="bigint"?c.toString():c),signal:t.signal},t.retryEnabled);return await t.processResponse(o)})();return this.shouldThrowOnError||(r=r.catch(i=>{var o;let l="",c="",d="";const u=i?.cause;if(u){var m,p,h,f;const w=(m=u?.message)!==null&&m!==void 0?m:"",k=(p=u?.code)!==null&&p!==void 0?p:"";l=`${(h=i?.name)!==null&&h!==void 0?h:"FetchError"}: ${i?.message}`,l+=`
-
-Caused by: ${(f=u?.name)!==null&&f!==void 0?f:"Error"}: ${w}`,k&&(l+=` (${k})`),u?.stack&&(l+=`
-${u.stack}`)}else{var g;l=(g=i?.stack)!==null&&g!==void 0?g:""}const y=this.url.toString().length;return i?.name==="AbortError"||i?.code==="ABORT_ERR"?(d="",c="Request was aborted (timeout or manual cancellation)",y>this.urlLengthLimit&&(c+=`. Note: Your request URL is ${y} characters, which may exceed server limits. If selecting many fields, consider using views. If filtering with large arrays (e.g., .in('id', [many IDs])), consider using an RPC function to pass values server-side.`)):(u?.name==="HeadersOverflowError"||u?.code==="UND_ERR_HEADERS_OVERFLOW")&&(d="",c="HTTP headers exceeded server limits (typically 16KB)",y>this.urlLengthLimit&&(c+=`. Your request URL is ${y} characters. If selecting many fields, consider using views. If filtering with large arrays (e.g., .in('id', [200+ IDs])), consider using an RPC function instead.`)),{success:!1,error:{message:`${(o=i?.name)!==null&&o!==void 0?o:"FetchError"}: ${i?.message}`,details:l,hint:c,code:d},data:null,count:null,status:0,statusText:""}})),r.then(n,e)}async processResponse(n){var e=this;let t=null,s=null,a=null,r=n.status,i=n.statusText;if(n.ok){var o,l;if(e.method!=="HEAD"){var c;const p=await n.text();if(p!=="")if(e.headers.get("Accept")==="text/csv")s=p;else if(e.headers.get("Accept")&&(!((c=e.headers.get("Accept"))===null||c===void 0)&&c.includes("application/vnd.pgrst.plan+text")))s=p;else try{s=JSON.parse(p)}catch{if(t={message:p},s=null,e.shouldThrowOnError)throw new me({message:p,details:"",hint:"",code:""})}}const u=(o=e.headers.get("Prefer"))===null||o===void 0?void 0:o.match(/count=(exact|planned|estimated)/),m=(l=n.headers.get("content-range"))===null||l===void 0?void 0:l.split("/");if(u&&m&&m.length>1&&(a=parseInt(m[1])),e.isMaybeSingle&&Array.isArray(s))if(s.length>1){if(t={code:"PGRST116",details:`Results contain ${s.length} rows, application/vnd.pgrst.object+json requires 1 row`,hint:null,message:"JSON object requested, multiple (or no) rows returned"},s=null,a=null,r=406,i="Not Acceptable",e.shouldThrowOnError){var d;throw new me(ae(ae({},t),{},{hint:(d=t.hint)!==null&&d!==void 0?d:""}))}}else s.length===1?s=s[0]:s=null}else{const u=await n.text();try{t=JSON.parse(u),Array.isArray(t)&&n.status===404&&(s=[],t=null,r=200,i="OK")}catch{n.status===404&&u===""?(r=204,i="No Content"):t={message:u}}if(t&&e.shouldThrowOnError)throw new me(t)}return{success:t===null,error:t,data:s,count:a,status:r,statusText:i}}returns(){return this}overrideTypes(){return this}},es=class extends Qn{throwOnError(){return super.throwOnError()}select(n){let e=!1;const t=(n??"*").split("").map(s=>/\s/.test(s)&&!e?"":(s==='"'&&(e=!e),s)).join("");return this.url.searchParams.set("select",t),this.headers.append("Prefer","return=representation"),this}order(n,{ascending:e=!0,nullsFirst:t,foreignTable:s,referencedTable:a=s}={}){const r=a?`${a}.order`:"order",i=this.url.searchParams.get(r);return this.url.searchParams.set(r,`${i?`${i},`:""}${n}.${e?"asc":"desc"}${t===void 0?"":t?".nullsfirst":".nullslast"}`),this}limit(n,{foreignTable:e,referencedTable:t=e}={}){const s=typeof t>"u"?"limit":`${t}.limit`;return this.url.searchParams.set(s,`${n}`),this}range(n,e,{foreignTable:t,referencedTable:s=t}={}){const a=typeof s>"u"?"offset":`${s}.offset`,r=typeof s>"u"?"limit":`${s}.limit`;return this.url.searchParams.set(a,`${n}`),this.url.searchParams.set(r,`${e-n+1}`),this}abortSignal(n){return this.signal=n,this}single(){return this.headers.set("Accept","application/vnd.pgrst.object+json"),this}maybeSingle(){return this.isMaybeSingle=!0,this}csv(){return this.headers.set("Accept","text/csv"),this}geojson(){return this.headers.set("Accept","application/geo+json"),this}explain({analyze:n=!1,verbose:e=!1,settings:t=!1,buffers:s=!1,wal:a=!1,format:r="text"}={}){var i;const o=[n?"analyze":null,e?"verbose":null,t?"settings":null,s?"buffers":null,a?"wal":null].filter(Boolean).join("|"),l=(i=this.headers.get("Accept"))!==null&&i!==void 0?i:"application/json";return this.headers.set("Accept",`application/vnd.pgrst.plan+${r}; for="${l}"; options=${o};`),r==="json"?this:this}rollback(){return this.headers.append("Prefer","tx=rollback"),this}returns(){return this}maxAffected(n){return this.headers.append("Prefer","handling=strict"),this.headers.append("Prefer",`max-affected=${n}`),this}};const Tt=new RegExp("[,()]");var ue=class extends es{throwOnError(){return super.throwOnError()}eq(n,e){return this.url.searchParams.append(n,`eq.${e}`),this}neq(n,e){return this.url.searchParams.append(n,`neq.${e}`),this}gt(n,e){return this.url.searchParams.append(n,`gt.${e}`),this}gte(n,e){return this.url.searchParams.append(n,`gte.${e}`),this}lt(n,e){return this.url.searchParams.append(n,`lt.${e}`),this}lte(n,e){return this.url.searchParams.append(n,`lte.${e}`),this}like(n,e){return this.url.searchParams.append(n,`like.${e}`),this}likeAllOf(n,e){return this.url.searchParams.append(n,`like(all).{${e.join(",")}}`),this}likeAnyOf(n,e){return this.url.searchParams.append(n,`like(any).{${e.join(",")}}`),this}ilike(n,e){return this.url.searchParams.append(n,`ilike.${e}`),this}ilikeAllOf(n,e){return this.url.searchParams.append(n,`ilike(all).{${e.join(",")}}`),this}ilikeAnyOf(n,e){return this.url.searchParams.append(n,`ilike(any).{${e.join(",")}}`),this}regexMatch(n,e){return this.url.searchParams.append(n,`match.${e}`),this}regexIMatch(n,e){return this.url.searchParams.append(n,`imatch.${e}`),this}is(n,e){return this.url.searchParams.append(n,`is.${e}`),this}isDistinct(n,e){return this.url.searchParams.append(n,`isdistinct.${e}`),this}in(n,e){const t=Array.from(new Set(e)).map(s=>typeof s=="string"&&Tt.test(s)?`"${s}"`:`${s}`).join(",");return this.url.searchParams.append(n,`in.(${t})`),this}notIn(n,e){const t=Array.from(new Set(e)).map(s=>typeof s=="string"&&Tt.test(s)?`"${s}"`:`${s}`).join(",");return this.url.searchParams.append(n,`not.in.(${t})`),this}contains(n,e){return typeof e=="string"?this.url.searchParams.append(n,`cs.${e}`):Array.isArray(e)?this.url.searchParams.append(n,`cs.{${e.join(",")}}`):this.url.searchParams.append(n,`cs.${JSON.stringify(e)}`),this}containedBy(n,e){return typeof e=="string"?this.url.searchParams.append(n,`cd.${e}`):Array.isArray(e)?this.url.searchParams.append(n,`cd.{${e.join(",")}}`):this.url.searchParams.append(n,`cd.${JSON.stringify(e)}`),this}rangeGt(n,e){return this.url.searchParams.append(n,`sr.${e}`),this}rangeGte(n,e){return this.url.searchParams.append(n,`nxl.${e}`),this}rangeLt(n,e){return this.url.searchParams.append(n,`sl.${e}`),this}rangeLte(n,e){return this.url.searchParams.append(n,`nxr.${e}`),this}rangeAdjacent(n,e){return this.url.searchParams.append(n,`adj.${e}`),this}overlaps(n,e){return typeof e=="string"?this.url.searchParams.append(n,`ov.${e}`):this.url.searchParams.append(n,`ov.{${e.join(",")}}`),this}textSearch(n,e,{config:t,type:s}={}){let a="";s==="plain"?a="pl":s==="phrase"?a="ph":s==="websearch"&&(a="w");const r=t===void 0?"":`(${t})`;return this.url.searchParams.append(n,`${a}fts${r}.${e}`),this}match(n){return Object.entries(n).filter(([e,t])=>t!==void 0).f
+/* ---------- HAGYMÁS INTERAKTÍV ÚTVONALHALÓZAT (beágyazott térkép + GPX import) ---------- */
+const HGY = { filter: "mind" };
+const hgyIcon = t => t==="bringa" ? "🚲" : t==="esztena" ? "🐑" : "🥾";
+function hgyParseGpx(txt){
+  const x=new DOMParser().parseFromString(txt,"application/xml");
+  const nodes=[...x.querySelectorAll("trkpt,rtept,wpt")];
+  return nodes.map(n=>({lat:+n.getAttribute("lat"), lng:+n.getAttribute("lon"),
+    ele:(n.querySelector("ele")&&+n.querySelector("ele").textContent)||null})).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
+}
+function hgyStats(pts){
+  let d=0,up=0,dn=0,min=1e9,max=-1e9;
+  for(let i=1;i<pts.length;i++){ const a=pts[i-1],b=pts[i],R=6371e3,t=Math.PI/180;
+    const h=Math.sin((b.lat-a.lat)*t/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin((b.lng-a.lng)*t/2)**2;
+    d+=2*R*Math.

@@ -1,0 +1,335 @@
+s:setSettings, isRemote:isRemote, activeName:function(){ return getActive().name; },
+  restoreApply:applySnapshot, preSnapName:("v54_pre1") };
+/* ---------- SNAPSHOT restore (CLOUD→LOCAL, uid-hez kötve; idempotens) ---------- */
+function mergeFields(old, row){ var out=Object.assign({},old||{});
+  Object.keys(row||{}).forEach(function(k){ var v=row[k];
+    if(v && typeof v==="object" && !Array.isArray(v) && out[k] && typeof out[k]==="object" && !Array.isArray(out[k])) out[k]=mergeFields(out[k],v);
+    else out[k]=v; }); return out; }
+function upsertById(arr, rows){ var m={}, out=(arr||[]).slice(); out.forEach(function(x){ if(x&&x.id!=null) m[String(x.id)]=out.indexOf(x); });
+  (rows||[]).forEach(function(r){ if(!r||r.id==null){ if(r) out.push(r); return; } var k=String(r.id);
+    if(m[k]!=null) out[m[k]]=mergeFields(out[m[k]],r); else { out.push(r); m[k]=out.length-1; } }); return out; }
+function union(a,b){ var m={}; var o=[]; (a||[]).concat(b||[]).forEach(function(x){ var k=(x&&x.id)?String(x.id):String(x); if(!m[k]){ m[k]=1; o.push(x); } }); return o; }
+function applySnapshot(snap, opts){ try{
+  if(!snap||!snap.snap) return {ok:false, err:"empty"}; var s=snap.snap;
+  if(s.schema!=="v54.1") return {ok:false, err:"schema"};
+  if(String(s.linkedEmail).toLowerCase()!==normEmail(sess.email)) return {ok:false, err:"email_mismatch"};
+  var db; try{ db=JSON.parse(Store.exportData()); }catch(e){ return {ok:false,err:"local_data"}; } if(!db) return {ok:false,err:"local_data"};
+  db.users=db.users||{}; db.data=db.data||{};
+  // Work on a detached candidate; neither persistence nor Store.db changes yet.
+  var before=JSON.stringify(db);
+  var uid=s.localUserId||("u_"+djb(normEmail(s.linkedEmail)));
+  var exU=null, ek; for(ek in db.users){ if(db.users[ek].email===normEmail(s.linkedEmail)){ exU=ek; break; } }
+  var key=exU||uid; var lu=(db.users[key]=db.users[key]||{ id:key, email:normEmail(s.linkedEmail), joined:new Date().toISOString().slice(0,10) });
+  lu.name=(s.user&&s.user.name)||lu.name||"Túrázó"; lu.city=(s.user&&s.user.city)||lu.city||""; lu.onboarded=true;
+  if(s.user && s.user.bio!==undefined) lu.bio=s.user.bio;
+  if(!lu.pass) lu.pass=djb(normEmail(s.linkedEmail)+":v54restored");
+  var old=db.data[key]||{};
+  var d=s.data||{};
+  var merged=mergeFields(old,d);
+  ["tours","journal","routes","wishlist","equipment","inbox","teams","templates","terepi","budget","challenges"].forEach(function(f){ merged[f]=upsertById(old[f], (d[f]||[])); });
+  ["widgets","prefs","aiChat","goals","goalList"].forEach(function(f){ merged[f]= (d[f]!=null? d[f] : old[f]); });
+  merged.savedEvents=union(old.savedEvents, d.savedEvents); merged.notifDismiss=union(old.notifDismiss, d.notifDismiss);
+  merged.reports=upsertById(old.reports, d.reports||[]);
+  db.data[key]=merged;
+  /* platform + community merge (own uid-scoped rows only, upsert by id → no dup) */
+  db.platform=db.platform||{ organizers:[], events:[], participants:[] };
+  var pp=s.platform||{};
+  db.platform.organizers=upsertById(db.platform.organizers, pp.organizers);
+  /* only events that belong to this user are restored (never global others) */
+  if((pp.events||[]).length){ var em={}; pp.events.forEach(function(e){ em[String(e.id)]=1; });
+    db.platform.events=upsertById(db.platform.events.filter(function(e){ return !(em[String(e.id)] && pp.events.some(function(x){return x.id===e.id;})) || em[String(e.id)]===1 ? true : true; }), pp.events);
+  }
+  db.platform.participants=upsertById(db.platform.participants.filter(function(x){ return x.uid!==normEmail(s.linkedEmail) && !((pp.participants||[]).some(function(y){ return y.id===x.id; })); }), pp.participants);
+  db.community=db.community||{ profiles:[], connections:[], invites:[], notifs:[] };
+  var cc=s.community||{};
+  db.community.profiles=upsertById(db.community.profiles.filter(function(x){ return x.uid!==normEmail(s.linkedEmail); }), (cc.profiles||[]).map(function(x){ return Object.assign({id:(x.uid||"p")}, x); }));
+  db.community.connections=upsertById(db.community.connections, cc.connections);
+  db.community.invites=upsertById(db.community.invites, cc.invites);
+  db.community.notifs=upsertById(db.community.notifs, cc.notifs);
+  db.community.demoSeeded=true;
+  db.session=key;
+  var candidate=JSON.stringify(db);
+  if(candidate!==before){
+    var previousBackup=localStorage.getItem("turatars_v54_pre1");
+    if(!preSave(JSON.parse(before))) return {ok:false, err:"pre_restore_failed"};
+    var imp=Store.importData(candidate);
+    if(!imp||!imp.ok){
+      // importData leaves both the old memory and DB key intact on write failure.
+      try{ if(previousBackup===null) localStorage.removeItem("turatars_v54_pre1"); else localStorage.setItem("turatars_v54_pre1",previousBackup); }catch(e){}
+      return {ok:false, err:"storage_full"};
+    }
+  }
+  sess.restoredTs=snap.at||"";
+  return {ok:true, tours:(merged.tours||[]).length, routes:(merged.routes||[]).length, journal:(merged.journal||[]).length};
+}catch(e){ return {ok:false, err:"exception:"+String(e&&e.message).slice(0,60)}; } }
+function preSave(db){ try{
+  db=db||JSON.parse(Store.exportData()); if(!db) return false;
+  var raw=JSON.stringify({ts:new Date().toISOString(),db:db});
+  localStorage.setItem("turatars_v54_pre1",raw);
+  return localStorage.getItem("turatars_v54_pre1")===raw;
+}catch(e){ return false; } }
+function rollback(){ try{
+  var pre=JSON.parse(localStorage.getItem("turatars_v54_pre1")||"null"); if(!pre||!pre.db) return false;
+  var result=Store.importData(JSON.stringify(pre.db)); return !!(result&&result.ok);
+}catch(e){ return false; } }
+/* ---------- UI: Fiók & sync blokk a V50 profilban ---------- */
+function esc4(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function fmtT(ts){ try{ return new Date(ts).toLocaleString("hu-HU",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}); }catch(e){ return ""; } }
+function acctModal(prefillEmail, intent){ var em=prefillEmail||((Store.me()||{}).email||"");
+  openModal({ title: intent==="restore"? "☁️ Fiók a visszaállításhoz" : "☁️ Fiók létrehozása és mentés", body:
+    '<div class="e2form"><label class="f">E-mail *</label><input class="input" id="v4_e" type="email" value="'+esc4(em)+'">'+
+    '<label class="f">Jelszó (min. 8 char) *</label><input class="input" id="v4_p" type="password">'+
+    (isRemote()? '<p class="small muted">💾 A mentés a szerverre megy: '+esc4(remoteBase())+"</p>" :
+     '<p class="small muted">🔒 Ezen az eszközön elkülönített trezorba mentünk (PBKDF2). Valódi szerver-csatlakozás után ugyanígy a felhőbe — az UI ugyanaz marad.</p>')+
+    '<p class="small muted">E-mail + jelszó bejelentkezés. Google bejelentkezés jelenleg nem elérhető.</p>'+
+    '<p id="v4_err" class="e2-err" style="display:none"></p></div>',
+   footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="v4_go">'+(intent==="restore"?"🔓 Belépés és visszaállítás":"☁️ Fiók és mentés most")+"</button>",
+   onOpen:function(m){ m.querySelector("#v4_go").onclick=function(){ var e4=m.querySelector("#v4_e").value, p4=m.querySelector("#v4_p").value; var er=m.querySelector("#v4_err");
+     var show=function(t){ er.textContent=t; er.style.display=""; };
+     var A=getActive(); sess.provider=A.name;
+     Promise.resolve(A.signup(normEmail(e4), p4, (Store.me()&&Store.me().name)||"Túrázó"))
+      .then(function(sg){ sess.token=sg.token||null; sess.email=normEmail(e4); sess.uid=sg.uid||null; sess.pending=!!sg.pending;
+        if(sess.pending){ sess.status="pending"; sset_(); renderBlock(); show("Erősítsd meg az e-mail címedet a Supabase levelében, majd jelentkezz be újra."); return false; }
+        sess.status="ready"; sset_();
+         return finishIntent(intent, e4); })
+      .catch(function(e1){ /* signup collision? try login */ if(e1&&String(e1.error||"").match(/exist|password|reused|email/i)){
+          return Promise.resolve(A.login(normEmail(e4), p4)).then(function(l){ sess.token=l.token||null; sess.email=normEmail(e4); sess.uid=l.uid||null; sess.pending=!!l.pending; sess.status=sess.pending?"pending":"ready"; sset_(); if(sess.pending){ show("Az e-mail cím még nincs megerősítve."); return false; } return finishIntent(intent, e4); }).catch(function(e2){ show(mapErr(e2)); }); }
+        show(mapErr(e1)); }); }; } }); }
+function mapErr(e){ var c; try{ c=String((e&&e.error)||e||""); }catch(x){ c="error"; } try{ if(/fetch|network|Failed/i.test(String(e&&e.message||e))) c="network"; }catch(y){}
+  return ({bad_password:"A jelszó nem egyezik.", unauthorized:"A fiók-munkamenet lejárt — lépj be újra.", email_confirmation_required:"Előbb erősítsd meg az e-mail címedet.", expected_version_required:"Előbb töltsd be a felhő aktuális állapotát.", version_conflict:"A felhőben újabb mentés van. Töltsd vissza azt, majd ments újra.", invalid_snapshot:"A helyi mentés hiányos, ezért nem küldtük fel.", credentials_not_allowed:"A mentés tiltott fiókadatot tartalmaz, ezért nem küldtük fel.", email_mismatch:"A helyi és a felhőfiók e-mail címe nem egyezik.", too_large:"A mentés túl nagy ehhez a tárolóhoz — törölj régi GPX-fájlokat.", storage_full:"A böngésző tárhelye tele — a HELYI adataid érintetlenek maradtak.", bad_email:"Az e-mail formátum hibás.", weak_password:"A jelszónak legalább 8 karakter kell lennie.", network:"Nincs kapcsolat — a módosítások helyben mentve."}
+    [c]) || ("A művelet most nem sikerült ("+c+"). A helyi adataid érintetlenek."); }
+function finishIntent(intent, e4){ var A=getActive(); if(A.name!=="supabase-snapshot"){ if(intent==="restore") return doLoad(true); return doSave(true); }
+  return Promise.resolve(A.load(sess.token)).then(function(remote){
+    if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); if(intent==="save") return doSave(true); toast("A fiókodban még nincs mentés","☁️"); return null; }
+    if(!remote||remote.error) throw (remote||{error:"cloud_error"});
+    sess.remoteVersion=Number(remote.version); sset_();
+    if(intent==="restore") return doLoad(true,remote);
+    sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false;
+  }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; }); }
+function curLocalEmail(){ var u=Store.me(); return u&&u.email? normEmail(u.email): (sess.email||null); }
+function doSave(silentOk){ var em=curLocalEmail(); if(!em){ toast("Előbb jelentkezz be a helyi fiókodba","🔑"); return Promise.resolve(false); }
+  sess.status="saving"; renderBlock();
+  var snap=buildSnapshot(em);
+  if(!snap){ sess.status="error"; sess.err="nincs local user ezzel az emaillel"; renderBlock(); return Promise.resolve(false); }
+  var A=getActive();
+  if(A.name==="supabase-snapshot" && !Number.isSafeInteger(sess.remoteVersion)){
+    return Promise.resolve(A.load(sess.token)).then(function(remote){ if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); return doSave(silentOk); }
+      if(remote&&!remote.error){ sess.remoteVersion=Number(remote.version); sset_(); sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false; }
+      throw (remote||{error:"cloud_error"}); }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; });
+  }
+  return Promise.resolve(A.save(sess.token, snap, sess.remoteVersion)).then(function(r){ if(r&&r.error){ throw {error:r.error}; }
+    if(r&&Number.isSafeInteger(Number(r.version))) sess.remoteVersion=Number(r.version);
+    sess.status="saved"; sess.lastAt=(r&&r.at)||Date.now(); sess.err=null; sset_();
+    var sets=settings(); sets.linked=sets.linked||{}; sets.linked[sess.email]=1; setSettings(sets);
+    renderBlock(); toast(silentOk? "☁️ Adatok a fiókba mentve (példány: "+((r&&r.size)?Math.round(r.size/1024)+" KB":"kész")+")":"☁️ Szinkronizálva","☁️"); return true; })
+   .catch(function(e){ var err=(e&&e.error)||(e&&e.message)||""; if(/TypeError|toLowerCase|undefined/.test(err)){ err="internal"; } sess.status="error"; sess.err=err?mapErr(e):'ismeretlen'; renderBlock(); toast(sess.err,"⚠️"); return false; }); }
+ function doLoad(auto,preloaded){ var A=getActive();
+  return Promise.resolve(preloaded||A.load(sess.token)).then(function(snap){ if(!snap||snap.error==="empty"){ if(snap&&Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_(); toast("A fiódban még nincs mentés","☁️"); if(auto) return; return null; }
+     if(snap.error){ if(!auto) toast(mapErr(snap),"⚠️"); return null; }
+    if(Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_();
+    var res=applySnapshot(snap);
+    if(!res.ok){ if(res.err==="email_mismatch"){ toast("Ez a mentés másik fiókhoz tartozik — a privát adatok így is védve maradnak.","🔒"); } else toast("A visszaállítás nem sikerült — a helyi adatok érintetlenek maradtak. ("+res.err+")","⚠️"); renderBlock(); return null; }
+    toast("📥 Fiókból visszaállítva. (Biztonsági pillanatkép: "+((res.tours||0))+" túra, "+(res.routes||0)+" route) Előző állapot: „vissza az előzőhöz”.", "☁️");
+    try{ App.render(); }catch(e){} renderBlock(); sess.status="restored"; return res; }); }
+var _v54Shown=0;
+function v54Busy(){ try{ return _v54Shown || !!document.querySelector("[data-modal]"); }catch(e){ return true; } }
+/* ---------- offer logic ---------- */
+function maybeOffer(){ try{ if(v54Busy()) return; var u=Store.me(); if(!u) return; var sets=settings();
+  if(sess.email) return; var lastOffer=(sets.offers&&sets.offers[normEmail(u.email)])||0;
+  if(Date.now()-lastOffer < 1000*60*60*24*7) return; /* 1/day max */
+  var d=(function(){ try{ var dd=JSON.parse(localStorage.getItem("turavaros_v1")); return dd&&dd.data&&dd.data[u.id]; }catch(e){ return null; } })();
+  if(!d) return; if(!( (d.tours||[]).length || (d.journal||[]).length || (d.routes||[]).length || (d.wishlist||[]).length )) return void 0;
+  sets.offers=sets.offers||{}; sets.offers[normEmail(u.email)]=Date.now(); setSettings(sets);
+  _v54Shown=1; openModal({ title:"☁️ Fiók és adatbiztonság", body:'<p class="muted mt0" style="font-weight:600">☁️ Mentsük el az adataidat a fiókodba?</p><p class="small muted" style="margin:.2rem 0">Eddig csak ezen a böngészőn tároltuk — e-mail + jelszó (PBKDF2) védett tárolóba mentjük; szerver csatlakozása után ugyanígy a felhőbe.</p>'+
+    "<p class=\\"small\\">🥾 "+((d.tours||[]).length)+" projekt · 🗺️ "+((d.routes||[]).length)+" útvonal · 📖 "+((d.journal||[]).length)+" élmény — helyben maradnak, nem törlődnek semmi caso-ban sem.</p>",
+    footer:'<button class="btn btn-ghost" id="v4_later">Most kihagyom</button> <button class="btn btn-primary" id="v4_now">☁️ Mentés a fiókba</button>',
+    onOpen:function(m){ m.querySelector("#v4_now").onclick=function(){ closeModal(); acctModal(u.email,"save"); }; m.querySelector("#v4_later").onclick=function(){ closeModal(); }; } });
+}catch(e){} }
+/* ---------- profile block ---------- */
+function c54Inner(){ var s=sess; var remote=isRemote();
+  var linked=!!s.email; var u=Store.me()||{};
+  var stat = !linked? '<span class="chip chip-sand">☁️ Nincs fiók összekötve</span>'
+    : s.status==="pending"? '<span class="chip chip-amber">✉️ E-mail megerősítésre vár</span>'
+    : (s.status==="saved"||s.status==="restored")? '<span class="chip chip-green">☁️ Szinkronizálva · '+esc4(fmtT(s.lastAt||s.restoredTs||Date.now()))+"</span>"
+    : s.status==="saving"? '<span class="chip chip-amber">☁️ Mentés folyamatban…</span>'
+    : s.status==="error"? '<span class="chip chip-rose">☁️ Hiba: '+esc4(String(s.err||"") )+"</span>"
+    : '<span class="chip chip-sand">☁️Fiók: '+esc4(s.email)+ (navigator.onLine===false?" — offline":"")+"</span>";
+  var line = remote? "💾 Cél: szerver ("+esc4(remoteBase())+")" : "🔒 Cél: ehhez az eszközhöz rendelt titkosított trezor";
+  return '<h2>☁️ Fiók és szinkronizálás</h2>'+
+    '<div class="c54row">'+stat+"<span class='chip chip-sand'>🧍 "+esc4(u.name||"Túrázó")+(u.email?" · "+esc4(u.email):"")+"</span>"+(!navigator.onLine? "<span class='chip chip-amber'>Offline – a módosítások helyben mentve.</span>":"")+ (u.pass&&false?"":"")+"</div>"+
+    '<p class="small muted mb0">'+line+"</p>"+
+    '<div class="c54btns">'+ (!linked? '<button class="btn btn-primary btn-sm" id="c54-link">🔗 Fiók létrehozása mentéshez</button>'
+      : (s.linkedEmail&&s.linkedEmail!==normEmail(u.email))? '<button class="btn btn-soft btn-sm" id="c54-rel">🔁 Újrakereseli a jelenlegi userhez</button>'
+      : '<button class="btn btn-soft btn-sm" id="c54-save">💾 Mentés a fiókba / Szinkron most</button>')+
+      (linked&&normEmail(u.email)!==sess.email? "":'')+
+      (linked? '<button class="btn btn-soft btn-sm" id="c54-load">📥 Visszaállítás a fiókból</button>':'')+
+      '<button class="btn btn-ghost btn-sm" id="c54-out">🚪 Fiók kilépés</button>'+
+      '<button class="btn btn-ghost btn-sm" id="c54-back">↩️ Előző helyi állapot vissza&lt;fordítás&gt;</button>'+
+    "</div>"+
+    '<p class="small muted">E-mail + jelszó belépés aktív. A Google bejelentkezés jelenleg nem elérhető.</p>'; }
+function renderBlock(){ try{ var root=document.getElementById("c54sec"); if(!root) return; root.innerHTML=c54Inner(); wireBlock(); }catch(e){} }
+function wireBlock(){ var $=function(id){ return document.getElementById(id); };
+  var b=$("c54-link"); if(b) b.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
+  var sv=$("c54-save"); if(sv) sv.onclick=function(){ if(!isRemote()&&navigator.onLine===false){ toast("Offline — a szinkronizálás later, a helyi mentés él.","📡"); } doSave(false); };
+  var ld=$("c54-load"); if(ld) ld.onclick=function(){ if(!confirmRestore()) return; doLoad(false); };
+  var ro=$("c54-rel"); if(ro) ro.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
+  var out=$("c54-out"); if(out) out.onclick=function(){ window.__V54.api.logoutNow(); toast("Kijelentkeztél a fiókból — a helyi app tovább működik","☁️"); try{ App.render(); }catch(e){} };
+  var bb=$("c54-back"); if(bb) bb.onclick=function(){ try{ var pre=JSON.parse(localStorage.getItem("turatars_v54_pre1")||"null"); if(!pre){ toast("Nincs előző pillanatkép","↩️"); return; } if(!rollback()){ toast("Nem sikerült a visszaállítás — a helyi adatok változatlanok","⚠️"); return; } toast("Visszaállítva az előző helyi állapotot ("+fmtT(pre.ts)+")","↩️"); try{ App.render(); }catch(e){} }catch(e){ toast("Nem sikerült","⚠️"); } }; }
+function confirmRestore(){ try{ var d=(Store.myData()||{}); if(((d.tours||[]).length)) { return confirm("A visszaállítás FELÜLÍRJA a jelenlegi helyi adatokat a fiókod mentésével (a mentés magától biztonsági pillanatképet készít). Folytassam?"); } }catch(e){} return true; }
+(function(){ var _p50=VIEWS.profile&&VIEWS.profile.after;
+  VIEWS.profile.after=function(root){ try{ _p50&&_p50(root); }catch(e){}
+    try{ if(!root||root.querySelector("#c54sec")||root.querySelector(".c54x")) return; var host=root.querySelector(".p5"); if(!host) return;
+      var sec=document.createElement("section"); sec.className="card panel p5-sec c54x"; sec.id="c54sec"; sec.innerHTML=c54Inner();
+      var last=root.querySelector(".p5 > section:nth-last-child(4)"); if(last&&last.parentNode===host){ host.insertBefore(sec, last.nextSibling); } else host.insertBefore(sec, host.querySelector(".p5-hero")); 
+      wireBlock(); }catch(e){} }; })();
+/* offline sáv */
+(function(){ function banner(){ var ex=document.getElementById("c54band");
+    if(!navigator.onLine){ if(!ex){ var d=document.createElement("div"); d.id="c54band"; d.className="c54-band chip chip-amber"; d.textContent="Offline – a módosítások helyben mentve."; document.body.appendChild(d); } }
+    else if(ex){ ex.remove(); if(sess.email){ sess.status="ready"; renderBlock(); toast("🌐 Online — szinkronizálhatsz a Fiók & szinkronizálás blokkból","☁️"); } } }
+  window.addEventListener("online", banner); window.addEventListener("offline", function(){ sess.status="offline"; banner(); }); banner();
+  var t=setInterval(banner, 20000); })();
+/* session resume + first offer on load hook */
+(function(){ var s0=sget_(); if(s0&&s0.email){ sess.token=s0.token||null; sess.email=s0.email; sess.uid=s0.uid||null; sess.pending=!!s0.pending; sess.remoteVersion=Number.isSafeInteger(Number(s0.remoteVersion))?Number(s0.remoteVersion):null; sess.provider=s0.provider||((s0.token&&/^tk_/.test(s0.token))?"local-vault":(SupabaseAdapter?"supabase-snapshot":(base()?"cloud-http":"local-vault")));
+    if(sess.pending&&!sess.token){ sess.status="pending"; renderBlock(); return; }
+    if(!sess.token) return;
+    sess.status="ready"; getActive().whoami(s0.token).then(function(w){ if(w){ sess.uid=w.uid; if(w.token) sess.token=w.token; sess.status="ready"; sset_(); renderBlock(); } else { clearSess(); renderBlock(); } }).catch(function(e){ if(navigator.onLine===false||/network/i.test(String((e&&e.error)||e||""))){ sess.status="offline"; renderBlock(); } else { clearSess(); renderBlock(); } }); } })();
+/* friss eszközre相同 sessionnel: restore-ajánlat */
+setTimeout(function(){ try{ if(v54Busy() || !sess.email || Store.me()) return;
+  var A=getActive(); A.load(sess.token).then(function(s){ try{
+    if(!s||s.error||!s.snap) return; if(sess.restoreOffered) return; sess.restoreOffered=1;
+    var n=(s.snap.data&&s.snap.data.tours||[]).length;
+    _v54Shown=1; openModal({ title:"☁️ Üdv újra — ez az eszköz még üres", body:'<p class="muted mt0">A fiókodban találtunk mentést ('+esc4(s.snap.linkedEmail)+", "+n+" túra, "+fmtT(s.at||s.snap.ts)+"). Visszaállítsuk ide?</p>",
+      footer:'<button class="btn btn-ghost" data-close>Most kihagyom</button> <button class="btn btn-primary" id="v4_rst">☁️ Visszaállítás a fiókból</button>',
+      onOpen:function(m){ var g=m.querySelector("#v4_rst"); if(g) g.onclick=function(){ doLoad(true); closeModal(); }; } });
+  }catch(e){} }); }catch(e){} }, 2300);
+setTimeout(function(){ try{ maybeOffer(); }catch(e){} }, 1700);
+window.__V54.api.restoreApply=applySnapshot;
+window.__V54.api.preSave=function(){ return preSave(); };
+window.__V54.api.rollback=rollback;
+window.__V54.uid=function(){ return sess.uid; };
+})();
+
+/* ==== app ==== */
+/* ============================================================
+   TÚRAVAROS — ROUTER + BOOT
+   ============================================================ */
+"use strict";
+const App = {
+  render(){
+    const raw = (location.hash || "#/").replace(/^#/, "");
+    const [path, qs] = raw.split("?");
+    const seg = path.split("/").filter(Boolean);
+    const params = Object.fromEntries(new URLSearchParams(qs || ""));
+    const route = seg[0] || "";
+    const arg = seg[1];
+    const ROUTES = {
+      "": "home", felfedezes: "discover", esemenyek: "events", helyek: "places",
+      turak: "tourDetail", belepes: "login", regisztracio: "register", onboarding: "onboarding",
+      vezerlopult: "dash", turaim: "tours", "uj-tura": "newTour", tura: "workspace", naptar: "calendar",
+      bakancslista: "wishlist", felszereles: "equipment", csapatok: "teams", naplo: "journal",
+      statisztikak: "stats", hagymas: "hagymas", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
+      utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", szervezoknek: "szervezoknek", tarsak: "tarsak", meghivo: "meghivo"
+    };
+    const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo"];
+    let key = ROUTES[route] || "404";
+
+    if (DASHY.includes(key) && !Store.me()) {
+      toast("Ez a személyes túraközpont — előbb jelentkezz be", "🔐");
+      location.hash = "#/belepes";
+      key = "login";
+    }
+    document.body.classList.remove("in-dash");
+
+    const root = document.getElementById("view");
+    closeModal();
+
+    if (key === "tourDetail") {
+      const t = tourById(arg);
+      
+      root.innerHTML = VIEWS.discover();
+      if (VIEWS.discover.after) VIEWS.discover.after(root);
+      renderHeader(); renderMobileNav();
+      if (t) tourModal(t.id); else toast("Ilyen túra nem található a katalógusban", "🤔");
+      return;
+    }
+    if (key === "events" && arg) {
+      const e = EVENTS.find(x => x.id === arg);
+      root.innerHTML = VIEWS.events();
+      VIEWS.events.after(root);
+      renderHeader(); renderMobileNav();
+      if (e) eventModal(e.id); else history.replaceState(0, "", "#esemenyek");
+      return;
+    }
+
+    const v = App.view(key);
+    let html;
+    if (key === "404") {
+      html = \`<div class="wrap" style="padding:80px 20px;text-align:center"><h1>Az ösvény itt elfogy 🧭</h1>
+        <p class="muted">Ez az oldal nem létezik (még).</p><a class="btn btn-primary" href="#/">Kezdőlap</a></div>\`;
+    } else if (key === "workspace" || key === "security") {
+      html = VIEWS[key](arg);
+    } else if (key === "tourmode") {
+      html = VIEWS.tourmode(arg);
+    } else if (key === "share") {
+      html = VIEWS.share(arg);
+    } else if (key === "terepi") {
+      html = VIEWS.terepi();
+    } else if (key === "templates") {
+      html = VIEWS.templates();
+    } else if (key === "newTour") {
+      html = VIEWS.newTour(params);
+    } else {
+      html = VIEWS[key]();
+    }
+    root.innerHTML = html;
+
+    const afterFn = { home: VIEWS.home.after, share: VIEWS.share.after, dash: VIEWS.dash.after, tours: VIEWS.tours.after, discover: VIEWS.discover.after,
+      events: VIEWS.events.after, places: VIEWS.places.after, login: VIEWS.login.after, register: VIEWS.register.after,
+      onboarding: VIEWS.onboarding.after, newTour: VIEWS.newTour.after, calendar: VIEWS.calendar.after,
+      wishlist: VIEWS.wishlist.after, equipment: VIEWS.equipment.after, teams: VIEWS.teams.after,
+      journal: VIEWS.journal.after, stats: VIEWS.stats.after, routes: VIEWS.routes && VIEWS.routes.after ? VIEWS.routes.after : null, hagymas: VIEWS.hagymas && VIEWS.hagymas.after ? VIEWS.hagymas.after : null, ai: VIEWS.ai.after, mymap: VIEWS.mymap.after, inbox: VIEWS.inbox && VIEWS.inbox.after,
+      notifs: VIEWS.notifs.after, settings: VIEWS.settings.after, profile: VIEWS.profile.after, szervezo: (VIEWS.szervezo&&VIEWS.szervezo.after)||null, szervezoknek: (VIEWS.szervezoknek&&VIEWS.szervezoknek.after)||null, tarsak: (VIEWS.tarsak&&VIEWS.tarsak.after)||null, meghivo: (VIEWS.meghivo&&VIEWS.meghivo.after)||null, szatt: null,
+      terepi: VIEWS.terepi && VIEWS.terepi.after ? VIEWS.terepi.after : null, templates: VIEWS.templates && VIEWS.templates.after ? VIEWS.templates.after : null }[key];
+    const wsAfter = key === "workspace" ? VIEWS.workspace.after : (key === "tourmode" ? VIEWS.tourmode.after : null);
+    (wsAfter || afterFn) && (wsAfter || afterFn)(root, arg, params);
+
+    renderHeader();
+    renderMobileNav();
+    if (DASHY.includes(location.hash.replace(/^#\\/?/, "").split("/")[0]) || location.hash.startsWith("#/tura/")) document.body.classList.add("in-dash");
+    if (!location.hash.startsWith("#/tura/")) window.scrollTo(0, 0);
+
+    // „Teljesítetted?” — szándékosan elfeledett, lejárt túrák naplózása (képernyőnként egyszer)
+    if (key === "dash" && !sessionStorage.getItem("tv-prompted")) {
+      const over = Store.myData().tours.find(t => t.status === "tervezés" && t.date && t.date < Store.todayISO());
+      if (over) {
+        sessionStorage.setItem("tv-prompted", "1");
+        setTimeout(() => openModal({
+          title: "Lejárt egy túraterved 🥾",
+          body: \`<p class="mt0">A(z) <b>\${esc(over.title)}</b> terve \${fmtDateFull(over.date)}-ra szólt — mi történt?
+            Ha megvolt, naplózd fel pár sorban; ha elmaradt, tervezd újra egy nieuwe dátumra.</p>\`,
+          footer: \`<div class="flex" style="gap:.5rem;justify-content:flex-end;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" data-close>Később</button>
+            <button class="btn btn-soft btn-sm" id="pm-move">Újratervezem</button>
+            <button class="btn btn-ember" id="pm-done">✓ Megvolt — naplózom!</button></div>\`,
+          onOpen(r) {
+            r.querySelector("#pm-done").onclick = () => { closeModal(); finishFlow(over); };
+            r.querySelector("#pm-move").onclick = () => {
+              closeModal();
+              Store.updateTour(over.id, { date: Store.addDays(Store.todayISO(), 7), status: "tervezés" });
+              toast("Új dátum: egy hét múlva. Hajrá! 💪", "📅"); render();
+            };
+          }
+        }));
+      }
+    }
+  },
+  view(id) { return VIEWS[id]; }
+};
+window.App = App;
+function render() { App.render(); }
+
+window.addEventListener("hashchange", () => App.render());
+window.addEventListener("DOMContentLoaded", () => { if (!location.hash) location.hash = "#/";
+  if (window.statsBumpInstall) window.statsBumpInstall(App);
+  App.render(); });
+;window.Store=Store;window.VIEWS=VIEWS;window.tourReview=tourReview;window.smartPlanner=smartPlanner;(function(){ ["EVENTS","IMG","TOURS","TEMPLATES_DEFAULT"].forEach(function(k){ try{ window[k]=eval(k); }catch(e){} }); })();`,Fn=Symbol.for("@supabase/supabase-js.traceContextExtractor");function Bn(){return globalThis[Fn]}function tt(n,e){var t={};for(var s in n)Object.prototype.hasOwnProperty.call(n,s)&&e.indexOf(s)<0&&(t[s]=n[s]);if(n!=null&&typeof Object.getOwnPropertySymbols=="function")for(var a=0,s=Object.getOwnPropertySymbols(n);a<s.length;a++)e.indexOf(s[a])<0&&Object.prototype.propertyIsEnumerable.call(n,s[a])&&(t[s[a]]=n[s[a]]);return t}function Hn(n,e,t,s){function a(r){return r instanceof t?r:new t(function(i){i(r)})}return new(t||(t=Promise))(function(r,i){function o(d){try{c(s.next(d))}catch(u){i(u)}}function l(d){try{c(s.throw(d))}catch(u){i(u)}}function c(d){d.done?r(d.value):a(d.v

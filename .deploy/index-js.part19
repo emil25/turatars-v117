@@ -1,0 +1,199 @@
+/button>':""); }\r
+  else if(e.joinMode==="external"&&e.joinUrl){ jo='<a class="btn btn-ember btn-sm" href="'+esc2(e.joinUrl)+'" target="_blank" rel="noopener">🔗 Jelentkezés a szervezőnél</a>'; }\r
+  else if(e.joinMode==="none"){ jo='<span class="small muted">Nincs jelentkezési rendszer.</span>'; }\r
+  var cal='<button class="btn btn-soft btn-sm" data-e2cal="'+e.id+'">'+(savedIn(e)?"✓ Már a naptáradban van":"📅 Naptárba")+"</button>";\r
+  var ed=(o&&e.orgId===o.id)?'<button class="btn btn-ghost btn-sm" data-e2edit="'+e.id+'">✏️ Szerkesztés</button>':'';\r
+  return jo+cal+ed; }\r
+function patchJoinBlock(eid){ var m=document.querySelector('[data-modal]'); if(!m) return; var host=m.querySelector('.e2x'); var row=host?host.previousElementSibling:null; if(!row){ }\r
+  var act=m.querySelector('.e2x'); if(!act) return; var holder=act.querySelector('[data-e2join],[data-e2wd]'); if(!holder||!holder.parentElement) return;\r
+  holder.parentElement.innerHTML=rEV(eid); }\r
+function reopenEvModal(eid){ try{ if(document.querySelector("[data-modal]")){ setTimeout(function(){ try{ closeModal(); window.v49OpenEv&&window.v49OpenEv("p2-"+eid); }catch(e){} },160); } }catch(e){} }\r
+function savedIn(ev){ var d=Store.myData(); return (d.savedEvents||[]).indexOf("p2-"+ev.id)>-1; }\r
+function myJoin(eid){ var p=P(); return p.participants.find(function(x){ return x.eid===eid && x.uid===myId(); })||null; }\r
+\r
+/* ---------- műveletek ---------- */\r
+function joinEv(eid){ var ev=getEvent(eid); if(!ev||ev.status==="cancelled") { toast("Az esemény nem vár jelentkezést","🔴"); return; }\r
+  if(ev.joinMode!=="internal"){ toast("Külső jelentkezés: a szervező linkjén intézheted","🔗"); return; }\r
+  var ex=myJoin(eid); if(ex&&ex.status!=="withdrawn"){ toast("Már jeleztél részvételt","👥"); return; }\r
+  if(ev.cap && counts(eid).tot>=ev.cap){ toast("🔴 Betelt — sajnos nincs több hely","👥"); return; }\r
+  var p=P(); var row=ex; if(!row){ row={id:"pt_"+Math.random().toString(36).slice(2,8), eid:eid, uid:myId(), name:(myU().name||"Túrázó"), at:nowISO(), status:"pending"}; p.participants.push(row); }\r
+  else { row.status="pending"; row.at=nowISO(); row.withdrewAt=null; }\r
+  if(ev.cap && counts(eid).tot>=ev.cap){ ev.status="full"; }\r
+  Store.save(); toast(ev.demo? "Jelentkezés rögzítve a DEMO eseményre (szemléltető)" : "🟠 Jelentkezés elküldve a szervezőnek","👥"); patchJoinBlock(eid); refreshHere(); }\r
+function withdraw(eid){ var row=myJoin(eid); if(!row||row.status==="withdrawn") return; row.status="withdrawn"; row.wdAt=nowISO(); var ev=getEvent(eid); if(ev&&ev.status==="full") ev.status="published"; Store.save(); toast("Jelentkezés visszavonva","⚪"); patchJoinBlock(eid); refreshHere(); }\r
+function addToCal(eid){ var ev=getEvent(eid); if(!ev||!ev.date) return; var d=Store.myData(); d.savedEvents=d.savedEvents||[]; var key="p2-"+eid; if(d.savedEvents.indexOf(key)>-1){ toast("✓ Már a naptáradban van","📅"); return; } d.savedEvents.push(key); Store.save(); toast("Hozzáadva a naptáradhoz","📅"); patchJoinBlock(eid); refreshHere(); }\r
+function decide(pid,status){ var p=P(); var row=p.participants.find(function(x){return x.id===pid;}); if(!row) return; var ev=getEvent(row.eid); var o=isOrg(); if(!ev||!o||ev.orgId!==o.id){ toast("Nem vagy jogosult处理ni","🔒"); return; } if(status==="accepted"&&ev.cap&&counts(ev.id).acc>=ev.cap){ toast("Limit: nem fogadhatsz többet","🔴"); return; } row.status=status; row.decAt=nowISO(); Store.save(); try{ if(window.v53OnDecide) window.v53OnDecide(row,status,ev); }catch(e2){} toast(status==="accepted"?"🟢 Elfogadva":"🔴 Elutasítva","📋"); if(window.__e2appLast){ closeModal(); setTimeout(function(){ orgApplicants(window.__e2appLast); },150); } else refreshHere(); }\r
+function evStatus(eid,st){ var ev=ownEvent(eid); if(!ev){ toast("Csak a saját eseményt módosíthatod","🔒"); return; } ev.status=st; Store.save(); toast({published:"Publikálva 🌐",draft:"Piszozatba véve",cancelled:"Lemondva 🛑",completed:"Lezárva ✓"}[st]||"Módosítva",st==="cancelled"?"🛑":"•"); refreshHere(); }\r
+function changedBannerForTour(t){ try{ if(!t||!t.eventRef||String(t.eventRef).indexOf("p2-")!==0) return ""; var ev=getEvent(t.eventRef.slice(3)); if(!ev) return ""; var seen=t.evsRev; if(seen==null) { t.evsRev=ev.rev; Store.save(); return ""; } if(ev.rev>seen){ return '<div class="card panel e2note">⚠️ Az esemény adatai megváltoztak (frissítés '+ (ev.date||"") +'). A te tervedet nem írtuk át — <button class="btn btn-ghost btn-sm" id="e2sync">Frissítem a tervet</button></div>'; } return ""; }catch(e){ return ""; } }\r
+\r
+function refreshHere(){ try{ if(document.querySelector("[data-modal]")) return; if(window.App&&App.render) App.render(); }catch(e){} }\r
+/* ---------- GPX preview (V47 parser újrafelhasználása) ---------- */\r
+function gpxStats(pr){ var tr=(pr&&pr.track)||[]; var st=(pr&&pr.stats)||{}; return { n:st.n||tr.length, km:st.km!=null?Math.round(st.km*10)/10:null, gain:st.gain!=null?st.gain:null, loss:st.loss!=null?st.loss:null, maxE:st.max!=null?st.max:(function(){ var m=null; tr.forEach(function(pt){ var e=pt&&pt[2]!=null?+pt[2]:null; if(e!=null&&isFinite(e)&&(m===null||e>m)) m=e; }); return m; })() }; }\r
+function miniProfileSVG(track){ try{ var vals=(track||[]).map(function(pt){return pt&&pt.length>2?+pt[2]:null;}).filter(function(v){return v!=null&&!isNaN(v);}); if(vals.length<3) return '<p class="small muted">Elevation profilhoz nincs adat — nem becsüljük.</p>';\r
+  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), w=280, h=54; var pts=vals.map(function(v,i){ return (Math.round(i/(vals.length-1)*w))+","+(Math.round(h-(v-mn)/((mx-mn)||1)*(h-6)-3)); }).join(" ");\r
+  return '<svg viewBox="0 0 '+w+" "+h+'" class="e2-prof" role="img" aria-label="Magassági profil"><polyline points="'+pts+'" fill="none" stroke="#1C4A36" stroke-width="2"/></svg><p class="small muted" style="margin:.15rem 0 0">⛰️ '+Math.round(mn)+"–"+Math.round(mx)+" m · 📍 "+vals.length+" pont (minta a teljes trackből)</p>"; }catch(e){ return ""; } }\r
+function miniMapInto(el, track){ try{ if(!el) return; if(typeof MapKit==="undefined"||!window.L){ el.innerHTML='<p class="small muted">A térkép most nem elérhető — az útvonal adatai így is menthetők.</p>'; return; }\r
+  var pts=(track||[]).filter(function(p){return p&&p[0]!=null&&p[1]!=null;}); if(pts.length<2){ el.innerHTML='<p class="small muted">Túl kevés pont a térképhez.</p>'; return; }\r
+  var m=MapKit.make(el,{lat:pts[0][0],lng:pts[0][1]}); if(m){ window.L.polyline(pts.map(function(p){return [p[0],p[1]];}),{color:"#1C4A36",weight:3}).addTo(m); if(m.fitBounds) m.fitBounds(window.L.latLngBounds(pts.map(function(p){return [p[0],p[1]];}))); } }catch(e){ try{ el.innerHTML='<p class="small muted">Térkép-hiba — menthető az adat.</p>'; }catch(e2){} } }\r
+\r
+/* ---------- esemény-űr (létrehozás/szerkesztés) ---------- */\r
+function evForm(existing){ var e=existing||{}; var isEdit=!!existing;\r
+  var F=function(k,v){ return '<input class="input" id="e2f_'+k+'" value="'+esc2(v==null?"":v)+'">'; };\r
+  openModal({ title: isEdit?("✏️ Esemény szerkesztése — "+(e.name||"")):"＋ Új túraesemény",\r
+   body:'<div class="e2form">'+\r
+    '<label class="f">Esemény neve *</label>'+F("name",e.name)+\r
+    '<div class="grid g2e"><div><label class="f">Dátum *</label><input class="input" id="e2f_date" type="date" value="'+esc2(e.date||"")+'"></div>'+\r
+    '<div><label class="f">Kezdés</label><input class="input" id="e2f_time" type="time" value="'+esc2(e.time||"")+'"></div></div>'+\r
+    '<label class="f">Helyszín *</label>'+F("place",e.place)+\r
+    '<label class="f">Régió</label>'+F("region",e.region)+\r
+    '<div class="grid g2e"><div><label class="f">Koordináta (lat,lng — opcionális)</label>'+F("coords",e.coords?e.coords.join(","):"")+'</div>'+\r
+    '<div><label class="f">Nehézség</label><select class="input" id="e2f_diff"><option value="">—</option>'+["Könnyű","Közepes","Nehéz"].map(function(d){return "<option"+(e.diff===d?" selected":"")+">"+d+"</option>";}).join("")+"</select></div></div>"+\r
+    '<div class="grid g2e"><div><label class="f">Táv (km)</label><input class="input" id="e2f_km" type="number" min="0" step="0.5" value="'+esc2(e.km!=null?e.km:"")+'"></div>'+\r
+    '<div><label class="f">Szintemelkedés (m)</label><input class="input" id="e2f_up" type="number" min="0" step="10" value="'+esc2(e.up!=null?e.up:"")+'"></div></div>'+\r
+    '<div class="grid g2e"><div><label class="f">Időtartam (óra)</label><input class="input" id="e2f_h" type="number" min="0" step="0.5" value="'+esc2(e.h!=null?e.h:"")+'"></div>'+\r
+    '<div><label class="f">Max létszám (üres = nincs limit)</label><input class="input" id="e2f_cap" type="number" min="1" step="1" value="'+esc2(e.cap!=null?e.cap:"")+'"></div></div>'+\r
+    '<label class="f">Leírás</label><textarea class="input" id="e2f_desc" rows="2">'+esc2(e.desc||"")+"</textarea>"+\r
+    '<label class="f">Jelentkezési mód</label><select class="input" id="e2f_join"><option value="internal"'+(e.joinMode!=="external"&&e.joinMode!=="none"?" selected":"")+">A) Belső jelentkezés (kezeled a felületen)</option><option value=\\"external\\""+(e.joinMode==="external"?" selected":"")+">B) Külső link</option><option value=\\"none\\""+(e.joinMode==="none"?" selected":"")+">C) Nincs jelentkezés</option></select>"+\r
+    '<div id="e2f_urlbox"'+(e.joinMode==="external"?"":' style="display:none"')+'><label class="f">Külső jelentkezési link</label><input class="input" id="e2f_url" value="'+esc2(e.joinUrl||"")+'" placeholder="https://…"></div>'+\r
+    '<div style="height:.4rem"></div><label class="f">GPX (opcionális — V47 parser)</label><label class="btn btn-soft btn-sm">📂 GPX fájl kiválasztása<input type="file" accept=".gpx,application/gpx+xml" id="e2f_gpxf" style="display:none"></label>'+\r
+    '<div id="e2f_gpxprev" class="e2-gpxprev">'+(e.routeSnap?('<p class="small mb0">🗺️ '+esc2(e.routeSnap.name||"útvonal")+' — 📏 '+(e.routeSnap.distance_km!=null?e.routeSnap.distance_km:"—")+' km · ⛰️ +'+(e.routeSnap.gain!=null?e.routeSnap.gain:"—")+' m · 🏔️ max '+(e.routeSnap.maxE!=null?Math.round(e.routeSnap.maxE):"—")+' m</p><div class="e2-pminimap" style="height:0"></div>'):(isEdit&&e.routeId?('<p class="small mb0">🗺️ GPX útvonal csatolva (útmutató a mentett útvonalakhoz).</p>'):""))+"</div>"+\r
+    '<p class="small muted" style="margin:.5rem 0 0">⚠️ Valóságtartalom: csak olyan eseményt tölts fel, ami megrendezést nyer. Demó jelölés a rendszerben nem kérhető — a platform a TE eseményeidet mutatja.</p>'+\r
+    '<p id="e2f_err" class="e2-err" style="display:none"></p></div>',\r
+   footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="e2f_save">'+(isEdit?"💾 Mentés":"＋ Esemény létrehozása")+"</button>",\r
+   onOpen:function(m){ var gpxData=m.__gpx=null;\r
+     var js=m.querySelector("#e2f_join"); if(js) js.onchange=function(){ var u=m.querySelector("#e2f_urlbox"); if(u) u.style.display = js.value==="external"?"":"none"; };\r
+     var fi=m.querySelector("#e2f_gpxf"); if(fi) fi.onchange=function(){ var f=fi.files&&fi.files[0]; if(!f) return; var rd=new FileReader();\r
+       rd.onload=function(){ try{ var pr=(window.v47parseGPX?window.v47parseGPX(String(rd.result||"")):null); var box=m.querySelector("#e2f_gpxprev");\r
+         if(!pr||pr.err||!pr.track||pr.track.length<3){ box.innerHTML='<p class="e2-err">⚠️ Hibás vagy túl rövid GPX — nem menthető útvonalként. ("Ehhez nem tudunk valós útvonalat rendelni.")</p>'; m.__gpx=null; return; }\r
+         var st=gpxStats(pr); m.__gpx={ name:(f.name||"GPX").replace(/\\.gpx$/i,"").slice(0,60), pr:pr, stats:st };\r
+         box.innerHTML='<p class="small" style="margin:.2rem 0">🗺️ <b>'+esc2(m.__gpx.name)+'</b> · 📏 '+(st.km!=null?st.km.toFixed(1).replace(".",","):"—")+' km · ⛰️ +'+(st.gain!=null?Math.round(st.gain):"—")+' m · 🏔️ max '+(st.maxE!=null?Math.round(st.maxE):"—")+' m · 📍 '+st.n+' pont</p>'+miniProfileSVG(pr.track)+'<div class="e2-pminimap"></div>';\r
+         miniMapInto(box.querySelector(".e2-pminimap"), pr.track);\r
+       }catch(e){ m.__gpx=null; box.innerHTML='<p class="e2-err">⚠️ A GPX feldolgozása most nem sikerült.</p>'; } };\r
+       rd.onerror=function(){ var box=m.querySelector("#e2f_gpxprev"); if(box) box.innerHTML='<p class="e2-err">⚠️ A fájl nem olvasható.</p>'; };\r
+       rd.readAsText(f); };\r
+     m.querySelector("#e2f_save").onclick=function(){ var g=function(k){ var el=m.querySelector("#e2f_"+k); return el?String(el.value||"").trim():""; };\r
+       var name=g("name"), date=g("date"), place=g("place"); var err=m.querySelector("#e2f_err");\r
+       if(!name||!date||!place){ if(err){ err.textContent="Kötelező: név, dátum, helyszín."; err.style.display=""; } return; }\r
+       if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)){ if(err){ err.textContent="A dátum formátuma YYYY-HH-NN legyen."; err.style.display=""; } return; }\r
+       var o=isOrg(); if(!o){ toast("Előbb szervezői profil kell","🏢"); closeModal(); orgForm(); return; }\r
+       var coords=null; var cg=g("coords"); if(cg){ var cs=cg.split(",").map(function(x){return parseFloat(x.replace(".", "."));}); if(cs.length===2&&!isNaN(cs[0])&&!isNaN(cs[1])&&Math.abs(cs[0])<=90&&Math.abs(cs[1])<=180) coords=[cs[0],cs[1]]; }\r
+       var numOrNull=function(v){ var n=parseFloat(String(v).replace(",", ".")); return (v!==""&&!isNaN(n))?n:null; };\r
+       var jmode=g("join")||"internal";\r
+       var patch={ name:name, date:date, time:g("time")||"", place:place, region:g("region")||"", coords:coords,\r
+         km:numOrNull(g("km")), up:numOrNull(g("up")), h:numOrNull(g("h")), diff:g("diff")||"", desc:g("desc")||"",\r
+         joinMode:jmode, joinUrl:(jmode==="external"?(g("url")||""):""), cap:numOrNull(g("cap")) };\r
+       if(isEdit){ var ev=ownEvent(existing.id); if(!ev) return; var keyCh=fpOf(patch)!==ev.fp;\r
+         Object.assign(ev, patch); ev.rev=(ev.rev||0)+1; ev.updatedAt=nowISO();\r
+         if(m.__gpx) attachGpx(ev, m.__gpx);\r
+         if(keyCh){ var dup=P().events.find(function(x){ return x.id!==ev.id && x.fp===fpOf(ev); }); if(dup){ toast("Már van ilyen azonos esemény (név+dátum+helyszín) — a duplikátum elmentve összefűzés helyett jelzéssel","⚠️"); } }\r
+       } else { var fp=fpOf(patch);\r
+         var dupE=P().events.find(function(x){ return x.fp===fp; });\r
+         if(dupE){ toast("Ez az esemény már létezik (név+dátum+helyszín egyezés) — megnyitom","♻️"); closeModal(); if(window.v49OpenEv&&dupE.status!=="hidden") window.v49OpenEv("p2:"+dupE.id); return; }\r
+         var ev2={ id:"evp_"+Math.random().toString(36).slice(2,8), orgId:o.id, status:"published"==="x"?"draft":"draft", fp:fp, rev:0, createdAt:nowISO(), demo:false };\r
+         Object.assign(ev2, patch); P().events.push(ev2);\r
+         if(m.__gpx) attachGpx(ev2, m.__gpx);\r
+         toast("Esemény létrehozva — most még PISZKOZAT. A listádból egy koppintással publikálhatod.","🗂️"); }\r
+       Store.save(); closeModal(); refreshHere(); }; } }); }\r
+function attachGpx(ev, g){ var d=Store.myData(); d.routes=d.routes||[]; var st=g.stats;\r
+  function rfpOf(t){ try{ var tr=t||[]; if(!tr.length) return null; var f=tr[0], l=tr[tr.length-1]; return [f&&f[0],f&&f[1],f&&f[2],l&&l[0],l&&l[1],l&&l[2],tr.length].join("~"); }catch(e){ return null; } }\r
+  var fpx=rfpOf(g.pr.track); var ex=fpx && d.routes.find(function(r){ return r.__fp===fpx; });\r
+  if(ex){ ev.routeId=ex.id; ev.routeSnap={ name:ex.name, distance_km:ex.distance_km, gain:ex.elevation_gain_m, maxE:p52maxOf(ex.track), n:ex.nPts||null }; return; }\r
+  var rid="rt_"+Math.random().toString(36).slice(2,8);\r
+  var ps=(g.pr&&g.pr.stats)||{};\r
+  d.routes.push({ id:rid, name:g.name, distance_km:st.km, elevation_gain_m:ps.hasEle?st.gain:null, elevation_loss_m:ps.hasEle?st.loss:null,\r
+    max_elevation_m:ps.hasEle?ps.max:null, min_elevation_m:ps.hasEle?ps.min:null,\r
+    start:ps.start||null, finish:ps.finish||null,\r
+    track:g.pr.track, nPts:st.n, created_at:nowISO(), source:"gpx-import", raw:(g.pr.raw&&g.pr.raw.length<700000)?g.pr.raw:null, ownerEvent:ev.id, __fp:(function(t){ try{ var f=(t||[])[0], l=(t||[])[(t||[]).length-1]; return f&&l?[f[0],f[1],f[2],l[0],l[1],l[2],t.length].join("~"):null; }catch(e){ return null; } })(g.pr.track) });\r
+  ev.routeId=rid; ev.routeSnap={ name:g.name, distance_km:st.km!=null?Math.round(st.km*10)/10:null, gain:st.gain!=null?Math.round(st.gain):null, maxE:st.maxE!=null?Math.round(st.maxE):null, n:st.n }; }\r
+function p52maxOf(tr){ try{ var m=null; (tr||[]).forEach(function(p){ var e=p&&p.length>2?+p[2]:null; if(e!=null&&isFinite(e)&&(m===null||e>m)) m=e; }); return m; }catch(e){ return null; } }\r
+\r
+/* ---------- szervezői regisztráció ---------- */\r
+function orgForm(){ var o=isOrg(); if(o){ toast("Szervezői profilod már létezik","🏢"); return; }\r
+  var u=myU();\r
+  openModal({ title:"🏢 Szervezői profil létrehozása", body:\r
+    '<div class="e2form"><label class="f">Szervező neve *</label><input class="input" id="e2o_name" value="'+esc2(u.name||"")+'" maxlength="60">'+\r
+    '<label class="f">Rövid bemutatkozás</label><textarea class="input" id="e2o_bio" rows="2" maxlength="220"></textarea>'+\r
+    '<div class="grid g2e"><div><label class="f">E-mail *</label><input class="input" id="e2o_mail" type="email" value="'+esc2(u.email||"")+'"></div>'+\r
+    '<div><label class="f">Régió</label><input class="input" id="e2o_reg" value="'+esc2(u.city||"")+'"></div></div>'+\r
+    '<div class="grid g2e"><div><label class="f">Weboldal/link (opcionális)</label><input class="input" id="e2o_web" placeholder="https://…"></div>'+\r
+    '<div><label class="f">Telefon (opcionális)</label><input class="input" id="e2o_ph"></div></div>'+\r
+    '<label class="f">Logó / profilkép (opcionális)</label><label class="btn btn-soft btn-sm">🖼️ Kép kiválasztása<input type="file" accept="image/*" id="e2o_logo" style="display:none"></label><p id="e2o_logoprev" class="small muted"></p>'+\r
+    '<p class="small muted" style="margin:.4rem 0 0">Az adatok ebben a böngészőben tárolódnak — a szervezői fiók nem nyilvános regisztráció.</p><p id="e2o_err" class="e2-err" style="display:none"></p></div>',\r
+   footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="e2o_save">🏢 Profil létrehozása</button>',\r
+   onOpen:function(m){ var lg=m.querySelector("#e2o_logo"); m.__logo=null; if(lg) lg.onchange=function(){ var f=lg.files&&lg.files[0]; if(!f) return; if(f.size>140000){ m.querySelector("#e2o_err").textContent="A kép max ~140 KB — válassz kisebet."; m.querySelector("#e2o_err").style.display=""; return; }\r
+     var rd=new FileReader(); rd.onload=function(){ m.__logo=String(rd.result||"").slice(0,200000); m.querySelector("#e2o_logoprev").textContent="✓ Kép kiválasztva"; }; rd.readAsDataURL(f); };\r
+     m.querySelector("#e2o_save").onclick=function(){ var g=function(k){ var el=m.querySelector("#e2o_"+k); return el?String(el.value||"").trim():""; }; var nm=g("name"), mail=g("mail");\r
+       if(!nm||!mail){ m.querySelector("#e2o_err").textContent="Név és e-mail kötelező."; m.querySelector("#e2o_err").style.display=""; return; }\r
+       if(mail.indexOf("@")<1){ m.querySelector("#e2o_err").textContent="Az e-mail formátum hibás."; m.querySelector("#e2o_err").style.display=""; return; }\r
+       var ur=g("web"); if(ur&&!/^https?:\\/\\//i.test(ur)) ur="https://"+ur.replace(/^\\/+/,"");\r
+       P().organizers.push({ id:"org_"+Math.random().toString(36).slice(2,8), owner:myId(), name:nm, bio:g("bio"), email:mail, web:ur, phone:g("ph"), region:g("reg"), logo:m.__logo||"", demo:false, createdAt:nowISO() });\r
+       Store.save(); closeModal(); toast("🏢 Szervezői profil kész — hozd létre az első eseményt","🎉"); refreshHere(); }; } }); }\r
+/* ---------- JELENTKEZŐK (csak saját esemény) ---------- */\r
+function orgApplicants(eid){ window.__e2appLast=eid; var ev=ownEvent(eid); if(!ev){ toast("Csak a saját esemény jelentkezőit láthatod","🔒"); return; }\r
+  var L=P().participants.filter(function(x){ return x.eid===eid; });\r
+  function prect(x){\r
+    var S={pending:"🟠 Elküldve",accepted:"🟢 Elfogadva",declined:"🔴 Elutasítva",withdrawn:"⚪ Visszavonta"}[x.status]||x.status;\r
+    var act="";\r
+    if(x.status==="pending") act='<span style="display:flex;gap:.35rem;flex-wrap:wrap"><button class="btn btn-soft btn-sm" data-e2dec="'+x.id+':accepted">Elfogad</button><button class="btn btn-ghost btn-sm" data-e2dec="'+x.id+':declined">Elutasít</button></span>';\r
+    else if(x.status==="withdrawn") act='<span class="small muted">visszavonta — hely felszabadult</span>';\r
+    else if(x.status==="declined") act='<button class="btn btn-ghost btn-sm" data-e2dec="'+x.id+':pending">Mégis elfogadom</button>';\r
+    else if(x.status==="accepted") act="<span class='small'>✔</span>";\r
+    return '<div class="e2prow"><b>'+esc2(x.name||"Túrázó")+'</b><span class="mut">'+S+" · "+esc2(String(x.at||"").slice(0,10))+"</span> "+act+"</div>";\r
+  }\r
+  var body = L.length ? ('<div class="e2plist">'+L.slice().sort(function(a,b){ return String(b.at).localeCompare(String(a.at)); }).map(prect).join("")+"</div>") : '<p class="muted">Még nincs jelentkező.</p>';\r
+  openModal({ title:"📋 Jelentkezők — "+esc2(ev.name)+(ev.cap?(" ("+counts(eid).tot+"/"+ev.cap+")"):""), body:body,\r
+    footer:'<button class="btn btn-ghost" data-close>Bezárás</button>',\r
+    onOpen:function(m){ m.addEventListener("click",function(x){ var b=x.target.closest?x.target.closest("[data-e2dec]"):null; if(!b) return; var q=String(b.getAttribute("data-e2dec")).split(":"); decide(q[0],q[1]); }); } });\r
+}\r
+\r
+/* ---------- SZERVEZŐI KÖZPONT ---------- */\r
+function szervezoHtml(){ ensureDemo(); var o=isOrg(); if(!o){\r
+    return '<div class="e2org"><section class="card panel e2hero"><span class="e2-big">🏢</span><div><h1 style="margin:0">Szervezői központ</h1><p class="muted" style="margin:.3rem 0 0">Kovácsolj össze eseményeket, kezelj jelentkezéseket — a túrázók a Felfedezésben találják meg őket.</p><button class="btn btn-primary" id="e2-reg">🏢 Szervezőként csatlakozom</button></div></section>'+\r
+     '<p class="small muted">A DEMO szemléltető eseményeket a rendszer mindenki számára jelölten mutatja — ezek nem valódi szervezések.</p></div>'; }\r
+  var evs=P().events.filter(function(e){ return e.orgId===o.id; });\r
+  var up=evs.filter(function(e){ return e.status!=="draft" && e.status!=="completed" && e.date>=Store.todayISO(); }).sort(function(a,b){return String(a.date).localeCompare(String(b.date));});\r
+  let done=evs.filter(function(e){ return e.status==="completed" || (e.status!=="draft" && e.date && e.date<Store.todayISO()); });\r
+  var drafts=evs.filter(function(e){ return e.status==="draft"; });\r
+  function row(e, edit){ var c=counts(e.id); var chip={published:"<span class='chip chip-green'>🌐 Publikus</span>",draft:"<span class='chip chip-sand'>🗂️ Piszkozat</span>",full:"<span class='chip chip-rose'>🔴 Betelt</span>",cancelled:"<span class='chip chip-rose'>🛑 Lemondva</span>",completed:"<span class='chip chip-pine'>✓ Lezárt</span>"}[e.status]||e.status;\r
+    var btns=[]; if(e.status==="draft") btns.push("<button class='btn btn-primary btn-sm' data-e2st='"+e.id+":published'>🌐 Publikálom</button>");\r
+    if(e.status!=="cancelled"&&e.status!=="completed") btns.push("<button class='btn btn-ghost btn-sm' data-e2st='"+e.id+":cancelled'>🛑 Lemondás</button><button class=\\"btn btn-soft btn-sm\\" data-e2st='"+e.id+"'>🗂️ Piszkozat</button>");\r
+    if(e.status==="cancelled") btns.push("<button class='btn btn-soft btn-sm' data-e2st='"+e.id+"'>🗂️ Piszkozat</button>");\r
+    if(e.status!=="cancelled") btns.push("<button class='btn btn-soft btn-sm' data-e2st='"+e.id+":completed'>✓ Lezárás</button>");\r
+    if(e.status!=="published"){ /* full auto */ }\r
+    btns.push("<button class='btn btn-ember btn-sm' data-e2app='"+e.id+"'>📋 Jelentkezők ("+c.tot+")</button>");\r
+    return '<div class="e2row"><div><b>'+ (e.demo?"🧪 ":"📅 ")+esc2(e.name)+"</b><span class='mut'>"+esc2(e.date||"—")+" · "+esc2(e.place||"") + (e.km!=null?" · "+e.km+" km":"")+"</span> "+chip+"</div><div class='e2rowbtns'>"+btns.join("")+(edit&&e.status==="published"?"":"")+ (edit?"<span class='mut small'>"+(e.cap?("👥 "+c.tot+"/"+e.cap):"—")+" · </span>":"")+"<button class='btn btn-ghost btn-sm' data-e2edit='"+e.id+"'>✏️</button>"+(e.status==="full"?" <span class='chip chip-rose'>Betelt</span>":"")+"</div></div>"; }\r
+  var stat='<div class="e2stats"><div><b>'+evs.filter(function(e){return e.status!=="draft";}).length+"</b><small>📅 esemény</small></div><div><b>"+P().participants.filter(function(x){ return evs.some(function(e){return e.id===x.eid;}); }).length+"</b><small>👥 jelentkező</small></div><div><b>"+P().participants.filter(function(x){ return evs.some(function(e){return e.id===x.eid;}) && x.status==="accepted"; }).length+"</b><small>✓ elfogadott</small></div></div>";\r
+  return '<div class="e2org">'+\r
+   '<section class="card panel e2hero"><span class="e2-big">'+(o.logo?"<img src=\\""+esc2(o.logo)+"\\" class=\\"e2-logo\\" alt=\\"\\">":"🏢")+"</span><div><h1 style=\\"margin:0\\">🏢 "+esc2(o.name)+"</h1><p class=\\"muted\\" style=\\"margin:.25rem 0 0\\">"+esc2(o.bio||"")+(o.region?(" · 📍 "+esc2(o.region)):"")+(o.web?(" · 🌐 <a href=\\""+esc2(o.web)+"\\" target=\\"_blank\\" rel=\\"noopener\\">weboldal</a>"):"")+"</p><p class=\\"small\\" style=\\"margin:.2rem 0 0\\">📅 "+evs.filter(function(e){return !e.demo;}).length+" szervezett esemény</p></div></section>"+\r
+   p5btnish()+\r
+   '<section class="card panel e2sec"><h2>＋ Műveletek</h2><button class="btn btn-primary" id="e2-new">＋ Új túraesemény</button>'+stat+'</section>'+ 
+   '<section class="card panel e2sec"><h2>📅 Közelgő</h2>'+(up.length? up.map(function(e){return row(e,1);}).join(""):'<p class="muted">Még nincs közelgő eseményed.</p>')+"</section>"+\r
+   '<section class="card panel e2sec"><h2>🗂️ Piszkozatok</h2>'+(drafts.length? drafts.map(function(e){return row(e,1);}).join(""):'<p class="muted">Nincs piszkozat.</p>')+"</section>"+\r
+   '<section class="card panel e2sec"><h2>✓ Lezárult</h2>'+(done.length? done.map(function(e){return row(e,1);}).join(""):'<p class="muted">Még nincs lezárt esemény.</p>')+"</section></div>"; }\r
+function p5btnish(){ return ""; }\r
+var _e2orig=null;\r
+VIEWS.szervezo = function(){ try{ ensureDemo(); return dash("#/szervezo")( szervezoHtml() ); }catch(e){ return dash("#/szervezo")('<section class="card panel"><h1>🏢 Szervezői központ</h1><p class="muted">A központ most nem érhető el — az adataid érintetlenek.</p></section>'); } };\r
+VIEWS.szervezo.after = function(root){ try{ var reg=root.querySelector("#e2-reg"); if(reg) reg.onclick=function(){ orgForm(); }; var nw=root.querySelector("#e2-new"); if(nw) nw.onclick=function(){ if(!isOrg()){ orgForm(); return; } evForm(null); }; }catch(e){} };\r
+\r
+/* ---------- delegált akciók (modal + lap tartalom felett) ---------- */\r
+document.addEventListener("click", function(ev){ var b = ev.target && ev.target.closest ? ev.target.closest("[data-e2join],[data-e2wd],[data-e2cal],[data-e2route],[data-e2edit],[data-e2st],[data-e2app],[data-e2open]") : null; if(!b) return;\r
+  var v;\r
+  if((v=b.getAttribute("data-e2join"))){ joinEv(v); return; }\r
+  if((v=b.getAttribute("data-e2wd"))){ withdraw(v); return; }\r
+  if((v=b.getAttribute("data-e2cal"))){ addToCal(v); return; }\r
+  if((v=b.getAttribute("data-e2open"))){ try{ if(window.v49OpenEv) window.v49OpenEv("p2:"+v); }catch(e){} return; }\r
+  if((v=b.getAttribute("data-e2route"))){ var e2=getEvent(v); if(!e2) return; if(window.__rtopen && e2.routeId && (Store.myData().routes||[]).some(function(r){return r.id===e2.routeId;})){ window.__rtopen(e2.routeId,true); } else toast("Az útvonal a szervező saját GPX-listájában él — itt az összefoglaló látható.","🗺️"); return; }\r
+  if((v=b.getAttribute("data-e2edit"))){ var ev2=ownEvent(v); if(!ev2){ toast("Csak a saját esemény szerkeszthető","🔒"); return; } closeModal(); setTimeout(function(){ evForm(ev2); },120); return; }\r
+  if((v=b.getAttribute("data-e2st"))){ var q=String(v).split(":"); if(!ownEvent(q[0])){ toast("Nem a te eseményed","🔒"); return; } var st=q[1]||"draft"; var e3=ownEvent(q[0]); if(st==="published"&&e3.cap&&counts(e3.id).tot>=e3.cap) st="full"; evStatus(q[0],st); return; }\r
+  if((v=b.getAttribute("data-e2app"))){ orgApplicants(v); return; } });\r
+\r
+/* ---------- workspace figyelmeztetés: módosult esemény ---------- */\r
+(function(){ var _pw=VIEWS.workspace&&VIEWS.workspace.after; VIEWS.workspace.after=function(root,id){ try{ _pw&&_pw(root,id); }catch(e){}\r
+  try{ if(!root||!location.hash.startsWith("#/tura/")) return; var t=Store.getTour(id); if(!t) return; var note=changedBannerForTour(t); if(!note) return;\r
+    var act=root.querySelector(".ws-top,.ws-actions,section.card"); if(!act||act.querySelector(".e2note")) return; var box=document.createElement("div"); box.innerHTML=note; act.parentNode.insertBefore(box, act.nextSibling); var sb=box.querySelector("#e2sync"); if(sb) sb.onclick=function(){ var eid=String(t.eventRef).slice(3); var ev=getEvent(eid); if(!ev) return;\r
+      if(ev.name) t.title=ev.name; t.date=ev.date||t.date; t.timeHint=ev.time||t.timeHint; t.place=ev.place||t.place; if(ev.km!=null) t.lengthKm=ev.km; if(ev.up!=null) t.ascent=ev.up; if(ev.h!=null) t.durationH=ev.h; if(ev.diff) t.difficulty=ev.diff; if(ev.coords&&ev.coords.length===2) t.coords={lat:ev.coords[0],lng:ev.coords[1],name:ev.place||t.place}; t.evsRev=ev.rev; Store.save(); toast("Terv frissítve az esemény adataival","🔄"); try{ App.render(); }catch(e2){} }; }catch(e){} }; })();\r
+\r
+/* ---------- dashboard mini blokk ---------- */\r
+(function(){ var _pd=VIEWS.dash&&VIEWS.dash.after; VIEWS.dash.after=function(root){ try{ _pd&&_pd(root); }catch(e){}\r
+  try{ if(!root||!root.querySelector||root.querySelector("#e2mini")) return; var w=root.querySelector("#widgets"); if(!w) return;\r
+    var items=[]; try{ (Store.upcoming()||[]).forEach(function(t){ if(t.date) items.push({d:t.date, t:"🥾 
