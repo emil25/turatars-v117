@@ -1,1 +1,1 @@
-GitHub Pages deployment source for Túratárs V117.1.
+GitHub Pages deployment source for Túratárs V118.

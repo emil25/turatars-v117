@@ -36,6 +36,14 @@ jobs:
       - name: Rebundle application source
         run: node tools/rebundle.mjs
 
+      - name: Typecheck source
+        working-directory: build
+        run: npm run typecheck
+
+      - name: Run build-output tests
+        working-directory: build
+        run: npm test
+
       - name: Build production site
         working-directory: build
         env:
@@ -46,6 +54,7 @@ jobs:
           bundle=$(find dist/assets -maxdepth 1 -name 'index-*.js' -print -quit)
           test -n "$bundle"
           grep -q 'reezefgcbdrcnuhcktma\.supabase\.co' "$bundle"
+          grep -q 'sb_publishable_' "$bundle"
           grep -q 'cloudAuthEnabled' "$bundle"
           grep -q 'authSignup' "$bundle"
           grep -q 'authLogin' "$bundle"
