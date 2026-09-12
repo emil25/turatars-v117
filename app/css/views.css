@@ -949,3 +949,11 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
   .v120-controls{position:sticky;bottom:.5rem;z-index:5;background:color-mix(in srgb,var(--paper,#fffdf6) 88%,transparent);padding:.5rem;border-radius:14px;box-shadow:0 5px 18px rgba(20,40,25,.14)}
   .v120-controls .btn{flex-basis:100%;font-size:1rem}
 }
+/* ===== V121 offline + GPX ===== */
+.v121-offline,.v121-offroute{margin:10px 0;padding:.7rem .9rem;border-radius:12px;border:1px solid #d9c58f;background:#fff4d8;color:#765719;font-weight:700;overflow-wrap:anywhere}
+.v121-offroute{border-color:#e3a19a;background:#fff0ed;color:#8c3b24}
+.v121-route-list{display:flex;flex-direction:column;gap:.5rem;max-height:50vh;overflow:auto}
+.v121-route-choice{display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--paper,#fffdf6);padding:.7rem .8rem;color:inherit;cursor:pointer;min-height:52px}
+.v121-route-choice:hover,.v121-route-choice:focus{border-color:var(--pine);background:var(--cream)}
+.v121-route-choice span{font-size:.78rem;color:var(--muted,#7d8679)}
+@media(max-width:620px){.v121-route-choice{width:100%}.v120-controls #v121-gpx-export{flex-basis:100%}}
