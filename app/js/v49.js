@@ -27,7 +27,7 @@ function card(t){
     '<div class="img-wrap f9-img">'+imgTagSafe(t.img||IMG.erdo,t.name)+'</div>'+
     '<div class="f9-b"><div class="f9-t1"><b>'+esc9(t.name)+'</b>'+(t.rating?'<span class="chip chip-sand">⭐ '+t.rating+(t.reviews?'('+t.reviews+')':'')+'</span>':'')+'</div>'+
     '<p class="small muted mb0">'+esc9(nz(t.region,'régió nélkül'))+' · 📍 '+esc9(nz(t.start?t.start.name:null,'nincs hely'))+'</p>'+
-    '<p class="small mb0" style="margin:.2rem 0 .5rem">📏 '+nz(t.km!=null?t.km+" km":null)+' · ⛰️ '+nz(t.up!=null?"+"+t.up+" m":null)+' · 🕐 '+nz(t.h!=null?t.h+" ó":null)+' · 🥾 '+nz(t.diff)+'</p>'+(window.v122SourceLine?v122SourceLine(t):'')+
+    '<p class="small mb0" style="margin:.2rem 0 .5rem">📏 '+nz(t.km!=null?t.km+" km":null)+' · ⛰️ '+nz(t.up!=null?"+"+t.up+" m":null)+' · 🕐 '+nz(t.h!=null?t.h+" ó":null)+' · 🥾 '+nz(t.diff)+'</p><p class="tiny muted">'+(window.v123RouteLabel?window.v123RouteLabel(t):(t.gpxUrl?"GPX útvonal elérhető":"Útvonaladat még nem érhető el"))+'</p>'+(window.v122SourceLine?v122SourceLine(t):'')+
     '<div class="f9cta"><button class="btn btn-ghost btn-sm" data-f9tour="'+t.id+'">🥾 Megnézem</button>'+c.plan+c.heart+'</div></div></article>';
   }catch(e){ return ""; }
 }
@@ -202,7 +202,7 @@ function openTourModal(id){
     '<p class="small muted mt0">'+esc9(t.region)+' · 📍 '+esc9(t.start?t.start.name:"nincs hely")+'</p>'+
     '<p class="small mb0">📏 '+nz(t.km!=null?t.km+" km":null,'nincs adat')+' &middot; ⛰️ '+nz(t.up!=null?"+"+t.up+" m":null,'—')+' &middot; 🕐 '+nz(t.h!=null?t.h+" ó":null,'—')+' &middot; 🥾 '+nz(t.diff)+' &middot; ⭐ '+nz(t.rating,'nincs értékelés')+'</p>'+
     '<div id="f9map-'+t.id+'" class="modmap9"></div>'+
-    '<p class="small mb0">'+esc9(t.desc||"Erről a túráról nincs leírás a katalógusban.")+'</p>'+
+    '<p class="small mb0">'+esc9(t.desc||"Erről a túráról nincs leírás a katalógusban.")+'</p>'+ (t.gpxUrl?'<a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="'+esc9(t.gpxUrl)+'">⬇ GPX letöltése</a>':'<p class="small muted">🗺️ Útvonaladat még nem érhető el. A kezdőpontból saját útvonalat tervezhetsz.</p>')+(window.v123PlanningUrl&&t.start?'<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener nofollow" href="'+esc9(window.v123PlanningUrl(t))+'">🧭 Útvonal tervezése a térképen</a>':'')+
     ((t.tags||[]).length?'<p class="small muted mb0">'+t.tags.map(esc9).join(" · ")+'</p>':"")+
     '<div class="f9cta">'+c.plan+c.heart+'<button class="btn btn-ghost btn-sm" data-f9share="t:'+t.id+'">📤 Megosztás</button></div>'+
     (t.start&&t.start.lat?'<p class="tiny muted">A térképen csak a valódi kezdőpont látszik — kitalált útvonalat nem rajzolunk.</p>':""),

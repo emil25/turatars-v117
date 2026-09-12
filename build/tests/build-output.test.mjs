@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V122 application shell', () => {
+test('production output contains the complete V123 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V122 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v122/);
+test('PWA service worker is on the V123 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v123/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -87,4 +87,17 @@ test('production bundle includes the V122 verified catalog boundary', () => {
   assert.match(bundle, /sourceUrl/);
   assert.match(bundle, /Jelenleg nincs ellenőrzött esemény/);
   assert.doesNotMatch(bundle, /DEMO — szemléltető/);
+});
+
+test('production bundle includes only provenance-backed V123 catalog entries', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V123/);
+  assert.match(bundle, /Visit Harghita/);
+  assert.match(bundle, /sourceLicense/);
+  assert.match(bundle, /Útvonaladat még nem érhető el/);
+  assert.match(bundle, /OpenStreetMap contributors/);
+  assert.match(bundle, /vh-harghita-bai-subpadure/);
+  assert.doesNotMatch(bundle, /DEMO — Ősszel a Csukás alatt/);
 });
