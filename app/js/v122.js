@@ -22,14 +22,14 @@ function valid(x){
 }
 function normalizeTour(x){
   var t=Object.assign({},x||{}); t.tags=Array.isArray(t.tags)?t.tags:[];
-  t.region=t.region||""; t.name=t.name||""; t.km=t.km==null?null:+t.km; t.up=t.up==null?null:+t.up;
-  t.h=t.h==null?null:+t.h; t.diff=t.diff||t.difficulty||""; t.difficulty=t.difficulty||t.diff;
-  t.start=t.start&&typeof t.start==="object"?t.start:null; t.elev=Array.isArray(t.elev)?t.elev:[];
+  t.region=t.region||""; t.name=t.name||""; t.km=t.km==null?(t.distanceKm==null?null:+t.distanceKm):+t.km; t.up=t.up==null?(t.elevationGainM==null?null:+t.elevationGainM):+t.up;
+  t.h=t.h==null?(t.durationHours==null?null:+t.durationHours):+t.h; t.diff=t.diff||t.difficulty||""; t.difficulty=t.difficulty||t.diff;
+  t.start=(t.start||t.coords)&&typeof (t.start||t.coords)==="object"?(t.start||t.coords):null; t.elev=Array.isArray(t.elev)?t.elev:[];
   return t;
 }
-function normalizeEvent(x){ var e=Object.assign({},x||{}); e.name=e.name||""; e.cat=e.cat||""; e.people=Number(e.people)||0; e.cap=Number(e.cap)||0; return e; }
-function tourReady(t){ var s=t&&t.start; return !!(valid(t)&&t.name&&t.region&&s&&isFinite(+s.lat)&&isFinite(+s.lng)&&isFinite(+t.km)&&isFinite(+t.up)&&isFinite(+t.h)&&t.diff); }
-function eventReady(e){ return !!(valid(e)&&e.name&&e.org&&e.date&&e.place); }
+function normalizeEvent(x){ var e=Object.assign({},x||{}); e.name=e.name||""; e.org=e.org||e.organizer||""; e.cat=e.cat||""; e.people=Number(e.people)||0; e.cap=Number(e.cap)||0; return e; }
+function tourReady(t){ var n=normalizeTour(t), s=n&&n.start; return !!(valid(n)&&n.name&&n.region&&s&&isFinite(+s.lat)&&isFinite(+s.lng)&&isFinite(+n.km)&&isFinite(+n.up)&&isFinite(+n.h)&&n.diff); }
+function eventReady(e){ var n=normalizeEvent(e); return !!(valid(n)&&n.name&&n.org&&n.date&&n.place); }
 function placeReady(p){ return !!(valid(p)&&p.name&&p.place); }
 function publicTours(){ return catalog().tours.filter(tourReady).map(normalizeTour); }
 function publicEvents(){
@@ -43,7 +43,7 @@ function sourceLine(x){
 }
 function validateRecord(x,kind){
   var miss=REQUIRED.filter(function(k){return x[k]==null||String(x[k]).trim()==="";});
-  if(!x.id) miss.push("id"); if(kind==="tour" && !x.name) miss.push("name"); if(kind==="event" && !x.name) miss.push("name");
+  if(!x.id) miss.push("id"); if(kind==="tour" && !x.name) miss.push("name"); if(kind==="event" && (!x.name||!(x.organizer||x.org)||!x.date||!x.place)) miss.push("name, organizer, date, place");
   if(x.dataStatus!=="verified" && x.dataStatus!=="needs_review") miss.push("dataStatus (verified/needs_review)");
   return miss;
 }
@@ -62,7 +62,7 @@ window.V122={
   schemaVersion:1, region:"Székelyföld", requiredFields:REQUIRED,
   catalog:catalog, tours:publicTours, events:publicEvents, places:publicPlaces,
   sourceLine:sourceLine, validate:validateRecord,
-  importSchema:{tour:REQUIRED.concat(["id","name","region","coords","distanceKm","elevationGainM","difficulty","durationHours","routeUrl","description"]),event:REQUIRED.concat(["id","name","organizer","date","place","officialUrl"])},
+  importSchema:{tour:REQUIRED.concat(["id","name","region","coords","distanceKm","elevationGainM","difficulty","durationHours","routeUrl","description"]),event:REQUIRED.concat(["id","name","organizer","date","place","officialUrl"]),place:REQUIRED.concat(["id","name","place"])},
   hasVerifiedData:function(){return publicTours().length>0||publicEvents().length>0||publicPlaces().length>0;}
 };
 window.v122PublicTours=publicTours; window.v122PublicEvents=publicEvents; window.v122PublicPlaces=publicPlaces; window.v122SourceLine=sourceLine;
