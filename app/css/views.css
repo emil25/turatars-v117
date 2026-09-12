@@ -923,3 +923,29 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
 .c54btns{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.25rem}
 .c54btns .btn{min-height:44px}
 .c54x h2{font-size:1.02rem;margin:0 0 .5rem}
+
+/* V120 — élő GPS túra */
+.v120-live{max-width:980px;margin:0 auto;padding-bottom:2rem;min-width:0}
+.v120-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;padding:1rem 1.1rem}
+.v120-head h1{margin:.5rem 0 .25rem;font-size:clamp(1.5rem,4vw,2.3rem)}
+.v120-map{height:clamp(260px,45vh,420px);padding:0;overflow:hidden;position:relative;background:#e8e4d6}
+.v120-map>.empty{height:100%;display:grid;place-items:center;text-align:center;padding:1rem}
+.v120-map .leaflet-container{height:100%;width:100%;font:inherit}
+.v120-stats{margin-top:14px}
+.v120-stats .stat-tile{min-width:0;padding:.8rem .9rem;display:flex;flex-direction:column;gap:.12rem}
+.v120-stats .stat-tile b{font-size:1.25rem;overflow-wrap:anywhere}
+.v120-stats .stat-tile span:last-child{font-size:.78rem;color:var(--muted,#7d8679)}
+.v120-controls{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:14px}
+.v120-controls .btn{flex:1 1 190px;min-height:52px}
+.v120-summary{margin-top:14px}
+@media(max-width:620px){
+  .v120-live{padding-left:0;padding-right:0}
+  .v120-head{padding:.85rem;gap:.6rem}
+  .v120-head>div:last-child{width:100%;font-size:.78rem}
+  .v120-map{height:300px;border-radius:14px}
+  .v120-stats{grid-template-columns:1fr 1fr;gap:8px}
+  .v120-stats .stat-tile{padding:.7rem .65rem}
+  .v120-stats .stat-tile b{font-size:1.05rem}
+  .v120-controls{position:sticky;bottom:.5rem;z-index:5;background:color-mix(in srgb,var(--paper,#fffdf6) 88%,transparent);padding:.5rem;border-radius:14px;box-shadow:0 5px 18px rgba(20,40,25,.14)}
+  .v120-controls .btn{flex-basis:100%;font-size:1rem}
+}
