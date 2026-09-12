@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V118 application shell', () => {
+test('production output contains the complete V119 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -26,7 +26,7 @@ test('production output contains the complete V118 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'icons', 'icon-512.png')), '512px icon is missing');
 });
 
-test('production bundle includes the V118 Supabase auth boundary', () => {
+test('production bundle includes the V119 Supabase auth boundary', () => {
   const assets = fs.readdirSync(path.join(dist, 'assets'));
   const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
   const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
@@ -38,6 +38,6 @@ test('production bundle includes the V118 Supabase auth boundary', () => {
   assert.match(bundle, /sb_publishable_/);
 });
 
-test('PWA service worker is on the V118 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v118/);
+test('PWA service worker is on the V119 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v119/);
 });

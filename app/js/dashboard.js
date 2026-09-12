@@ -189,6 +189,7 @@ function tourRow(t){
     </div>
     <div class="tr-actions">
       <a class="btn btn-soft btn-sm" href="#/tura/${t.id}">Megnyitás</a>
+      <button class="btn btn-ghost btn-sm" data-edit="${t.id}">✏️ Szerkesztés</button>
       ${(t.status==="ötlet"||t.status==="bakancs")?`<button class="btn btn-ember btn-sm" data-promote="${t.id}">📅 Túra tervezése</button>`:""}
       ${(t.status==="tervezés"||t.status==="jelentkezve")&&Store.dayDiff(t.date)<=3?`<a class="btn btn-primary btn-sm" href="#/turamod/${t.id}">⚡ Túra mód</a>`:""}
       ${!st?`<button class="btn btn-ghost btn-sm" data-complete="${t.id}">✓ Teljesítettem</button>`:
@@ -201,6 +202,21 @@ VIEWS.tours.after = root => {
   wireTourActions(root);
 };
 function wireTourActions(root){
+  root.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{
+    const t=Store.getTour(b.dataset.edit); if(!t) return;
+    openModal({title:"✏️ Túra szerkesztése", body:`
+      <label class="f" for="et-title">Túra neve</label><input class="input" id="et-title" value="${esc(t.title||"")}">
+      <label class="f" for="et-place">Helyszín</label><input class="input" id="et-place" value="${esc(t.place||"")}">
+      <label class="f" for="et-date">Dátum</label><input class="input" id="et-date" type="date" value="${esc(t.date||"")}">
+      <label class="f" for="et-desc">Rövid leírás</label><textarea class="input" id="et-desc" rows="3">${esc(t.desc||"")}</textarea>
+      <div class="grid g2"><div><label class="f" for="et-diff">Nehézség</label><select class="input" id="et-diff">${["Könnyű","Közepes","Nehéz"].map(x=>`<option ${t.difficulty===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div><label class="f" for="et-km">Tervezett táv (km)</label><input class="input" id="et-km" type="number" min="0" step="0.1" value="${esc(t.lengthKm||"")}"></div>
+      <div><label class="f" for="et-ascent">Szintemelkedés (m)</label><input class="input" id="et-ascent" type="number" min="0" step="10" value="${esc(t.ascent||"")}"></div>
+      <div><label class="f" for="et-duration">Becsült idő (óra)</label><input class="input" id="et-duration" type="number" min="0" step="0.5" value="${esc(t.durationH||"")}"></div></div>`,
+      footer:`<button class="btn btn-ghost" data-close>Mégse</button><button class="btn btn-primary" id="et-save">Mentés</button>`,
+      onOpen:r=>{ r.querySelector("#et-save").onclick=()=>{ Store.updateTour(t.id,{title:r.querySelector("#et-title").value.trim()||t.title,place:r.querySelector("#et-place").value.trim(),date:r.querySelector("#et-date").value,desc:r.querySelector("#et-desc").value.trim(),difficulty:r.querySelector("#et-diff").value,lengthKm:+r.querySelector("#et-km").value||0,ascent:+r.querySelector("#et-ascent").value||0,durationH:+r.querySelector("#et-duration").value||0}); closeModal(); toast("Túra mentve helyben — a felhőbe a Szinkron most gombbal menthető.","✅"); render(); }; }
+    });
+  });
   root.querySelectorAll("[data-promote]").forEach(b=>b.onclick=()=>{ const t=Store.getTour(b.dataset.promote);
     Store.setStatus(t.id,"tervezés"); if(!t.date) t.date=Store.addDays(Store.nextSatDate(),7), Store.save(); toast("Tervezés alatt — a teendőlisták életbe léptek.","📅"); render(); });
   root.querySelectorAll("[data-complete]").forEach(b=>b.onclick=()=>{
@@ -344,6 +360,10 @@ function catalogPickerForm(free){
     <div><label class="f">Nehézség</label><select class="input" id="wz-diff">${["Könnyű","Közepes","Nehéz"].map(x=>`<option ${wiz.difficulty===x?"selected":""}>${x}</option>`).join("")}</select></div>
     <div><label class="f">Kivel mész?</label><input class="input" id="wz-with" placeholder="Pl. Réka, Zsolt, család" value="${esc(wiz.with||"")}"></div>
     <div><label class="f">Túra neve (opcionális)</label><input class="input" id="wz-title" placeholder="Pl. Őszi gerincek" value="${esc(wiz.title||"")}"></div>
+    ${free?`<div style="grid-column:1/-1"><label class="f" for="wz-desc">Rövid leírás</label><textarea class="input" id="wz-desc" rows="3" placeholder="Mit érdemes tudni erről a túráról?">${esc(wiz.desc||"")}</textarea></div>
+    <div><label class="f" for="wz-km">Tervezett táv (km)</label><input class="input" id="wz-km" type="number" min="0" step="0.1" value="${esc(wiz.lengthKm||"")}"></div>
+    <div><label class="f" for="wz-ascent">Szintemelkedés (m)</label><input class="input" id="wz-ascent" type="number" min="0" step="10" value="${esc(wiz.ascent||"")}"></div>
+    <div><label class="f" for="wz-duration">Becsült idő (óra)</label><input class="input" id="wz-duration" type="number" min="0" step="0.5" value="${esc(wiz.durationH||"")}"></div>`:""}
   </div>
   ${!free&&wiz.place?`<div class="card" style="padding:.9rem 1.1rem;margin-top:1rem;display:flex;gap:.8rem;align-items:center;border-radius:14px">
     ${imgTag((tourById(wiz.place)||{}).img||IMG.erdo,"")}<span style="width:44px;height:44px;border-radius:12px;overflow:hidden;display:inline-block"><img src="${(tourById(wiz.place)||{}).img||IMG.erdo}" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover"></span>
@@ -390,9 +410,9 @@ VIEWS.newTour.after = root => {
       if(id==="#wz-date") wiz.date=e.value; if(id==="#wz-days") wiz.days=+e.value;
       if(id==="#wz-hours") wiz.hours=e.value; if(id==="#wz-diff") wiz.difficulty=e.value; };});
     const go=q("#wz-go"); if(go) go.onclick=()=>{
-      ["#wz-place","#wz-start","#wz-date","#wz-days","#wz-hours","#wz-diff","#wz-with","#wz-title"].forEach(id=>{const e=q(id); if(e&&e.value!==undefined){
-        const map={"#wz-place":"place","#wz-start":"start","#wz-date":"date","#wz-days":"days","#wz-hours":"hours","#wz-diff":"difficulty","#wz-with":"who","#wz-title":"title"};
-        wiz[map[id]] = id==="#wz-days"?+e.value:e.value; }});
+      ["#wz-place","#wz-start","#wz-date","#wz-days","#wz-hours","#wz-diff","#wz-with","#wz-title","#wz-desc","#wz-km","#wz-ascent","#wz-duration"].forEach(id=>{const e=q(id); if(e&&e.value!==undefined){
+        const map={"#wz-place":"place","#wz-start":"start","#wz-date":"date","#wz-days":"days","#wz-hours":"hours","#wz-diff":"difficulty","#wz-with":"who","#wz-title":"title","#wz-desc":"desc","#wz-km":"lengthKm","#wz-ascent":"ascent","#wz-duration":"durationH"};
+        wiz[map[id]] = ["#wz-days","#wz-km","#wz-ascent","#wz-duration"].includes(id)?(e.value===""?"":+e.value):e.value; }});
       createTour(); };    if(step==="kind"){ }
   }
   function createTour(){
@@ -404,10 +424,10 @@ VIEWS.newTour.after = root => {
       title: wiz.title || base?.name || (wiz.place? wiz.place : "Új túra"),
       place: isCat? base.start.name : (wiz.place||""),
       region: isCat? base.region : "",
-      date: wiz.date || "", days, lengthKm: base?base.km: (wiz.kind==="multi"?32:10),
-      ascent: base?base.up:(wiz.kind==="multi"?1200:450), durationH: base?base.h:hoursNum,
+      date: wiz.date || "", days, lengthKm: base?base.km:(wiz.lengthKm!==""&&wiz.lengthKm!=null?wiz.lengthKm:(wiz.kind==="multi"?32:10)),
+      ascent: base?base.up:(wiz.ascent!==""&&wiz.ascent!=null?wiz.ascent:(wiz.kind==="multi"?1200:450)), durationH: base?base.h:(wiz.durationH!==""&&wiz.durationH!=null?wiz.durationH:hoursNum),
       difficulty: wiz.difficulty||"Közepes", tags: wiz.kind==="multi"?["többnapos","sátor"]: base? base.tags.slice():[],
-      img: base?base.img: IMG.kodos, desc: base?base.desc:"", coords: base? {...base.start}:null,
+      img: base?base.img: IMG.kodos, desc: wiz.desc|| (base?base.desc:""), coords: base? {...base.start}:null,
       with: wiz.who
     };
     dr.participants = (wiz.who||"").split(/,| · |\/+/).map(s=>s.trim()).filter(Boolean)
