@@ -1,9 +1,16 @@
 import { pathToFileURL } from 'node:url';
-const playwright = await import(pathToFileURL('C:/Users/emil/Desktop/audit-tools/node_modules/playwright/index.js').href);
+import fs from 'node:fs';
+const playwrightPath = process.env.V120_PLAYWRIGHT_PATH;
+const edgePath = process.env.V120_EDGE_PATH;
+if (!playwrightPath || !edgePath || !fs.existsSync(playwrightPath) || !fs.existsSync(edgePath)) {
+  console.log('V120 browser GPS test SKIP (set V120_PLAYWRIGHT_PATH and V120_EDGE_PATH to run locally)');
+  process.exit(0);
+}
+const playwright = await import(pathToFileURL(playwrightPath).href);
 const { chromium } = playwright.default || playwright;
 import assert from 'node:assert/strict';
 
-const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' });
+const browser = await chromium.launch({ headless: true, executablePath: edgePath });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
