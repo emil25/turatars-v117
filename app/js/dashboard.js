@@ -8,7 +8,7 @@ const SIDE = [
   ["#/vezerlopult","🏠","Áttekintés"], ["#/turaim","🥾","Túráim"], ["#/uj-tura","➕","Új túra"], ["#/inbox","📥","Inbox"],
   ["#/naptar","📅","Túranaptár"], ["#/felfedezes","🗺️","Felfedezés"], ["#/esemenyek","📅","Túraesemények"], ["#/profil","👤","Saját profil"], ["#/szervezo","🏢","Szervezői központ"], ["#/bakancslista","❤️","Bakancslista"], ["#/tarsak","👥","Túratársak"],
   ["#/felszereles","🎒","Felszerelésem"], ["#/csapatok","👥","Túracsapatok"], ["#/naplo","📖","Túranapló"], ["#/csapat","👥","Csapat állapota"], ["#/terepi","🌍","Terepi infók"], ["#/sablonok","📐","Túrasablonok"],
-  ["#/statisztikak","📊","Statisztikák"], ["#/ai","🤖","AI Túratervező"], ["#/terkep","🧭","Saját térkép"], ["#/hagymas","🕹","Hagymás útvonalak"], ["#/szatt","🏔","SZATT 2026"],
+  ["#/statisztikak","📊","Statisztikák"], ["#/ai","🤖","AI Túratervező"], ["#/terkep","🧭","Saját térkép"], ["#/hagymas","🕹","Hagymás útvonalak"], ["#/szatt","🏔","SZATT 2026"], ["#/kozossegi","🌍","Közösségi túrák"],
   ["#/beallitasok","⚙️","Beállítások"]
 ];
 function sideBadge(h){ try{ const d=Store.myData(); const show=(n)=>n?`<span class="badge">${n>99?"99+":n}</span>`:"";
@@ -35,7 +35,7 @@ function dash(active){
         ${SIDE.filter(s=>["#/vezerlopult","#/turaim","#/uj-tura","#/naptar","#/felfedezes","#/esemenyek"].includes(s[0]))
           .map(([h,i,l])=>`<a class="side-link ${active===h?"on":""}" href="${h}"><span class="ico">${i}</span>${l}${sideBadge(h)}</a>`).join("")}</div>
       <div class="nav-group"><div class="ng-label">Személyes</div>
-        ${SIDE.filter(s=>["#/bakancslista","#/tarsak","#/felszereles","#/csapatok","#/utvonalak","#/naplo","#/csapat","#/terepi","#/sablonok","#/terkep","#/hagymas","#/szatt"].includes(s[0]))
+        ${SIDE.filter(s=>["#/bakancslista","#/tarsak","#/felszereles","#/csapatok","#/utvonalak","#/naplo","#/csapat","#/terepi","#/sablonok","#/terkep","#/hagymas","#/szatt","#/kozossegi"].includes(s[0]))
           .map(([h,i,l])=>`<a class="side-link ${active===h?"on":""}" href="${h}"><span class="ico">${i}</span>${l}${sideBadge(h)}</a>`).join("")}</div>
       <div class="nav-group"><div class="ng-label">Tudás és segítség</div>
         ${SIDE.filter(s=>["#/profil","#/szervezo","#/statisztikak","#/ai","#/beallitasok"].includes(s[0]))
@@ -179,7 +179,7 @@ VIEWS.tours = () => {
 };
 function tourRow(t){
   const st = t.status==="teljesítve";
-  return `<div class="card tour-row">
+  return `<div class="card tour-row" data-tour-id="${esc(t.id)}">
     <a class="img-wrap" style="height:92px;border-radius:12px" href="#/tura/${t.id}">${imgTag(t.img||IMG.erdo,t.title)}</a>
     <div>
       <div class="meta" style="gap:.4rem .7rem">${statusChip(t.status)}${t.difficulty?diffChip(t.difficulty):""}${t.eventCat?`<span class="chip chip-sand">${esc(t.eventCat)}</span>`:""}</div>

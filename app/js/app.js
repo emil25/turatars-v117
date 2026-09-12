@@ -15,7 +15,7 @@ const App = {
       turak: "tourDetail", belepes: "login", regisztracio: "register", onboarding: "onboarding",
       vezerlopult: "dash", turaim: "tours", "uj-tura": "newTour", tura: "workspace", "tura-live": "liveTour", naptar: "calendar",
       bakancslista: "wishlist", felszereles: "equipment", csapatok: "teams", naplo: "journal",
-      statisztikak: "stats", hagymas: "hagymas", tervezes: "planner", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
+      statisztikak: "stats", hagymas: "hagymas", tervezes: "planner", kozossegi: "communityTours", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
       utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", szervezoknek: "szervezoknek", tarsak: "tarsak", meghivo: "meghivo", forrasok: "v122Admin"
     };
     const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "liveTour", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo", "v122Admin"];
@@ -72,7 +72,7 @@ const App = {
     root.innerHTML = html;
 
     const afterFn = { home: VIEWS.home.after, share: VIEWS.share.after, dash: VIEWS.dash.after, tours: VIEWS.tours.after, discover: VIEWS.discover.after,
-      events: VIEWS.events.after, places: VIEWS.places.after, login: VIEWS.login.after, register: VIEWS.register.after, liveTour: VIEWS.liveTour.after,
+      events: VIEWS.events.after, places: VIEWS.places.after, communityTours: VIEWS.communityTours&&VIEWS.communityTours.after, login: VIEWS.login.after, register: VIEWS.register.after, liveTour: VIEWS.liveTour.after,
       onboarding: VIEWS.onboarding.after, newTour: VIEWS.newTour.after, calendar: VIEWS.calendar.after,
       wishlist: VIEWS.wishlist.after, equipment: VIEWS.equipment.after, teams: VIEWS.teams.after,
       journal: VIEWS.journal.after, stats: VIEWS.stats.after, routes: VIEWS.routes && VIEWS.routes.after ? VIEWS.routes.after : null, hagymas: VIEWS.hagymas && VIEWS.hagymas.after ? VIEWS.hagymas.after : null, planner: VIEWS.planner && VIEWS.planner.after ? VIEWS.planner.after : null, ai: VIEWS.ai.after, mymap: VIEWS.mymap.after, inbox: VIEWS.inbox && VIEWS.inbox.after,

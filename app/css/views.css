@@ -975,3 +975,21 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
 .v121-route-choice:hover,.v121-route-choice:focus{border-color:var(--pine);background:var(--cream)}
 .v121-route-choice span{font-size:.78rem;color:var(--muted,#7d8679)}
 @media(max-width:620px){.v121-route-choice{width:100%}.v120-controls #v121-gpx-export{flex-basis:100%}}
+
+/* V126 — saját és közösségi túrák */
+.v126-own-controls{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-top:.45rem}
+.v126-own-controls .btn{min-height:44px}
+.v126-community-page{padding-bottom:2rem}
+.v126-community-card{min-width:0;display:flex;flex-direction:column;gap:.35rem}
+.v126-community-card h3{overflow-wrap:anywhere;margin:.15rem 0}
+.v126-card-actions{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.v126-card-actions .btn{min-height:44px}
+.v126-community-map{height:300px;border-radius:14px;overflow:hidden;background:#e8e4d6;margin:.7rem 0}
+.v126-community-map .leaflet-container{height:100%;width:100%}
+.v126-live-save{margin-top:14px}
+.v126-home-community{margin-top:1rem}
+@media(max-width:620px){
+  .v126-own-controls,.v126-card-actions{align-items:stretch}
+  .v126-own-controls .btn,.v126-card-actions .btn{flex:1 1 100%;width:100%}
+  .v126-community-map{height:240px}
+}

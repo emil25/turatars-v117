@@ -14,6 +14,7 @@
   1. `202609080001_snapshot_storage.sql`
   2. `202609080002_snapshot_rpc.sql`
   3. `202609080003_profiles.sql`
+  4. `202609120004_community_tours.sql` (V126)
 - Client access: publishable key + authenticated user JWT only
 - Frontend service-role key: none
 
@@ -25,6 +26,14 @@ loads use `tt_v54_load()`.
 The profile migration creates `public.tt_profiles` with RLS and the
 `public.tt_profile_upsert(jsonb)` security-definer RPC. Profile reads are
 limited to the owner or profiles explicitly marked discoverable.
+
+The V126 community migration creates separate user-owned tour, review,
+favorite and report tables. All four tables have RLS enabled and forced.
+Public reads are limited to tours explicitly marked `visibility = 'public'`;
+private rows remain owner-only. Community writes go through the authenticated
+security-definer RPCs (`tt_community_tour_upsert`, visibility, review,
+favorite and report operations). GPX track data is returned to other users
+only when the owner sets `gpx_public = true`.
 
 The legacy V54 local vault remains active when the public Supabase configuration
 is missing or the user chooses the offline fallback before linking a cloud account.

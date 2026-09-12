@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V125 application shell', () => {
+test('production output contains the complete V126 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V125 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v125/);
+test('PWA service worker is on the V126 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v126/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -141,4 +141,20 @@ test('production bundle keeps all 37 provenance-backed Nagyhagymás route source
   assert.match(bundle, /Esztenak\.kml/);
   assert.match(bundle, /adinagyhagymas\.leadingsoft\.eu/);
   assert.match(bundle, /GPX elérhető/);
+});
+
+test('production bundle includes the V126 private/public community boundary', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V126Community/);
+  assert.match(bundle, /Közösségi túrák/);
+  assert.match(bundle, /Közösségi túra/);
+  assert.match(bundle, /community_tour_upsert/);
+  assert.match(bundle, /community_tour_set_visibility/);
+  assert.match(bundle, /community_review_upsert/);
+  assert.match(bundle, /community_favorite_toggle/);
+  assert.match(bundle, /community_report/);
+  assert.match(bundle, /gpx_public/);
+  assert.match(bundle, /Még nincs nyilvános közösségi túra/);
 });

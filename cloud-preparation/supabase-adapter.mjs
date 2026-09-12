@@ -93,6 +93,35 @@ export function prepareCloudAdapter({env={},createClient,localAdapter=null}) {
       await user();
       return unwrap(await client.rpc('tt_profile_upsert',{p_profile:profile}));
     },
+    async communityList() {
+      return unwrap(await client.rpc('tt_community_tours_list')) || [];
+    },
+    async communityUpsert(tour) {
+      await user();
+      return unwrap(await client.rpc('tt_community_tour_upsert',{p_tour:tour}));
+    },
+    async communitySetVisibility(id, visibility, gpxPublic) {
+      await user();
+      return unwrap(await client.rpc('tt_community_tour_set_visibility',{
+        p_tour_id:id,p_visibility:visibility,p_gpx_public:!!gpxPublic
+      }));
+    },
+    async communityReview(id, rating, note) {
+      await user();
+      return unwrap(await client.rpc('tt_community_review_upsert',{
+        p_tour_id:id,p_rating:rating,p_note:note||null
+      }));
+    },
+    async communityFavorite(id) {
+      await user();
+      return unwrap(await client.rpc('tt_community_favorite_toggle',{p_tour_id:id}));
+    },
+    async communityReport(id, reason, details) {
+      await user();
+      return unwrap(await client.rpc('tt_community_report',{
+        p_tour_id:id,p_reason:reason,p_details:details||null
+      }));
+    },
     async load() { await user();return unwrap(await client.rpc('tt_v54_load')); },
     async save(_token,snapshot,expectedVersion) {
       await user();
