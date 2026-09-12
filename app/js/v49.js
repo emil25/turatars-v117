@@ -4,7 +4,7 @@
    | esemény→projekt eventRef-fel | route: V47 | DEMO utak jelölve. SEMMI kitalált külső adat. */
 (function(){
 "use strict";
-var f9={ tab:"tours", q:"", region:"", diff:"", dist:"", elev:"", sort:"", weekend:false, csucs:false, loc:null, locMsg:"" };
+var f9={ tab:"tours", q:"", region:"", diff:"", dist:"", elev:"", type:"", gpx:"", shape:"", family:false, sort:"", weekend:false, csucs:false, loc:null, locMsg:"" };
 function nz(v,k){ return (v===null||v===undefined||v==="")?(k||"—"):v; }
 function esc9(x){ return esc(x==null?"":String(x)); }
 function refOf(kind,id){ return "f9:"+kind+":"+id; }
@@ -71,6 +71,10 @@ function tourMatch(t){
   if(f9.diff && (t.diff||"")!==f9.diff) return false;
   if(f9.dist==="0" && !(t.km<10)) return false; if(f9.dist==="1" && !(t.km>=10&&t.km<=20)) return false; if(f9.dist==="2" && !(t.km>20)) return false;
   if(f9.elev==="0" && !(t.up<500)) return false; if(f9.elev==="1" && !(t.up>=500&&t.up<1000)) return false; if(f9.elev==="2" && !(t.up>=1000)) return false;
+  if(f9.type && !(t.tags||[]).some(function(x){return String(x)===f9.type;})) return false;
+  if(f9.gpx==="yes" && !t.gpxUrl) return false; if(f9.gpx==="no" && t.gpxUrl) return false;
+  if(f9.shape && String(t.routeType||t.shape||"")!==f9.shape) return false;
+  if(f9.family && !(t.tags||[]).some(function(x){return /family|család|kezdő/i.test(String(x));})) return false;
   if(f9.csucs && !(/csúcs|kilátó|nyereg|gerinc|tető|topica|hargita|csukás|köves|bükki|balvanyos|radna|izerea|tarnica|hasmas|stânișoara|piatra/.test((t.name+" "+(t.tags||[]).join(" ")).toLowerCase()))) return false;
   return true; }catch(e){ return false; }
 }
@@ -143,12 +147,18 @@ function f9ListHtml(){
 /* ——— nézet + drótozás ——— */
 function f9HeadHtml(){
   var regs=CAT_T().map(function(t){return t.region;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
+  var types=[]; CAT_T().forEach(function(t){(t.tags||[]).forEach(function(x){if(x&&types.indexOf(x)<0)types.push(x);});}); types.sort();
+  var shapes=[]; CAT_T().forEach(function(t){var x=t.routeType||t.shape;if(x&&shapes.indexOf(x)<0)shapes.push(x);}); shapes.sort();
   function sel(id,val,opts,all){ return '<select class="input" id="'+id+'"><option value="">'+all+'</option>'+opts.map(function(o){ return '<option value="'+esc9(o)+'"'+(val===o?' selected':'')+'>'+esc9(o)+'</option>'; }).join("")+'</select>'; }
   return '<section class="wrap f9head"><div class="f9-hero-t"><p class="eyeb">🗺️ TÚRAFELFEDEZŐ</p><h1 class="f9-h1">Mit túrázzak?</h1><p class="f9-sub">Találd meg a következő túrádat Székelyföldön és Erdélyben — egy koppintással saját terv lesz belőle.</p></div>'+
    '<div class="f9-tools"><input class="input" id="f9q" placeholder="🔎 Keress túrát, hegyet, útvonalat vagy eseményt…" value="'+esc9(f9.q)+'">'+
    sel("f9reg",f9.region,regs,"📍 Régió: mindegy")+' '+sel("f9diff",f9.diff,["Könnyű","Közepes","Nehéz"],"🥾 Nehézség")+' '+
    '<select class="input" id="f9dist"><option value="">📏 Távolság</option><option value="0"'+(f9.dist==="0"?" selected":"")+'>0–10 km</option><option value="1"'+(f9.dist==="1"?" selected":"")+'>10–20 km</option><option value="2"'+(f9.dist==="2"?" selected":"")+'>20+ km</option></select> '+
    '<select class="input" id="f9elev"><option value="">⛰️ Szint</option><option value="0"'+(f9.elev==="0"?" selected":"")+'>0–500 m</option><option value="1"'+(f9.elev==="1"?" selected":"")+'>500–1000 m</option><option value="2"'+(f9.elev==="2"?" selected":"")+'>1000+ m</option></select></div>'+
+   '<div class="f9-tools-extra"><select class="input" id="f9type"><option value="">🏷️ Típus / címke</option>'+types.map(function(x){return '<option value="'+esc9(x)+'"'+(f9.type===x?' selected':'')+'>'+esc9(x)+'</option>';}).join('')+'</select> '+
+   '<select class="input" id="f9gpx"><option value="">🗺️ GPX</option><option value="yes"'+(f9.gpx==="yes"?' selected':'')+'>GPX elérhető</option><option value="no"'+(f9.gpx==="no"?' selected':'')+'>Útvonaladat nincs</option></select> '+
+   (shapes.length?'<select class="input" id="f9shape"><option value="">↔ Útvonalforma</option>'+shapes.map(function(x){return '<option value="'+esc9(x)+'"'+(f9.shape===x?' selected':'')+'>'+esc9(x)+'</option>';}).join('')+'</select>':'')+
+   '<button class="f-pill'+(f9.family?' on':'')+'" type="button" data-f9chip="family">👨‍👩‍👧 Családi/kezdő</button></div>'+
    '<div class="f9-chips" role="group">'+
     '<button class="f-pill'+(f9.loc&&f9.sort==="near"?" on":"")+'" data-f9chip="near">📍 Közel hozzám</button>'+
     '<button class="f-pill'+(f9.weekend?" on":"")+'" data-f9chip="weekend">📅 Ezen a hétvégén</button>'+
@@ -232,15 +242,16 @@ function f9modalWire(m){
 }
 function f9wire(root){
   root.addEventListener("input", function(e0){ var x=e0.target; if(x.id==="f9q"){ f9.q=x.value; f9repList(); } });
-  root.addEventListener("change", function(e0){ var x=e0.target; var m={f9reg:"region",f9diff:"diff",f9dist:"dist",f9elev:"elev",f9sort:"sort"}[x.id]; if(m){ f9[m]=x.value; if(m==="diff"&&f9.tab==="peaks") f9.tab="tours"; f9rep(); } });
+  root.addEventListener("change", function(e0){ var x=e0.target; var m={f9reg:"region",f9diff:"diff",f9dist:"dist",f9elev:"elev",f9type:"type",f9gpx:"gpx",f9shape:"shape",f9sort:"sort"}[x.id]; if(m){ f9[m]=x.value; if(m==="diff"&&f9.tab==="peaks") f9.tab="tours"; f9rep(); } });
   root.addEventListener("click", function(e0){ var b=e0.target.closest?e0.target.closest("[data-f9tab],[data-f9chip],[data-f9clear],[data-f9plan],[data-f9open],[data-f9w],[data-f9tour],[data-f9ev],[data-f9peak],[data-f9route],[data-f9import],[data-f9rec],[data-f9share]"):null; if(!b) return;
     if(b.dataset.f9tab){ f9.tab=b.dataset.f9tab; f9rep(); return; }
     var ch=b.dataset.f9chip; if(ch){ if(ch==="near"){ geoAsk(); }
       else if(ch==="weekend"){ f9.weekend=!f9.weekend; if(f9.weekend) f9.tab="events"; f9rep(); }
       else if(ch==="csucs"){ f9.csucs=!f9.csucs; if(f9.tab!=="tours"&&f9.tab!=="pop") f9.tab="tours"; f9rep(); }
+      else if(ch==="family"){ f9.family=!f9.family; if(f9.tab!=="tours"&&f9.tab!=="pop") f9.tab="tours"; f9rep(); }
       else if(ch==="kozos"){ f9.kozos=!f9.kozos; f9.tab="events"; f9rep(); }
       else { f9.diff = (f9.diff===ch)?"":ch; f9rep(); } return; }
-    if(b.hasAttribute("data-f9clear")){ f9.q="";f9.region="";f9.diff="";f9.dist="";f9.elev="";f9.csucs=false;f9.weekend=false;f9.sort="";f9rep(); return; }
+    if(b.hasAttribute("data-f9clear")){ f9.q="";f9.region="";f9.diff="";f9.dist="";f9.elev="";f9.type="";f9.gpx="";f9.shape="";f9.family=false;f9.csucs=false;f9.weekend=false;f9.sort="";f9rep(); return; }
     var pl=b.dataset.f9plan; if(pl){ var pp=pl.split(":"); closeModal(); planFrom(pp[0],pp[1]); return; }
     var op=b.dataset.f9open; if(op){ closeModal(); NAV.to("#/tura/"+op); return; }
     var wu=b.dataset.f9w; if(wu){ var ww=wu.split(":"); wishToggle(ww[0],ww[1]); return; }

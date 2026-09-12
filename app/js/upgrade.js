@@ -890,7 +890,7 @@ function hgyStats(pts){
   pts.forEach(p=>{ if(p.ele){ if(p.ele<min)min=p.ele; if(p.ele>max)max=p.ele; } });
   return {m:d, up, dn, min:isFinite(min)?min:null, max:isFinite(max)?max:null};
 }
-function hgyImport(i, btn){
+function hgyImport(i, btn, done){
   const r=HAGYMAS_ROUTES[i];
   if(!Store.me()){ toast("Az importhoz jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
   if(btn){ btn.disabled=true; btn.textContent="…" }
@@ -911,8 +911,9 @@ function hgyImport(i, btn){
       startNote:""
     });
     toast("Útvonal importálva a te Túraprojekt-listádba 🕹","🧭");
-    render();
     if(btn){ btn.disabled=false }
+    if(typeof done==="function"){ done(t); return; }
+    render();
     location.hash="#/tura/"+t.id;
   }).catch(()=>{
     if(btn){ btn.disabled=false; btn.textContent="🧭 Tervbe importálás" }
@@ -950,17 +951,13 @@ VIEWS.hagymas = () => {
           </div>
         </aside>
       </div>
-      ${u?`
       <div class="hgy-list">
         ${list.map((r,i)=>{ const gi=HAGYMAS_ROUTES.indexOf(r);
           return `<div class="hgy-row"><b>${hgyIcon(r.t)}&nbsp; ${esc(r.n.replace(/_/g," "))}</b><span class="chip ${r.t==='bringa'?'chip-ember':r.t==='esztena'?'chip-sand':'chip-green'}" style="text-transform:none">${{bringa:"kerékpár",esztena:"legelő KML",tura:"túra GPX"}[r.t]}</span>
-            <button class="btn btn-primary btn-sm" onclick="hgyImport(${gi},this)" ${r.t==='esztena'?'disabled title="KML — csak a Térképen' : ""}>🧭 Tervbe importálás</button>
-            <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${esc(r.url)}">⬇</a></div>` }).join("")}
-      </div>` : `
-      <div class="card panel center" style="border-radius:18px">
-        <h3>Jelkezz be az importáláshoz</h3><p class="muted">Az útvonalak a te személyes túraközpontodba kerülnek.</p>
-        <a class="btn btn-primary" href="#/belepes">Bejelentkezés</a>
-      </div>`}
+            ${u ? (r.t==='esztena' ? `<a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="${esc(r.url)}">⬇ KML forrás</a>` : `<button class="btn btn-primary btn-sm" onclick="hgyImport(${gi},this)">🧭 Tervbe importálás</button>`) : `<a class="btn btn-soft btn-sm" href="#/belepes">🔐 Importáláshoz belépés</a>`}
+            <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${esc(r.url)}">⬇ Forrás</a></div>` }).join("")}
+      </div>
+      ${u ? "" : `<p class="small muted center" style="margin-top:.8rem">A 37 ellenőrzött útvonal nyilvánosan megtekinthető; a személyes tervbe importáláshoz jelentkezz be.</p>`}
     </div>`;
   const shell = u ? dash("#/hagymas")(u.onboarded?body:`<p class="muted">Előbb töltsd ki a 5 perces onboardingt — utána tudod importálni az útvonalakat.</p><a class="btn btn-primary" href="#/onboarding">Onboarding</a>`) : body;
   return shell;

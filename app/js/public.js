@@ -97,7 +97,7 @@ VIEWS.home = () => {
     <section class="pub-section">
       <div class="sect-head"><div><span class="eyebrow">A közösség kedvencei</span><h2 class="mb0">Népszerű túrák</h2></div>
         <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
-"      <div class="grid g3">${popular.map(t=>tourCard(t)).join("")}</div>
+      <div class="grid g3">${popular.map(t=>tourCard(t)).join("")}</div>
       ${(function(){ const uj=v122PublicTours().filter(t=>t.src).slice(0,4); return uj.length?`<p class="small muted" style="margin-top:.9rem">Újonnan a kínálatban — forrással a túrakártyákon: ${uj.map(x=>`<a href="#/turak/${x.id}" style="color:var(--sky);font-weight:600">${esc(x.name.split(" (")[0])}</a>`).join(" · ")}</p>`:""; })()}
     </section>
 
@@ -208,6 +208,8 @@ function footer(){ return `<footer class="pub-foot"><div class="wrap">
 /* ================= FELFEDEZÉS ================= */
 VIEWS.discover = () => {
   const saved = (()=>{ try{return JSON.parse(sessionStorage.getItem("tvq")||"{}")}catch(e){return {}} })();
+  const typeTags = [...new Set(v122PublicTours().flatMap(t=>(t.tags||[]).filter(Boolean)))].sort();
+  const routeShapes = [...new Set(v122PublicTours().map(t=>t.routeType||t.shape).filter(Boolean))].sort();
   return `<div class="wrap pub-section tight">
     <div class="sect-head"><div><span class="eyebrow">${v122PublicTours().length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
     <div class="searchbox" style="margin-top:0;grid-template-columns:1.4fr .8fr .8fr .8fr .9fr" id="discfilters">
@@ -215,6 +217,12 @@ VIEWS.discover = () => {
       <div class="sc-field"><label for="d-diff">Nehézség</label><select id="d-diff"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
       <div class="sc-field"><label for="d-id">Idő</label><select id="d-id"><option value="">Bármennyi</option><option value="3">max 3 ó</option><option value="5">max 5 ó</option><option value="99">bármilyen hosszú</option></select></div>
       <div class="sc-field"><label for="d-reg">Tájegység</label><select id="d-reg"><option value="">Mindegy</option>${[...new Set(v122PublicTours().map(t=>t.region))].map(r=>`<option>${esc(r)}</option>`).join("")}</select></div>
+      <div class="sc-field"><label for="d-dist">Táv</label><select id="d-dist"><option value="">Bármennyi</option><option value="0-5">0–5 km</option><option value="5-15">5–15 km</option><option value="15-30">15–30 km</option><option value="30+">30+ km</option></select></div>
+      <div class="sc-field"><label for="d-up">Szint</label><select id="d-up"><option value="">Bármennyi</option><option value="0-300">0–300 m</option><option value="300-800">300–800 m</option><option value="800+">800+ m</option></select></div>
+      <div class="sc-field"><label for="d-type">Típus / címke</label><select id="d-type"><option value="">Mindegy</option>${typeTags.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select></div>
+      <div class="sc-field"><label for="d-gpx">GPX</label><select id="d-gpx"><option value="">Mindegy</option><option value="yes">GPX elérhető</option><option value="no">Útvonaladat nincs</option></select></div>
+      ${routeShapes.length?`<div class="sc-field"><label for="d-shape">Útvonalforma</label><select id="d-shape"><option value="">Mindegy</option>${routeShapes.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select></div>`:`<div class="sc-field"><label for="d-shape">Útvonalforma</label><select id="d-shape" disabled><option>Nincs adat</option></select></div>`}
+      <div class="sc-field"><label for="d-family">Kezdő / családi</label><select id="d-family"><option value="">Mindegy</option><option value="family">Családi vagy kezdő</option></select></div>
       <div class="sc-field"><label>Nézet</label><button class="input" id="d-toggle" style="cursor:pointer;text-align:left;background:transparent">🗺️ Térkép</button></div>
     </div>
     <div class="grid g3" id="disc-results" style="margin-top:22px"></div>
@@ -224,7 +232,7 @@ VIEWS.discover = () => {
   </div>${footer()}`;
 };
 VIEWS.discover.after = (root)=>{
-  const els = { q:root.querySelector("#d-q"), diff:root.querySelector("#d-diff"), h:root.querySelector("#d-id"), reg:root.querySelector("#d-reg") };
+  const els = { q:root.querySelector("#d-q"), diff:root.querySelector("#d-diff"), h:root.querySelector("#d-id"), reg:root.querySelector("#d-reg"), dist:root.querySelector("#d-dist"), up:root.querySelector("#d-up"), type:root.querySelector("#d-type"), gpx:root.querySelector("#d-gpx"), shape:root.querySelector("#d-shape"), family:root.querySelector("#d-family") };
   try{ const saved=JSON.parse(sessionStorage.getItem("tvq")||"{}"); if(saved.diff)els.diff.value=saved.diff; if(saved.h)els.h.value=saved.h; }catch(e){}
   let showMap=false, discMap=null;
   const apply = () => {
@@ -232,6 +240,12 @@ VIEWS.discover.after = (root)=>{
       (!els.diff.value || t.diff===els.diff.value) &&
       (!els.reg.value || t.region===els.reg.value) &&
       (els.h.value==="99" || !els.h.value || t.h <= +els.h.value || els.h.value==="99") &&
+      (!els.dist.value || (els.dist.value==="0-5" && t.km<=5) || (els.dist.value==="5-15" && t.km>5 && t.km<=15) || (els.dist.value==="15-30" && t.km>15 && t.km<=30) || (els.dist.value==="30+" && t.km>30)) &&
+      (!els.up.value || (els.up.value==="0-300" && t.up<=300) || (els.up.value==="300-800" && t.up>300 && t.up<=800) || (els.up.value==="800+" && t.up>800)) &&
+      (!els.type.value || (t.tags||[]).includes(els.type.value)) &&
+      (!els.gpx.value || (els.gpx.value==="yes" ? !!t.gpxUrl : !t.gpxUrl)) &&
+      (!els.shape.value || els.shape.disabled || (t.routeType||t.shape)===els.shape.value) &&
+      (!els.family.value || (t.tags||[]).some(x=>/family|család|kezdő/i.test(x))) &&
       (!q || (t.name+" "+t.region+" "+t.desc+" "+t.tags.join(" ")).toLowerCase().includes(q));
     const res = v122PublicTours().filter(f);
     root.querySelector("#disc-results").innerHTML = res.length ? res.map(t=>tourCard(t)).join("")
@@ -242,7 +256,7 @@ VIEWS.discover.after = (root)=>{
         `<b><a href="#/turak/${t.id}">${esc(t.name)}</a></b><br>${esc(t.region)} · ${t.km} km · ${esc(t.diff)}`); });
     }
   };
-  ["q","diff","h","reg"].forEach(k=>{ els[k].addEventListener("input",apply); els[k].addEventListener("change",apply); });
+  ["q","diff","h","reg","dist","up","type","gpx","shape","family"].forEach(k=>{ if(!els[k]) return; els[k].addEventListener("input",apply); els[k].addEventListener("change",apply); });
   root.querySelector("#d-toggle").onclick = () => { showMap=!showMap;
     els.q.closest(".searchbox").querySelector("button").textContent = showMap?"📋 Lista":"🗺️ Térkép";
     root.querySelector("#disc-results").classList.toggle("hidden",showMap);
@@ -363,6 +377,7 @@ function tourModal(tid){
     body:`<div class="img-wrap" style="height:190px;border-radius:14px;margin-bottom:1rem">${imgTag(t.img,t.name)}</div>
       <div class="meta" style="margin-bottom:.8rem"><span>📍 <b>${esc(t.start.name)}</b> · ${esc(t.region)}</span>
       <span>📏 ${t.km} km</span><span>⏱ ${t.h} ó</span><span>⬆ ${t.up} m</span><span>★ ${t.rating} (${t.reviews} értékelés)</span>${diffChip(t.diff)}</div>
+      <div id="tm-map" class="mapbox" style="height:240px;border-radius:14px;margin:.7rem 0" aria-label="A túra valódi kezdőpontja"></div>
       <p>${esc(t.desc)}</p>
       ${window.v122SourceLine?v122SourceLine(t):""}
       ${t.gpxUrl?`<div class="flex" style="gap:.5rem;flex-wrap:wrap;margin-top:.3rem"><a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="${esc(t.gpxUrl)}">⬇ GPX letöltése</a>${t.src?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${esc(t.src)}">${esc(t.srcn||"🔗 Hivatalos távleírás")}</a>`:""}</div>`:`<p class="small muted">🗺️ Útvonaladat még nem érhető el. A kezdőpontból saját útvonalat tervezhetsz a térképen.</p>`}
@@ -371,17 +386,29 @@ function tourModal(tid){
      ${t.src2?`<a class="tour-src" target="_blank" rel="noopener" href="${t.src2}">🧭 ${(t.src2n||'Nyomvonal')} — Komoot</a>`:""}
      ${t.src3?`<a class="tour-src" target="_blank" rel="noopener" href="${t.src3}">🧭 ${(t.src3n||'Nyomvonal 2')} — Komoot</a>`:""}
       <div style="height:44px">${elevSpark(t.elev)}</div>
+      <div class="flex" style="gap:.5rem;flex-wrap:wrap;margin-top:.35rem">
+        <button class="btn btn-ember btn-sm" id="tm-gps">🥾 Indítás GPS-szel</button>
+        <a class="btn btn-ghost btn-sm" href="#/tervezes?route=${encodeURIComponent(t.id)}">🧭 Túra tervezése</a>
+      </div>
       <p class="small muted">💡 Regisztráció után egy kattintással átemelheted a saját túráid közé, és a rendszer automatikusan javasol felszerelést, időtervet és étellistát.</p>`,
     footer:`<div class="flex" style="justify-content:space-between"><button class="btn btn-ghost btn-sm" data-close>Bezárás</button>
       <button class="btn btn-primary" id="tm-save">➕ Mentés a saját túráim közé</button></div>`,
-    onOpen: r => r.querySelector("#tm-save").onclick = () => {
+    onOpen: r => {
+      r.querySelector("#tm-save").onclick = () => {
       if(!Store.me()){ toast("Előbb jelentkezz be vagy regisztrálj","🔐"); NAV.to("#/regisztracio"); return; }
       const d = Store.myData();
       if(!d.tours.some(x=>x.place===t.start.name && x.status==="tervezés" && x.date>=Store.todayISO())){
         Store.newTourFromDraft({ title:t.name, place:t.start.name, region:t.region, lengthKm:t.km, ascent:t.up,
           durationH:t.h, difficulty:t.diff, tags:t.tags.slice(), img:t.img, desc:t.desc, coords:{...t.start}, date:Store.nextSatDate() });
       }
-      closeModal(); toast("Mentve a tervezett túráid közé — nyisd meg a munkaterületet! 🥾","✓"); NAV.to("#/turaim"); } });
+      closeModal(); toast("Mentve a tervezett túráid közé — nyisd meg a munkaterületet! 🥾","✓"); NAV.to("#/turaim"); };
+      const gps=r.querySelector("#tm-gps"); if(gps) gps.onclick=()=>{ if(window.v125StartCatalogTour) window.v125StartCatalogTour(t.id); };
+      const mapEl=r.querySelector("#tm-map");
+      if(mapEl&&t.start&&t.start.lat&&typeof MapKit!=="undefined"){
+        try{ const m=MapKit.make(mapEl,{center:[t.start.lat,t.start.lng],zoom:12}); if(m){ MapKit.pin(m,t.start.lat,t.start.lng,"pin-cat",`<b>${esc(t.start.name)}</b><br>${esc(t.region||"")} · valódi kezdőpont`); } }
+        catch(e){ mapEl.innerHTML='<p class="small muted">A térkép most nem érhető el — a forrásadat és a GPS indítás továbbra is használható.</p>'; }
+      }
+    } });
 }
 
 /* ---------- HASH: #/turak/:id és #/esemenyek/:id → modalok az app felett ---------- */

@@ -36,6 +36,24 @@
   .searchbox,#discfilters.searchbox{grid-template-columns:1fr!important}
 }
 
+/* V125 — forrásolt útvonal-felfedezés */
+.f9-tools-extra{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;margin-top:.5rem}
+.f9-tools-extra .input{min-width:150px;flex:1}
+.v125-known{margin-top:1.5rem}
+.v125-route-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.v125-route-card{padding:1rem;min-width:0}
+.v125-route-card h3{font-size:1.05rem;margin:.65rem 0 .35rem;line-height:1.25}
+.v125-route-head{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
+.v125-route-actions{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}
+.v125-route-more{margin-top:1rem;border-top:1px solid var(--line);padding-top:.8rem}
+.v125-route-more summary{cursor:pointer;color:var(--moss);font-weight:700}
+.v125-planner{max-width:980px}
+.v125-plan-card{padding:1.15rem;margin:1rem 0}
+.v125-plan-card h2{font-size:1.25rem;margin:0 0 .8rem}
+.v125-plan-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.v125-plan-row .input{flex:1;min-width:230px}
+@media(max-width:760px){.v125-route-grid{grid-template-columns:1fr}.v125-plan-row{display:grid;grid-template-columns:1fr}.v125-plan-row .input{min-width:0}.f9-tools-extra .input{min-width:0;width:100%}}
+
 /* Túrakártya (publikus) */
 .tcard{display:flex;flex-direction:column;height:100%;overflow:hidden;border-radius:var(--r-lg)}
 .tcard .img-wrap{height:168px;border-radius:0}
