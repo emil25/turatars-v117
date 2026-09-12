@@ -122,6 +122,18 @@ export function prepareCloudAdapter({env={},createClient,localAdapter=null}) {
         p_tour_id:id,p_reason:reason,p_details:details||null
       }));
     },
+    async routingPlan(request) {
+      const result=await client.functions.invoke('route-proxy',{body:{action:'route',...request}});
+      if (result.error) throw fail(codeOf(result.error),result.error);
+      if (result.data?.error) throw fail(String(result.data.error),result.data);
+      return result.data;
+    },
+    async routingSearch(query) {
+      const result=await client.functions.invoke('route-proxy',{body:{action:'search',query}});
+      if (result.error) throw fail(codeOf(result.error),result.error);
+      if (result.data?.error) throw fail(String(result.data.error),result.data);
+      return result.data||{results:[]};
+    },
     async load() { await user();return unwrap(await client.rpc('tt_v54_load')); },
     async save(_token,snapshot,expectedVersion) {
       await user();

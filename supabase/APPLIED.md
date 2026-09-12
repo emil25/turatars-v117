@@ -37,3 +37,13 @@ only when the owner sets `gpx_public = true`.
 
 The legacy V54 local vault remains active when the public Supabase configuration
 is missing or the user chooses the offline fallback before linking a cloud account.
+
+## V127 routing proxy
+
+The V127 planner calls the `route-proxy` Edge Function for real point-to-point
+walking routes. The function forwards validated requests to HeiGIT
+OpenRouteService v2 and Pelias, while the provider key remains server-side.
+Before deploying the function, add an Edge Function secret named `ORS_API_KEY`
+in this Supabase project. The key is never placed in the frontend bundle,
+GitHub Pages artifact, or public environment variables. Without that secret the
+planner deliberately shows a configuration error and does not draw a fake line.

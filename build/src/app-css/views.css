@@ -185,6 +185,35 @@
 /* Térkép (Leaflet) */
 .mapbox{height:340px;border-radius:16px;overflow:hidden;border:1px solid var(--line);z-index:1}
 .mapbox.tall{height:480px}
+
+/* V127 — valós útvonaltervező, a meglévő outdoor felülethez igazítva */
+.v127-planner{padding-bottom:3rem}
+.v127-plan-card,.v127-picker,.v127-known,.v127-result{padding:clamp(1rem,2.4vw,1.5rem);margin-top:1rem}
+.v127-profile-row{display:flex;align-items:end;gap:1rem;margin-top:1rem;flex-wrap:wrap}
+.v127-profile-row .f{min-width:180px;flex:0 1 240px}
+.v127-profile-row #v127-plan{margin-left:auto}
+.v127-search-actions{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.45rem}
+.v127-place-results{display:grid;gap:.35rem;margin-top:.45rem}
+.v127-place{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;background:var(--paper);color:var(--bark);cursor:pointer}
+.v127-place:hover{border-color:var(--leaf);background:var(--leaf-soft)}
+.v127-map-picker{height:360px;margin-top:.9rem}
+.v127-map{height:420px;margin:1rem 0}
+.v127-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:1rem 0}
+.v127-stats span{display:flex;flex-direction:column;gap:.12rem;padding:.8rem;border-radius:12px;background:var(--leaf-soft);color:var(--pine)}
+.v127-stats b{font-size:1.12rem}.v127-stats small{font-size:.76rem;color:var(--bark-soft)}
+.v127-alts{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;margin:.75rem 0}
+.v127-alts b{width:100%;font-size:.85rem;color:var(--pine)}
+.v127-alts .on{background:var(--pine);color:#fff}
+.v127-actions{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:1rem}
+@media(max-width:620px){
+  .v127-planner .sect-head{align-items:flex-start}
+  .v127-profile-row{align-items:stretch}
+  .v127-profile-row .f,.v127-profile-row #v127-plan{width:100%;max-width:none;margin-left:0}
+  .v127-map-picker{height:300px}
+  .v127-map{height:320px}
+  .v127-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .v127-actions .btn{width:100%}
+}
 .leaflet-popup-content{font-family:var(--font-body)}
 .map-pop b{font-family:var(--font-display)}
 .legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.83rem;color:var(--bark-soft);margin:.6rem 0}

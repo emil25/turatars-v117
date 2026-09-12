@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V126 application shell', () => {
+test('production output contains the complete V127 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V126 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v126/);
+test('PWA service worker is on the V127 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v127/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -157,4 +157,29 @@ test('production bundle includes the V126 private/public community boundary', ()
   assert.match(bundle, /community_report/);
   assert.match(bundle, /gpx_public/);
   assert.match(bundle, /Még nincs nyilvános közösségi túra/);
+});
+
+test('production bundle includes the V127 real routing planner boundary', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V127Routing/);
+  assert.match(bundle, /route-proxy/);
+  assert.match(bundle, /api\.heigit\.org\/openrouteservice\/v2/);
+  assert.match(bundle, /foot-hiking/);
+  assert.match(bundle, /v127-start/);
+  assert.match(bundle, /v127-end/);
+  assert.match(bundle, /tényleges ORS-geometri/);
+  assert.match(bundle, /routing_not_configured/);
+  assert.doesNotMatch(bundle, /ORS_API_KEY/);
+});
+
+test('routing proxy keeps its provider key server-side', () => {
+  const edge = path.resolve(here, '..', '..', 'supabase', 'functions', 'route-proxy', 'index.ts');
+  assert.ok(fs.existsSync(edge), 'route-proxy Edge Function is missing');
+  const source = fs.readFileSync(edge, 'utf8');
+  assert.match(source, /Deno\.env\.get\("ORS_API_KEY"\)/);
+  assert.match(source, /openrouteservice\/v2/);
+  assert.match(source, /foot-hiking/);
+  assert.doesNotMatch(source, /VITE_/);
 });

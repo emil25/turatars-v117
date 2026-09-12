@@ -174,6 +174,8 @@ window.__V54={ build:buildSnapshot, vault:{ get:vault }, api:{ signup:function(e
     communityReview:function(id,rating,note){ if(!SupabaseAdapter||typeof SupabaseAdapter.communityReview!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communityReview(id,rating,note); },
     communityFavorite:function(id){ if(!SupabaseAdapter||typeof SupabaseAdapter.communityFavorite!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communityFavorite(id); },
     communityReport:function(id,reason,details){ if(!SupabaseAdapter||typeof SupabaseAdapter.communityReport!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communityReport(id,reason,details); },
+    routingPlan:function(request){ if(!SupabaseAdapter||typeof SupabaseAdapter.routingPlan!=="function") return Promise.reject({error:"routing_not_configured"}); return SupabaseAdapter.routingPlan(request); },
+    routingSearch:function(query){ if(!SupabaseAdapter||typeof SupabaseAdapter.routingSearch!=="function") return Promise.reject({error:"routing_not_configured"}); return SupabaseAdapter.routingSearch(query); },
     logoutNow:function(){ var t=sess.token, a=getActive(); var p=(t&&a.name!=="local-vault")?Promise.resolve(a.logout(t)).catch(function(){ return true; }):Promise.resolve(true); return p.then(function(){ clearSess(); }); } },
   st:st, settings:settings, setSettings:setSettings, isRemote:isRemote, activeName:function(){ return getActive().name; },
   restoreApply:applySnapshot, preSnapName:("v54_pre1") };
