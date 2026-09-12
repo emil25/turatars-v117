@@ -40,11 +40,11 @@ function counts(id){ var p=P(); var L=p.participants.filter(function(x){ return 
   return { pend:L.filter(function(x){return x.status==="pending";}).length, acc:L.filter(function(x){return x.status==="accepted";}).length, tot:L.length }; }
 window.e2Events=function(){ ensureDemo(); var u=myU(); var o=isOrg(); try{
   var meEmail=u&&u.email; var mEmail=u&&u.email;
-  return P().events.filter(function(e){ if(e.status==="draft") return false; if(e.status==="cancelled") return true; return e.status!=="hidden" && !e.demo && e.dataStatus==="verified" && e.sourceUrl; })
+  return P().events.filter(function(e){ if(e.status==="draft"||e.status==="hidden"||e.demo) return false; return true; })
    .map(function(e){ var org=P().organizers.find(function(x){return x.id===e.orgId;}); var c=counts(e.id);
     return { id:"p2-"+e.id, name: e.name, date:e.date||"", time:e.time||"", place:e.place||"", diff:e.diff||"",
       org:(org?org.name:"")+ (e.community?"":(org&&!org.demo?"":"")), people:c.acc+ (e.cap?"/"+e.cap:""), km:e.km!=null?String(e.km):null, up:e.up!=null?String(e.up):null, h:e.h!=null?String(e.h):null,
-      desc:(e.desc||""), src: e.sourceUrl|| (e.joinMode==="external"? (e.joinUrl||null):null), p2:e.id, source:e.source, sourceUrl:e.sourceUrl, verifiedAt:e.verifiedAt,
+      desc:(e.desc||""), src: e.sourceUrl|| (e.joinMode==="external"? (e.joinUrl||null):null), p2:e.id, source:e.source, sourceUrl:e.sourceUrl, verifiedAt:e.verifiedAt, reviewedAt:e.reviewedAt, importedAt:e.importedAt, dataStatus:e.dataStatus==="verified"?"verified":"needs_review",
       cat: e.community?"🥾 Közösségi túra":"Platform", demo:!!e.demo }; }); }catch(err){ return []; } };
 
 /* ---------- esemény modal extrák (V49 openEventModal hívja) ---------- */
@@ -284,11 +284,14 @@ document.addEventListener("click", function(ev){ var b = ev.target && ev.target.
 /* ---------- nyilvános Események lap bővítése ---------- */
 (function(){ var _pe=VIEWS.events, _pea=VIEWS.events&&VIEWS.events.after;
   VIEWS.events=function(){ try{ var base=_pe?_pe.apply(this,arguments):""; ensureDemo(); var today=Store.todayISO();
-    var up=P().events.filter(function(e){ return (e.status==="published"||e.status==="full") && !e.demo && e.dataStatus==="verified" && e.sourceUrl && e.date>=today; }).sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+    var up=P().events.filter(function(e){ return (e.status==="published"||e.status==="full") && !e.demo && e.date>=today; });
+    try{ up=up.concat(window.v124PendingEvents?window.v124PendingEvents():[]); }catch(e){}
+    var seen={}; up=up.filter(function(e){var k=String(e.id||""); if(!k||seen[k]) return false; seen[k]=1; return true;}).sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
     var extra='<section class="wrap pub-section tight e2pub"><div class="sect-head"><div><span class="eyeb">PLATFORM</span><h1 class="mb0" style="font-size:1.6rem">📅 Platform események</h1></div></div>'+
       (up.length? up.map(function(e){ var org=P().organizers.find(function(x){return x.id===e.orgId;}); var full=e.cap&&counts(e.id).tot>=e.cap;
-        return '<article class="card e2pcard"><b>📣 '+esc2(e.name)+'</b><p class="small muted mb0">'+esc2(e.date)+(e.time?(" "+e.time):"")+(e.place?(" · 📍 "+esc2(e.place)):"")+(e.km!=null?(" · "+e.km+" km"):"")+(e.up!=null?(" · +"+e.up+" m"):"")+(full?" · 🔴 Betelt":"")+'</p><p class="small">👥 '+esc2(org?org.name:"")+'</p><p class="small muted">Forrás / Ellenőrizve: '+esc2(e.source||e.sourceUrl||"")+' · '+esc2(e.verifiedAt||"")+'</p><div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-e2open="'+e.id+'">📖 Részletek</button></div></article>'; }).join("")
-       : '<p class="muted">Jelenleg nincs ellenőrzött esemény.</p>')+"</section>";
+        var verified=e.dataStatus==="verified"&&e.sourceUrl;
+        return '<article class="card e2pcard"><b>📣 '+esc2(e.name)+'</b> <span class="chip '+(verified?'chip-green':'chip-sand')+'">'+(verified?'Ellenőrizve':'Ellenőrzés alatt')+'</span><p class="small muted mb0">'+esc2(e.date)+(e.time?(" "+e.time):"")+(e.place?(" · 📍 "+esc2(e.place)):"")+(e.km!=null?(" · "+e.km+" km"):"")+(e.up!=null?(" · +"+e.up+" m"):"")+(full?" · 🔴 Betelt":"")+'</p><p class="small">👥 '+esc2(org?org.name:(e.org||""))+'</p>'+(e.sourceUrl?'<p class="small muted">Forrás / '+(verified?'Ellenőrizve':'Ellenőrzés alatt')+': <a href="'+esc2(e.sourceUrl)+'" target="_blank" rel="noopener nofollow">'+esc2(e.source||e.sourceUrl)+'</a></p>':'')+'<div style="display:flex;gap:.45rem;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-e2open="'+e.id+'">📖 Részletek</button></div></article>'; }).join("")
+       : '<p class="muted">Jelenleg nincs közzétett esemény.</p>')+"</section>";
     var footerAt=base.lastIndexOf("<footer");
     return footerAt>=0 ? base.slice(0,footerAt)+extra+base.slice(footerAt) : base+extra; }catch(e){ return _pe?_pe.apply(this,arguments):""; } };
   VIEWS.events.after=function(root){ try{ _pea&&_pea(root); }catch(e){} }; })();

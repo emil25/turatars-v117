@@ -9,7 +9,7 @@ function nz(v,k){ return (v===null||v===undefined||v==="")?(k||"—"):v; }
 function esc9(x){ return esc(x==null?"":String(x)); }
 function refOf(kind,id){ return "f9:"+kind+":"+id; }
 function CAT_T(){ return window.v122PublicTours?window.v122PublicTours():((typeof TOURS!=="undefined")?TOURS:[]); }
-function CAT_E(){ var base=window.v122PublicEvents?window.v122PublicEvents():((typeof EVENTS!=="undefined")?EVENTS:[]); try{ var ex=(window.e2Events?window.e2Events():[]).filter(function(e){return !e.demo;}); return ex&&ex.length?base.concat(ex):base; }catch(e){ return base; } }
+function CAT_E(){ var base=window.v122PublicEvents?window.v122PublicEvents():((typeof EVENTS!=="undefined")?EVENTS:[]); try{ var pending=window.v124PendingEvents?window.v124PendingEvents():[]; var ex=(window.e2Events?window.e2Events():[]).filter(function(e){return !e.demo;}); var all=base.concat(pending||[],ex||[]), seen={}; return all.filter(function(e){var k=String(e.id||""); if(!k||seen[k]) return false; seen[k]=1; return true;}); }catch(e){ return base; } }
 function hasWish(ref){ var d=Store.myData(); return (d.wishlist||[]).some(function(w){return w.ref===ref;}); }
 function tourByRef(ref){ var d=Store.myData(); return (d.tours||[]).find(function(t){return t.extRef===ref;}); }
 function ctaFor(kind,it){
@@ -35,7 +35,7 @@ function ecard(e){
   try{ var c=ctaFor("e",e); var base=CAT_T().find(function(t){return t.id===e.tour;});
   var meta='📅 '+nz(e.date,e.time?e.date:null,'dátum nélkül')+(e.time?' '+e.time:'');
   if(base){ meta+=' · 📏 '+base.km+' km · ⛰️ +'+base.up+' m'; } else if(e.km!=null){ meta+=' · 📏 '+e.km+' km'+(e.up!=null?' · ⛰️ +'+e.up+' m':''); }
-   return '<article class="f9card card ecard9"><div class="f9-b"><div class="f9-t1"><b>📣 '+esc9(e.name)+'</b>'+(e.cat?'<span class="chip chip-sand">'+esc9(e.cat)+'</span>':'')+'</div>'+
+   return '<article class="f9card card ecard9"><div class="f9-b"><div class="f9-t1"><b>📣 '+esc9(e.name)+'</b>'+(e.dataStatus==="needs_review"?'<span class="chip chip-sand">Ellenőrzés alatt</span>':(e.cat?'<span class="chip chip-sand">'+esc9(e.cat)+'</span>':''))+'</div>'+
     '<p class="small muted mb0">'+meta+(e.place?' · 📍 '+esc9(e.place):'')+(e.diff?' · 🥾 '+esc9(e.diff):'')+(e.org?' · 👥 '+esc9(e.org):'')+'</p>'+
     '<p class="small mb0 f9-src">'+(e.src?'<a href="'+esc9(e.src)+'" target="_blank" rel="noopener nofollow">🔗 Forrás: eredeti oldal ↗</a>':'')+'</p>'+(window.v122SourceLine?v122SourceLine(e):'')+
     '<div class="f9cta"><button class="btn btn-ghost btn-sm" data-f9ev="'+e.id+'">📖 Részletek</button>'+c.plan+c.heart+'</div></div></article>';

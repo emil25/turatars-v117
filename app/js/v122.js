@@ -38,11 +38,12 @@ function publicEvents(){
 }
 function publicPlaces(){ return catalog().places.filter(placeReady); }
 function sourceLine(x){
-  if(!x||!x.sourceUrl||!x.verifiedAt) return "";
-  return '<p class="small muted v122-source">Forrás / Ellenőrizve: <a href="'+escV(x.sourceUrl)+'" target="_blank" rel="noopener nofollow">'+escV(x.source||"külső forrás")+'</a> · '+escV(x.verifiedAt)+'</p>';
+  if(!x||!x.sourceUrl) return "";
+  var verified=x.dataStatus==="verified", at=verified?x.verifiedAt:(x.reviewedAt||x.importedAt), label=verified?"Forrás / Ellenőrizve":"Forrás / Ellenőrzés alatt";
+  return '<p class="small muted v122-source">'+label+': <a href="'+escV(x.sourceUrl)+'" target="_blank" rel="noopener nofollow">'+escV(x.source||"külső forrás")+'</a>'+(at?' · '+escV(at):'')+'</p>';
 }
 function validateRecord(x,kind){
-  var miss=REQUIRED.filter(function(k){return x[k]==null||String(x[k]).trim()==="";});
+  var miss=REQUIRED.filter(function(k){ if(k==="verifiedAt"&&x.dataStatus==="needs_review") return !(x.reviewedAt||x.importedAt); return x[k]==null||String(x[k]).trim()===""; });
   if(!x.id) miss.push("id"); if(kind==="tour" && !x.name) miss.push("name"); if(kind==="event" && (!x.name||!(x.organizer||x.org)||!x.date||!x.place)) miss.push("name, organizer, date, place");
   if(x.dataStatus!=="verified" && x.dataStatus!=="needs_review") miss.push("dataStatus (verified/needs_review)");
   return miss;
