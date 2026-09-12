@@ -38,6 +38,18 @@ test('production bundle includes the V119 Supabase auth boundary', () => {
   assert.match(bundle, /sb_publishable_/);
 });
 
+test('production bundle includes the V119 tour workspace controls', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+
+  assert.match(bundle, /data-edit/);
+  assert.match(bundle, /wz-desc/);
+  assert.match(bundle, /wz-km/);
+  assert.match(bundle, /Túra szerkesztése/);
+  assert.match(bundle, /cfm-yes/);
+});
+
 test('PWA service worker is on the V119 cache namespace', () => {
   assert.match(read('sw.js'), /turatears-v119/);
 });
