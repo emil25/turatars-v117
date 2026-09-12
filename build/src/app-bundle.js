@@ -348,14 +348,6 @@ const TEREP_DEMO = [
 ];
 
 const GOAL_METRICS = { km:"km", tours:"túra", summits:"csúcs", napkelte:"napkelte-túra", wish:"bakancslista-hely" };
-const CHALLENGES_DEMO = [
- {id:"ch1", icon:"🏔️", name:"Székelyföld felfedező", desc:"Öt kijelölt gyöngy a Kárpát-kanyarban — mind a hat megyéből.",
-  items:[{l:"Madarasi-Hargita", done:false},{l:"Csukás-tető", done:false},{l:"Békás-szoros", done:true},{l:"Solymos-kő", done:true},{l:"Gyilkos-tó", done:false}]},
- {id:"ch2", icon:"🥾", name:"Hargita-kör", desc:"A Hargita hat jellegzetes pontja a két vonulaton.",
-  items:[{l:"Hargita-csúcs", done:false},{l:"Cetatea-marostető", done:false},{l:"Ocland-gerinc", done:false},{l:"Szent-Anna-tó", done:false}]},
- {id:"ch3", icon:"🌄", name:"Napkelte klub", desc:"Három eltérő havasi hajnal — a hegyek másarc, mint nappal.",
-  items:[{l:"Csukás napkelte", done:false},{l:"Fekete-Hagymás hajnal", done:false},{l:"Torockói-kő napkelte", done:false}]}
-];
 /* A Nagyhagymás KKT interaktív túraútvonal-adatai (forrás: adinagyhagymas.ro) */
 const HAGYMAS_ROUTES = [
  {t:"bringa", n:"MTB-Panoráma", url:"https://adinagyhagymas.leadingsoft.eu/api/map-file/bycicle_routes/hu/MTB-Panor%C3%A1ma.gpx"},
