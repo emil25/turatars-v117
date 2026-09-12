@@ -16,9 +16,9 @@
 .pub-links a:hover{background:var(--leaf-soft);color:var(--pine)}
 .pub-links a.on{background:var(--pine);color:#fff}
 .pub-cta{display:flex;gap:.55rem;align-items:center}
-@media(max-width:880px){
+@media(max-width:1020px){
   .pub-links{display:none}
-  .pub-nav .wrap{height:58px;gap:.7rem}
+  .pub-nav .wrap{height:58px;gap:.7rem;max-width:100%;overflow:hidden}
   .pub-nav .logo .brand-logo{height:38px;max-width:150px}
   .pub-cta .btn-ghost:not(.keep-m){display:none}
 }

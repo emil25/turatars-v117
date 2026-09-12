@@ -15,7 +15,7 @@ const pct = a => a.length ? a.filter(x=>x.checked).length/a.length : 1;
 VIEWS.workspace = (id) => {
   const t = Store.getTour(id);
   if(!t) return dash("#/turaim")+`<div class="empty"><span class="em-ico">🤔</span><h3>A túra nem található</h3><a class="btn btn-primary" href="#/turaim">Vissza a Túráimhoz</a></div>`;
-  const catTour = t.coords ? TOURS.find(x=>x.start.name===t.place) : null;
+  const catTour = null;
     const pct = (a)=> a.length? a.filter(x=>x.checked).length/a.length : 1;
   return dash("#/turaim")(`
     <a class="small muted" href="#/turaim" style="display:inline-block;margin-bottom:.7rem;color:var(--sky);font-weight:600">← Túráim</a>
@@ -127,17 +127,17 @@ function wsTabHTML(t, catTour){
           </div></div>
         <div class="mapbox tall" id="ws-map" style="${hasMap?"":"min-height:220px"}"></div>
         <div class="meta" style="margin-top:.7rem"><span>🚗 Kiinduló: <b>${esc(t.place||"—")}</b></span>${t.waypoints.length?`<span>📍 Fontos pontok: ${t.waypoints.map(w=>esc(w.name)).join(", ")}</span>`:""}</div>
-        <p class="small muted mb0">💡 A GPX feltöltésed a valós útvonalat rajzolja ki a térképre és a profilra — a katalógus-túrákhoz mintaterv érkezik.</p>
+        <p class="small muted mb0">💡 A feltöltött GPX a valós útvonalat rajzolja ki a térképre és a profilra.</p>
       </div>
       <div>
         <div class="card panel">
           <h3>⛰️ Magassági profil</h3>
-          ${(catTour||t.gpx)?(function(){ const el = t.gpx? t.gpx.elev : catTour.elev;
+          ${t.gpx?(function(){ const el = t.gpx.elev;
             return `<svg viewBox="0 0 100 34" style="width:100%;height:120px" preserveAspectRatio="none">
               <polygon points="0,32 ${el.map((v,i)=>`${i/(el.length-1)*100},${32-v/Math.max(...el)*28}`).join(" ")} 100,32" fill="rgba(47,107,74,.18)"/>
               <polyline points="${el.map((v,i)=>`${i/(el.length-1)*100},${32-v/Math.max(...el)*28}`).join(" ")}" fill="none" stroke="var(--moss)" stroke-width="1.6"/></svg>
               <div class="meta" style="font-size:.78rem"><span>Min ${Math.min(...el)*10}–${Math.max(...el)*12} m*</span><span>*becsült skála</span></div>`;})()
-            : '<p class="muted small mb0">Tölts fel GPX-t, vagy válassz katalógus-túrát a profilhoz.</p>'}
+            : '<p class="muted small mb0">Tölts fel GPX-t a magassági profil megjelenítéséhez.</p>'}
         </div>
         <div class="card panel" style="margin-top:14px"><h3>📍 Fontos pontok</h3>
           <div id="wp-list">${t.waypoints.map((w,i)=>`<div class="flex between" style="padding:.25rem 0"><span>#${i+1} ${esc(w.name)}</span><button class="icon-btn" style="width:26px;height:26px" data-rmwp="${i}">✕</button></div>`).join("")||'<p class="muted small mb0">Kattints a térképre pont hozzáadásához.</p>'}</div>
@@ -241,13 +241,11 @@ function wsTabHTML(t, catTour){
     </div></div>`;
   }
   case "jegyzet": {
-    const catTour2 = TOURS.find(x=>x.start.name===t.place);
     return `<div class="card panel">
       <h3>🗒️ Jegyzetek</h3>
       <p class="small muted">Ez a túra magán-jegyzetfüzete — a részleteket ne a Messengerbe temesd, ide.</p>
       <textarea class="input" id="ws-notes" rows="8" placeholder="Pl. Ne felejtsük a fejlámpákat! Zsolt viszi a termoszos kávét.">${esc(t.notes||"")}</textarea>
       <div class="flex" style="margin-top:.8rem;justify-content:flex-end"><button class="btn btn-primary btn-sm" id="notes-save">✓ Mentés</button></div>
-      ${catTour2?`<div style="margin-top:1.2rem" class="muted small"><b>A katalógus szerint:</b> ${esc(catTour2.desc)}</div>`:""}
     </div>`;
   }
     case "koltseg": {
@@ -354,12 +352,6 @@ function wireTab(root, t){
       const m = MapKit.make(mapEl, {zoom:13, center:t.coords?[t.coords.lat,t.coords.lng]:null});
       if(m){ if(t.coords){ m.setView([t.coords.lat,t.coords.lng], 13);
           MapKit.pin(m,t.coords.lat,t.coords.lng,"pin-plan",`🚗 Kiinduló / parkoló<br><b>${esc(t.place)}</b>`);
-          const cat = TOURS.find(x=>x.start.name===t.place);
-          if(cat){ // mintaterv: a startból és egy egyenes "ívből" mock útvonal
-            const line=[]; for(let i=0;i<=10;i++){ const ang=i/10*Math.PI*1.6; line.push([cat.start.lat+Math.sin(ang)*0.02*(i%3+1)*0.6, cat.start.lng+Math.cos(ang)*0.028]); }
-            L.polyline(line,{color:"#1C4A36",weight:4,opacity:.85,dashArray:"1 8",lineCap:"round"}).addTo(m);
-            L.polyline(line,{color:"#E07A2F",weight:2,opacity:.9}).addTo(m);
-            m.fitBounds(line);}
           }
           if(t.gpx&&t.gpx.line){ L.polyline(t.gpx.line,{color:"#1C4A36",weight:4}).addTo(m); m.fitBounds(t.gpx.line); }
           t.waypoints.forEach(w=>MapKit.pin(m,w.lat,w.lng,"pin-wish",esc(w.name)));

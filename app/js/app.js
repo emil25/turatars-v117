@@ -16,9 +16,9 @@ const App = {
       vezerlopult: "dash", turaim: "tours", "uj-tura": "newTour", tura: "workspace", "tura-live": "liveTour", naptar: "calendar",
       bakancslista: "wishlist", felszereles: "equipment", csapatok: "teams", naplo: "journal",
       statisztikak: "stats", hagymas: "hagymas", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
-      utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", szervezoknek: "szervezoknek", tarsak: "tarsak", meghivo: "meghivo"
+      utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", szervezoknek: "szervezoknek", tarsak: "tarsak", meghivo: "meghivo", forrasok: "v122Admin"
     };
-    const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "liveTour", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo"];
+    const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "liveTour", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo", "v122Admin"];
     let key = ROUTES[route] || "404";
 
     if (DASHY.includes(key) && !Store.me()) {
@@ -32,7 +32,7 @@ const App = {
     closeModal();
 
     if (key === "tourDetail") {
-      const t = tourById(arg);
+      const t = (window.v122PublicTours ? window.v122PublicTours().find(x=>x.id===arg) : tourById(arg));
       
       root.innerHTML = VIEWS.discover();
       if (VIEWS.discover.after) VIEWS.discover.after(root);
@@ -41,7 +41,7 @@ const App = {
       return;
     }
     if (key === "events" && arg) {
-      const e = EVENTS.find(x => x.id === arg);
+      const e = (window.v122PublicEvents ? window.v122PublicEvents().find(x => x.id === arg) : EVENTS.find(x => x.id === arg));
       root.innerHTML = VIEWS.events();
       VIEWS.events.after(root);
       renderHeader(); renderMobileNav();
@@ -76,7 +76,7 @@ const App = {
       onboarding: VIEWS.onboarding.after, newTour: VIEWS.newTour.after, calendar: VIEWS.calendar.after,
       wishlist: VIEWS.wishlist.after, equipment: VIEWS.equipment.after, teams: VIEWS.teams.after,
       journal: VIEWS.journal.after, stats: VIEWS.stats.after, routes: VIEWS.routes && VIEWS.routes.after ? VIEWS.routes.after : null, hagymas: VIEWS.hagymas && VIEWS.hagymas.after ? VIEWS.hagymas.after : null, ai: VIEWS.ai.after, mymap: VIEWS.mymap.after, inbox: VIEWS.inbox && VIEWS.inbox.after,
-      notifs: VIEWS.notifs.after, settings: VIEWS.settings.after, profile: VIEWS.profile.after, szervezo: (VIEWS.szervezo&&VIEWS.szervezo.after)||null, szervezoknek: (VIEWS.szervezoknek&&VIEWS.szervezoknek.after)||null, tarsak: (VIEWS.tarsak&&VIEWS.tarsak.after)||null, meghivo: (VIEWS.meghivo&&VIEWS.meghivo.after)||null, szatt: null,
+      notifs: VIEWS.notifs.after, settings: VIEWS.settings.after, profile: VIEWS.profile.after, szervezo: (VIEWS.szervezo&&VIEWS.szervezo.after)||null, szervezoknek: (VIEWS.szervezoknek&&VIEWS.szervezoknek.after)||null, tarsak: (VIEWS.tarsak&&VIEWS.tarsak.after)||null, meghivo: (VIEWS.meghivo&&VIEWS.meghivo.after)||null, forrasok: (VIEWS.v122Admin&&VIEWS.v122Admin.after)||null, szatt: null,
       terepi: VIEWS.terepi && VIEWS.terepi.after ? VIEWS.terepi.after : null, templates: VIEWS.templates && VIEWS.templates.after ? VIEWS.templates.after : null }[key];
     const wsAfter = key === "workspace" ? VIEWS.workspace.after : (key === "tourmode" ? VIEWS.tourmode.after : (key === "liveTour" ? VIEWS.liveTour.after : null));
     (wsAfter || afterFn) && (wsAfter || afterFn)(root, arg, params);

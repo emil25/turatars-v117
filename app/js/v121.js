@@ -76,7 +76,7 @@ function v121ExportLive(t){
       (p.timestamp?'<time>'+v121Esc(new Date(p.timestamp).toISOString())+'</time>':'')+
       '</trkpt>';
   }).join("\n");
-  const text='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Turatars V121" xmlns="http://www.topografix.com/GPX/1/1"><metadata><name>'+v121Esc(t.title||"Élő túra")+'</name></metadata><trk><name>'+v121Esc(t.title||"Élő túra")+'</name><trkseg>\n'+seg+'\n</trkseg></trk></gpx>';
+  const text='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Turatars V122" xmlns="http://www.topografix.com/GPX/1/1"><metadata><name>'+v121Esc(t.title||"Élő túra")+'</name></metadata><trk><name>'+v121Esc(t.title||"Élő túra")+'</name><trkseg>\n'+seg+'\n</trkseg></trk></gpx>';
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"application/gpx+xml"})); a.download=(t.title||"tura").replace(/[^\w\-]+/g,"_").slice(0,48)+".gpx"; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},700); toast("GPX export elkészült","📤");
 }
 window.__v121ExportLive=v121ExportLive;

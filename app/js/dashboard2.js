@@ -39,7 +39,7 @@ VIEWS.wishlist.after = root => {
   root.querySelectorAll("[data-wc]").forEach(b=>b.onclick=()=>{wishCat=b.dataset.wc; render();});
   root.querySelector("#wish-add").onclick = () => {
     openModal({ title:"Új hely a bakancslistára",
-      body:`<label class="f">Hely neve *</label><input class="input" id="nw-n" placeholder="Pl. Csukás-vízesés">
+      body:`<label class="f">Hely neve *</label><input class="input" id="nw-n" placeholder="Hely vagy cél neve">
         <div style="height:.7rem"></div><label class="f">Kategória</label>
         <select class="input" id="nw-c">${WISH_CATS.map(c=>`<option>${esc(c.name)}</option>`).join("")}</select>
         <div style="height:.7rem"></div><label class="f">Hol találtad? (tájegység, helység)</label><input class="input" id="nw-p" placeholder="Pl. Hargita">
@@ -123,7 +123,6 @@ VIEWS.equipment.after = root => {
 };
 
 /* ---------- TÚRACSAPATOK ---------- */
-const DEMO_PEOPLE = ["Kiss Réka","Nagy Zsolt","Bíró Laci","Tóth Gizi","Müller Kata","Fekete Ádám"];
 VIEWS.teams = () => {
   const d = Store.myData();
   const nextShared = t => { const names=new Set(t.members.map(m=>m.name));

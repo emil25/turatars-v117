@@ -8,8 +8,8 @@ var f9={ tab:"tours", q:"", region:"", diff:"", dist:"", elev:"", sort:"", weeke
 function nz(v,k){ return (v===null||v===undefined||v==="")?(k||"—"):v; }
 function esc9(x){ return esc(x==null?"":String(x)); }
 function refOf(kind,id){ return "f9:"+kind+":"+id; }
-function CAT_T(){ return (typeof TOURS!=="undefined")?TOURS:[]; }
-function CAT_E(){ var base=(typeof EVENTS!=="undefined")?EVENTS:[]; try{ var ex=(window.e2Events?window.e2Events():[]); return ex&&ex.length?base.concat(ex):base; }catch(e){ return base; } }
+function CAT_T(){ return window.v122PublicTours?window.v122PublicTours():((typeof TOURS!=="undefined")?TOURS:[]); }
+function CAT_E(){ var base=window.v122PublicEvents?window.v122PublicEvents():((typeof EVENTS!=="undefined")?EVENTS:[]); try{ var ex=(window.e2Events?window.e2Events():[]).filter(function(e){return !e.demo;}); return ex&&ex.length?base.concat(ex):base; }catch(e){ return base; } }
 function hasWish(ref){ var d=Store.myData(); return (d.wishlist||[]).some(function(w){return w.ref===ref;}); }
 function tourByRef(ref){ var d=Store.myData(); return (d.tours||[]).find(function(t){return t.extRef===ref;}); }
 function ctaFor(kind,it){
@@ -27,7 +27,7 @@ function card(t){
     '<div class="img-wrap f9-img">'+imgTagSafe(t.img||IMG.erdo,t.name)+'</div>'+
     '<div class="f9-b"><div class="f9-t1"><b>'+esc9(t.name)+'</b>'+(t.rating?'<span class="chip chip-sand">⭐ '+t.rating+(t.reviews?'('+t.reviews+')':'')+'</span>':'')+'</div>'+
     '<p class="small muted mb0">'+esc9(nz(t.region,'régió nélkül'))+' · 📍 '+esc9(nz(t.start?t.start.name:null,'nincs hely'))+'</p>'+
-    '<p class="small mb0" style="margin:.2rem 0 .5rem">📏 '+nz(t.km!=null?t.km+" km":null)+' · ⛰️ '+nz(t.up!=null?"+"+t.up+" m":null)+' · 🕐 '+nz(t.h!=null?t.h+" ó":null)+' · 🥾 '+nz(t.diff)+'</p>'+
+    '<p class="small mb0" style="margin:.2rem 0 .5rem">📏 '+nz(t.km!=null?t.km+" km":null)+' · ⛰️ '+nz(t.up!=null?"+"+t.up+" m":null)+' · 🕐 '+nz(t.h!=null?t.h+" ó":null)+' · 🥾 '+nz(t.diff)+'</p>'+(window.v122SourceLine?v122SourceLine(t):'')+
     '<div class="f9cta"><button class="btn btn-ghost btn-sm" data-f9tour="'+t.id+'">🥾 Megnézem</button>'+c.plan+c.heart+'</div></div></article>';
   }catch(e){ return ""; }
 }
@@ -35,9 +35,9 @@ function ecard(e){
   try{ var c=ctaFor("e",e); var base=CAT_T().find(function(t){return t.id===e.tour;});
   var meta='📅 '+nz(e.date,e.time?e.date:null,'dátum nélkül')+(e.time?' '+e.time:'');
   if(base){ meta+=' · 📏 '+base.km+' km · ⛰️ +'+base.up+' m'; } else if(e.km!=null){ meta+=' · 📏 '+e.km+' km'+(e.up!=null?' · ⛰️ +'+e.up+' m':''); }
-   return '<article class="f9card card ecard9"><div class="f9-b"><div class="f9-t1"><b>📣 '+esc9(e.name)+'</b>'+(e.demo?'<span class="chip chip-amber">DEMO</span>':(e.cat?'<span class="chip chip-sand">'+esc9(e.cat)+'</span>':''))+'</div>'+
+   return '<article class="f9card card ecard9"><div class="f9-b"><div class="f9-t1"><b>📣 '+esc9(e.name)+'</b>'+(e.cat?'<span class="chip chip-sand">'+esc9(e.cat)+'</span>':'')+'</div>'+
     '<p class="small muted mb0">'+meta+(e.place?' · 📍 '+esc9(e.place):'')+(e.diff?' · 🥾 '+esc9(e.diff):'')+(e.org?' · 👥 '+esc9(e.org):'')+'</p>'+
-    '<p class="small mb0 f9-src">'+(e.src?'<a href="'+esc9(e.src)+'" target="_blank" rel="noopener nofollow">🔗 Forrás: eredeti oldal ↗</a>':'<span class="muted">Forrás: Túratárs eseménynaptár (helyi, kézi állomány)</span>')+'</p>'+
+    '<p class="small mb0 f9-src">'+(e.src?'<a href="'+esc9(e.src)+'" target="_blank" rel="noopener nofollow">🔗 Forrás: eredeti oldal ↗</a>':'')+'</p>'+(window.v122SourceLine?v122SourceLine(e):'')+
     '<div class="f9cta"><button class="btn btn-ghost btn-sm" data-f9ev="'+e.id+'">📖 Részletek</button>'+c.plan+c.heart+'</div></div></article>';
   }catch(e2){ return ""; }
 }
@@ -55,17 +55,12 @@ function pcard(h){
    '<p class="small muted mb0">'+esc9(nz(h.region,'régió nélkül'))+' · '+h.n+' túra a katalógusban · '+(h.up?'⛰️ +'+h.up+' m (katalógus)':'magasság: nincs adat')+'</p>'+
    '<div class="f9cta"><button class="btn btn-primary btn-sm" data-f9peak="'+esc9(h.name)+'">🥾 Túrák itt</button></div></div></article>';
 }
-function demoRoutes(){
-  return [ {id:"d1", name:"Hargita gerince — ízelítő", kind:"demo", distance_km:null, note:"Szemléltető csoporthoz — valódi nyomvonal: GPX import."},
-           {id:"d2", name:"Csukás-tető — ízelítő", kind:"demo", distance_km:null, note:"Szemléltető: a valós utat a V47 GPX import adja."} ];
-}
 function kvMile(o){ return o.distance_km?((Math.round(o.distance_km*10)/10).toFixed(1).replace(".",",") + " km"):"—"; }
 function rcard(o,own){
   if(own){ return '<article class="f9card card"><div class="f9-b"><div class="f9-t1"><b>🗺️ '+esc9(o.name||"Névtelen útvonal")+'</b></div>'+
    '<p class="small muted mb0">📏 '+kvMile(o)+' · ⛰️ '+(o.elevation_gain_m!=null?'+'+o.elevation_gain_m+' m':'—')+' · '+(o.created_at?new Date(o.created_at).toLocaleDateString("hu-HU")+" óta":"")+(o.linkedTripId?' · 🥾 projektedhez kapcsolt':'')+'</p>'+
    '<div class="f9cta"><button class="btn btn-soft btn-sm" data-f9route="'+o.id+'">🗺️ Részletek</button></div></div></article>'; }
-  return '<article class="f9card card democard"><div class="f9-b"><div class="f9-t1"><b>🗺️ '+esc9(o.name)+'</b><span class="chip chip-amber">DEMO</span></div>'+
-   '<p class="small muted mb0">'+esc9(o.note||"")+'</p><div class="f9cta"><button class="btn btn-soft btn-sm" data-f9import>＋ Saját GPX importálása</button></div></div></article>';
+  return '';
 }
 /* ——— szűrők, geo, lista ——— */
 function nearWeek(datestr){ if(!datestr) return false; try{ var d=new Date(datestr+"T12:00:00"); var now=new Date(); var sat=new Date(now); var day=sat.getDay(); sat.setDate(sat.getDate()+((6-day+7)%7)); sat.setHours(6,0,0,0); var mon=new Date(sat); mon.setDate(sat.getDate()+2); return d>=sat && d<mon; }catch(e){ return false; } }
@@ -127,15 +122,15 @@ function recMini(){
 function f9ListHtml(){
   try{
   if(f9.tab==="events"){ var fe=CAT_E().filter(evMatch); var top=fe.slice(0,6); var rest=fe.slice(6);
-    var out='<p class="small muted" style="margin:.1rem 0 .7rem">Az események helyben tárolt, kézi állományból jelennek meg — külső frissítés jelenleg nem érhető el; a meglévő adatok így is használhatók.</p>';
+    var out='<p class="small muted" style="margin:.1rem 0 .7rem">Csak ellenőrzött, forrásmegjelölt események jelennek meg.</p>';
     if(top.length){ out+=top.map(ecard).join(""); if(rest.length) out+='<details class="f9-more"><summary>＋ '+rest.length+' további esemény</summary>'+rest.map(ecard).join("")+'</details>'; return out; }
-    return '<div class="empty"><span class="em-ico">📅</span><h3>Jelenleg nincs megjeleníthető esemény.</h3><p class="muted">Létre hozunk egy esemény-projektet, ha megérinted a Tervet készítek gombot a megadott esemény-kártyákon.</p><button class="btn btn-primary" data-f9tab="tours">🥾 Túrák felfedezése</button></div>';
+    return '<div class="empty"><span class="em-ico">📅</span><h3>Jelenleg nincs ellenőrzött esemény.</h3><p class="muted">Ha hiteles forrásból érkezik új esemény, az ellenőrzés után jelenik meg.</p><button class="btn btn-primary" data-f9tab="tours">🥾 Túrák felfedezése</button></div>';
   }
   if(f9.tab==="peaks"){ var pk=peakList(); if(f9.q){ var q1=f9.q.toLowerCase(); pk=pk.filter(function(h){return (h.name+" "+h.region).toLowerCase().indexOf(q1)>-1;}); }
     return pk.map(pcard).join("")||'<div class="empty"><span class="em-ico">🏔️</span><h3>Nincs ilyen hegy a katalógusban.</h3><button class="btn btn-ghost" data-f9clear>🔄 Szűrők törlése</button></div>'; }
   if(f9.tab==="routes"){ var own=(Store.myData().routes||[]).slice(); var html='<h3 class="f9-sect">⭐ Saját útvonalak (V47 GPX)</h3>';
     html += own.length? own.map(function(o){return rcard(o,true);}).join("") : '<div class="empty sm"><span class="em-ico">🗺️</span><h3>Még nincs útvonal.</h3><button class="btn btn-primary" data-f9import>＋ GPX importálása</button></div>';
-    html+='<h3 class="f9-sect">🌍 Felfedezett utak <span class="chip chip-amber">DEMO — szemléltető</span></h3>'+demoRoutes().map(function(o){return rcard(o,false);}).join("");
+    html+='<h3 class="f9-sect">🌍 Ellenőrzött nyilvános útvonalak</h3>'+(CAT_T().length?CAT_T().map(function(o){return rcard({id:o.id,name:o.name,distance_km:o.km,elevation_gain_m:o.up},false);}).join(""):'<div class="empty sm"><span class="em-ico">🗺️</span><h3>Nincs ellenőrzött nyilvános útvonal.</h3><p class="muted">Saját GPX útvonalat a személyes túraközpontban importálhatsz.</p></div>');
     return html; }
   if(f9.tab==="pop"){ var arr= f9.q||f9.region||f9.diff||f9.dist||f9.elev||f9.csucs? CAT_T().filter(tourMatch) : CAT_T();
     return '<p class="small muted">Népszerűség a katalógus valódi ⭐ értékelései alapján; érték nélküli túra a lista végén.</p>'+sortTour(arr.slice().sort(function(a,b){return (b.rating||0)-(a.rating||0);}) ).slice(0,12).map(card).join(""); }

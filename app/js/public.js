@@ -19,7 +19,7 @@ function tourCard(t){
       <h3><a href="#/turak/${t.id}">${esc(t.name)}</a></h3>
       <div class="elevator" title="Magassági profil">${elevSpark((t.elev||[]).length?t.elev:t.elev)}</div>
       <div class="meta"><span>📏 ${t.km} km</span><span>⏱ ${t.h} ó</span><span>⬆ ${t.up} m</span></div>
-      <div style="margin-top:.55rem">${diffChip(t.diff)}</div>
+      <div style="margin-top:.55rem">${diffChip(t.diff)}</div>${window.v122SourceLine?v122SourceLine(t):""}
     </div></article>`;
 }
 function ecardSmall(e){
@@ -32,7 +32,7 @@ function ecardSmall(e){
         <span class="chip chip-ember">${esc(e.cat)}</span></div>
       <h3 style="margin:.25rem 0 .1rem"><a href="#/esemenyek/${e.id}">${esc(e.name)}</a></h3>
       <div class="meta"><span>📍 ${esc(e.place)}</span><span>👥 ${e.people} fő</span></div>
-      <div class="eorg">Szervező: ${esc(e.org)}${e.time?` · 🕐 ${esc(e.time)}`:""}${e.src?` · <a href="${esc(e.src)}" target="_blank" rel="noopener" style="color:var(--sky);font-weight:600">hivatalos oldal ↗</a>`:""}</div>
+      <div class="eorg">Szervező: ${esc(e.org)}${e.time?` · 🕐 ${esc(e.time)}`:""}${e.src?` · <a href="${esc(e.src)}" target="_blank" rel="noopener" style="color:var(--sky);font-weight:600">hivatalos oldal ↗</a>`:""}</div>${window.v122SourceLine?v122SourceLine(e):""}
       <div class="flex" style="margin-top:.3rem"><button class="btn btn-soft btn-sm" data-save-event="${e.id}">
         ${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés a saját túráim közé"}</button>${diffChip(e.diff)}</div>
     </div></article>`;
@@ -42,7 +42,7 @@ function handleSaveEvents(root){
     if(!Store.me()){ toast("A mentéshez jelentkezz be vagy regisztrálj","🔐"); NAV.to("#/regisztracio"); return; }
     const on = Store.isEventSaved(b.dataset.saveEvent);
     Store.toggleEvent(b.dataset.saveEvent);
-    if(!on){ const ev = EVENTS.find(x=>x.id===b.dataset.saveEvent); const tr = Store.myData().tours.find(x=>x.eventRef===ev.id);
+    if(!on){ const ev = v122PublicEvents().find(x=>x.id===b.dataset.saveEvent); const tr = Store.myData().tours.find(x=>x.eventRef===ev.id);
       if(tr&&(ev.reg||ev.src)&&!(tr.notes||"").includes("Nevezés:")){ tr.notes=((tr.notes||"")+(tr.notes?"\n":"")+"Nevezés: "+(ev.reg||ev.src)+(ev.time?" · "+ev.time:"")+(ev.place?" · "+ev.place:"")).trim(); Store.save(); }
       if(tr && (ev.reg||ev.src) && !(tr.notes||"").includes("Nevezés:")){ tr.notes = ((tr.notes||"") + (tr.notes?"\n":"") + "Nevezés: " + (ev.reg||ev.src) + (ev.time ? " · " + ev.time : "")).trim(); Store.save(); } }
     toast(on?"Eltávolítva a saját túráid közül.":"Hozzáadva a saját túranaptáradhoz! 🎫","✓");
@@ -53,32 +53,32 @@ function handleSaveEvents(root){
 /* ================= KEZDŐLAP ================= */
 const VIEWS = {};
 VIEWS.home = () => {
-  const upcomingEvents = EVENTS.filter(e=>e.date?e.date>=Store.todayISO():false).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
-  const popular = TOURS.slice().sort((a,b)=>b.reviews-a.reviews).slice(0,6);
-  const weekend = TOURS.filter(t=>t.h<=4.5).slice(0,3);
-  const best = WISH.slice(0,6);
-  const sunrise = TOURS.filter(t=>t.tags.includes("napkelte")||t.rating>=4.8).slice(0,3);
-  const family = TOURS.filter(t=>t.tags.includes("family"));
-  const easy = TOURS.filter(t=>t.diff==="Könnyű").slice(0,6);
+  const upcomingEvents = v122PublicEvents().filter(e=>e.date?e.date>=Store.todayISO():false).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  const popular = v122PublicTours().slice().sort((a,b)=>b.reviews-a.reviews).slice(0,6);
+  const weekend = v122PublicTours().filter(t=>t.h<=4.5).slice(0,3);
+  const best = v122PublicPlaces().slice(0,6);
+  const sunrise = v122PublicTours().filter(t=>t.tags.includes("napkelte")||t.rating>=4.8).slice(0,3);
+  const family = v122PublicTours().filter(t=>t.tags.includes("family"));
+  const easy = v122PublicTours().filter(t=>t.diff==="Könnyű").slice(0,6);
   const u = Store.me();
   return `
   <section class="hero"><div class="bg">${imgTag(IMG.hegylanc,"Hegyaljai gerinc")}</div>
     <div class="wrap hero-in">
-      <span class="kicker">🥾 ${TOURS.length} túraútvonal · ${EVENTS.filter(e=>e.date>=Store.todayISO()).length} közelgő esemény · ${WISH.length} bakancslista-hely</span>
+      <span class="kicker">🥾 ${v122PublicTours().length} túraútvonal · ${v122PublicEvents().filter(e=>e.date>=Store.todayISO()).length} közelgő esemény · ${v122PublicPlaces().length} bakancslista-hely</span>
       <h1>Merre kalandozol <br><i>legközelebb?</i></h1>
       <p class="sub">Fedezd fel, tervezd meg és őrizd meg minden túrádat egy helyen — Székelyföld hágóitól a Fogarasokig.</p>
       <p class="hero-proof">Útvonalak, GPX, időterv, felszerelés, társak és napló — egy helyen.</p>
       <div class="searchbox" role="search" aria-label="Túrák keresése">
-        <div class="sc-field"><label for="q-hova">Hova mennél?</label><input id="q-hova" placeholder="Pl. Mária-kő, Hargita, Bálványos…"></div>
+        <div class="sc-field"><label for="q-hova">Hova mennél?</label><input id="q-hova" placeholder="Hely, régió vagy túranév"></div>
         <div class="sc-field"><label for="q-mikor">Mikor?</label><select id="q-mikor"><option value="">Bármikor</option><option value="hk">Jövő héten</option><option value="honap">Ebben a hónapban</option><option value="og">A hegyekben</option></select></div>
         <div class="sc-field"><label for="q-nehezseg">Nehézség</label><select id="q-nehezseg"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
         <div class="sc-field"><label for="q-id">Mennyi időd van?</label><select id="q-id"><option value="">Bármennyi</option><option value="3">max 3 óra</option><option value="5">max 5 óra</option><option value="24">egész napos / többnapos</option></select></div>
         <button class="btn btn-primary btn-lg" id="q-go">Túrák keresése</button>
       </div>
       <div class="hero-stats">
-        <div class="hs"><b>${TOURS.length}</b><span>túraútvonal</span></div>
-        <div class="hs"><b>${EVENTS.length}</b><span>vezetett esemény</span></div>
-        <div class="hs"><b>6</b><span>tájegység a térképen</span></div>
+        <div class="hs"><b>${v122PublicTours().length}</b><span>túraútvonal</span></div>
+        <div class="hs"><b>${v122PublicEvents().length}</b><span>vezetett esemény</span></div>
+        <div class="hs"><b>${new Set(v122PublicTours().map(t=>t.region).filter(Boolean)).size}</b><span>ellenőrzött tájegység</span></div>
         <div class="hs"><b>${u?"Aktív 👋":"Ingyenes"}</b><span>a személyes túraközpont</span></div>
       </div>
     </div></section>
@@ -98,7 +98,7 @@ VIEWS.home = () => {
       <div class="sect-head"><div><span class="eyebrow">A közösség kedvencei</span><h2 class="mb0">Népszerű túrák</h2></div>
         <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
 "      <div class="grid g3">${popular.map(t=>tourCard(t)).join("")}</div>
-      ${(function(){ const uj=TOURS.filter(t=>t.src).slice(0,4); return uj.length?`<p class="small muted" style="margin-top:.9rem">Újonnan a kínálatban — forrással a túrakártyákon: ${uj.map(x=>`<a href="#/turak/${x.id}" style="color:var(--sky);font-weight:600">${esc(x.name.split(" (")[0])}</a>`).join(" · ")}</p>`:""; })()}
+      ${(function(){ const uj=v122PublicTours().filter(t=>t.src).slice(0,4); return uj.length?`<p class="small muted" style="margin-top:.9rem">Újonnan a kínálatban — forrással a túrakártyákon: ${uj.map(x=>`<a href="#/turak/${x.id}" style="color:var(--sky);font-weight:600">${esc(x.name.split(" (")[0])}</a>`).join(" · ")}</p>`:""; })()}
     </section>
 
     <section class="pub-section tight">
@@ -130,7 +130,7 @@ VIEWS.home = () => {
           <div>
             <span class="eyebrow" style="color:var(--moss)">Térképes felfedezés</span>
             <h2>Az egész Erdély egy térképen</h2>
-            <p class="muted">Zöld pontok: székelyföldi és erdélyi klasszikus túrák, narancs: közelgő események. Kattints egy pontra, és nyisd meg az adott túra vagy esemény lapját, vagy mentsd el a saját túráim közé.</p>
+            <p class="muted">A térképen csak ellenőrzött, forrással rendelkező nyilvános adatok jelennek meg. Saját túráid és GPX-útvonalaid a személyes központban érhetők el.</p>
             <a class="btn btn-primary" href="#/felfedezes">Térképes felfedezés</a>
             <a class="btn btn-ghost" href="#/hagymas" style="margin-left:.5rem">🕹 Hagymás útvonalak</a>
           </div>
@@ -145,13 +145,12 @@ VIEWS.home = () => {
           <div>
             <span class="eyebrow" style="color:#9ec6a5">🤖 AI Túratervező · béta</span>
             <h2>Írd le, milyen túrát szeretnél — ő össze is rakja</h2>
-            <p>"Szombaton szeretnék egy közepes nehézségű, max 5 órás túrát gyönyörű kilátással" — és az AI ajánl útvonalat, időtervet,felszerelést, étel- és vízmennyiséget. Egy gombbal új túraként is elmentheted a munkaterületedre.</p>
+            <p>Írd le a kívánt nehézséget, időtartamot és célvidéket — az AI ezekből készít tervet, időrendet, felszerelés- és ételvíz-javaslatot. A tervet egy gombbal elmentheted a munkaterületedre.</p>
             <a class="btn btn-ember btn-lg" href="#/ai">💬 Kipróbálom az AI Túratervezőt</a>
           </div>
           <div class="ai-prev" aria-hidden="true">
-            <div class="bub user">Könnyű, családi vízesésnap, 2–3 óra?</div>
-            <div class="bub ai"><b>Szakadát-vízesés és a Békás-szoros</b> · Gyergyó · 9 km · 3 ó<br>Árnyékos szurdokösvény, a tóparton piknikező. Csomag: bakancs, esőkabát, 2 l víz…</div>
-            <div class="bub ai" style="align-self:flex-start"><button class="btn btn-soft btn-sm">Mentés új túraként</button></div>
+            <div class="bub user">Írd le a túracéljaidat és a rendelkezésre álló időt.</div>
+            <div class="bub ai">A megadott szempontok alapján ellenőrzött forrásokból készít javaslatot.</div>
           </div>
         </div>
       </div>
@@ -171,11 +170,11 @@ VIEWS.home = () => {
 };
 VIEWS.home.after = (root) => {
   root.querySelector("#home-events").innerHTML =
-    EVENTS.filter(e=>e.date>=Store.todayISO()).slice(0,6).map(ecardSmall).join("");
+    v122PublicEvents().filter(e=>e.date>=Store.todayISO()).slice(0,6).map(ecardSmall).join("");
   const wday = new Date(); const wsat = Store.addDays(Store.todayISO(), (6-wday.getDay()+7)%7);
   root.querySelector("#weekend-grid").innerHTML =
-    TOURS.filter(t=>t.h<=3.5).slice(0,3).map(t=>tourCard(t)).join("");
-  root.querySelector("#best-places").innerHTML = WISH.slice(0,6).map(w=>
+    v122PublicTours().filter(t=>t.h<=3.5).slice(0,3).map(t=>tourCard(t)).join("");
+  root.querySelector("#best-places").innerHTML = v122PublicPlaces().slice(0,6).map(w=>
     `<div class="hcard">${imgTag(w.img,w.name)}<div class="hb"><span class="chip chip-pine">${esc(w.cat)}</span><h3 style="margin-top:.35rem">${esc(w.name)}</h3><div class="meta"><span>${esc(w.place)}</span><span>${esc(w.diff)}</span></div></div></div>`).join("");
   handleSaveEvents(root);
   const go = root.querySelector("#q-go");
@@ -187,10 +186,10 @@ VIEWS.home.after = (root) => {
     NAV.to("#/felfedezes"); };
   const map = MapKit.make(root.querySelector("#home-map"), {zoom:7});
   if(map){
-    TOURS.forEach(t=>MapKit.pin(map,t.start.lat,t.start.lng,"pin-cat",
+    v122PublicTours().forEach(t=>MapKit.pin(map,t.start.lat,t.start.lng,"pin-cat",
       `<b><a href="#/turak/${t.id}">${esc(t.name)}</a></b><br>${esc(t.region)} · ${t.km} km · ${esc(t.diff)}`));
-    EVENTS.filter(e=>e.date>=Store.todayISO()).forEach(e=>{
-      const base=e.tour?tourById(e.tour):null; if(!base) return;
+    v122PublicEvents().filter(e=>e.date>=Store.todayISO()).forEach(e=>{
+      const base=e.tour?(v122PublicTours().find(x=>x.id===e.tour)||tourById(e.tour)):null; if(!base) return;
       MapKit.pin(map,base.start.lat+((Math.random()-.5)/9),base.start.lng+((Math.random()-.5)/9),"pin-event",
         `<b><a href="#/esemenyek/${e.id}">${esc(e.name)}</a></b><br>${fmtDate(e.date)} · ${esc(e.place)}`); });
   }
@@ -210,12 +209,12 @@ function footer(){ return `<footer class="pub-foot"><div class="wrap">
 VIEWS.discover = () => {
   const saved = (()=>{ try{return JSON.parse(sessionStorage.getItem("tvq")||"{}")}catch(e){return {}} })();
   return `<div class="wrap pub-section tight">
-    <div class="sect-head"><div><span class="eyebrow">${TOURS.length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
+    <div class="sect-head"><div><span class="eyebrow">${v122PublicTours().length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
     <div class="searchbox" style="margin-top:0;grid-template-columns:1.4fr .8fr .8fr .8fr .9fr" id="discfilters">
       <div class="sc-field"><label for="d-q">Keresés</label><input id="d-q" value="${esc(saved.q||"")}" placeholder="Név, tájegység…"></div>
       <div class="sc-field"><label for="d-diff">Nehézség</label><select id="d-diff"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
       <div class="sc-field"><label for="d-id">Idő</label><select id="d-id"><option value="">Bármennyi</option><option value="3">max 3 ó</option><option value="5">max 5 ó</option><option value="99">bármilyen hosszú</option></select></div>
-      <div class="sc-field"><label for="d-reg">Tájegység</label><select id="d-reg"><option value="">Mindegy</option>${[...new Set(TOURS.map(t=>t.region))].map(r=>`<option>${esc(r)}</option>`).join("")}</select></div>
+      <div class="sc-field"><label for="d-reg">Tájegység</label><select id="d-reg"><option value="">Mindegy</option>${[...new Set(v122PublicTours().map(t=>t.region))].map(r=>`<option>${esc(r)}</option>`).join("")}</select></div>
       <div class="sc-field"><label>Nézet</label><button class="input" id="d-toggle" style="cursor:pointer;text-align:left;background:transparent">🗺️ Térkép</button></div>
     </div>
     <div class="grid g3" id="disc-results" style="margin-top:22px"></div>
@@ -234,7 +233,7 @@ VIEWS.discover.after = (root)=>{
       (!els.reg.value || t.region===els.reg.value) &&
       (els.h.value==="99" || !els.h.value || t.h <= +els.h.value || els.h.value==="99") &&
       (!q || (t.name+" "+t.region+" "+t.desc+" "+t.tags.join(" ")).toLowerCase().includes(q));
-    const res = TOURS.filter(f);
+    const res = v122PublicTours().filter(f);
     root.querySelector("#disc-results").innerHTML = res.length ? res.map(t=>tourCard(t)).join("")
       : `<div class="empty" style="grid-column:1/-1"><span class="em-ico">🧭</span><h3>Nincs találat</h3><p>Lazíts a szűrőkön — vagy kérj tippot az AI Túratervezőtől.</p><a class="btn btn-soft btn-sm" href="#/ai">Kérj ajánlást</a></div>`;
     if(showMap){ if(discMap&&discMap.remove) discMap.remove();
@@ -256,8 +255,8 @@ window.bindTourCards = ()=>{};
 /* ================= ESEMÉNYEK ================= */
 let evFilter = "";
 VIEWS.events = () => {
-  const cats = [...new Set(EVENTS.map(e=>e.cat))];
-  const list = EVENTS.filter(e=>(!evFilter||e.cat===evFilter) && (!e.date || e.date>=Store.todayISO())).sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
+  const cats = [...new Set(v122PublicEvents().map(e=>e.cat))];
+  const list = v122PublicEvents().filter(e=>(!evFilter||e.cat===evFilter) && (!e.date || e.date>=Store.todayISO())).sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
   return `<div class="wrap pub-section tight">
     <div class="sect-head"><div><span class="eyebrow">Túraesemény-naptár</span><h1 class="mb0" style="font-size:2rem">Események</h1></div></div>
     <p class="muted">Válaszd ki, milyen kalandot keresel, majd egy kattintással mentsd a saját túráid közé — automatikusan megjelenik a túranaptáradban és a munkaterületeden.</p>
@@ -271,11 +270,9 @@ VIEWS.events = () => {
       <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://szatt.cseke.ro">🏔 Szent Anna-tó teljesítménytúra</a>
       <a class="btn btn-ghost btn-sm" href="#/hagymas">🕹 Hagymás útvonalhálózat</a>
       <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://hu.wikiloc.com/nyomvonalak/turazas/romania/harghita">🌐 Wikiloc · Hargita</a>
-      <a class="btn btn-ember btn-sm" href="#/szatt">🏔 SZATT 2026 — 3 táv (10/16/40 km)…</a>
-      <span class="muted small" style="margin-left:auto">ℹ️ A Vit-havas túra (szept. 5.) az szervező értesülése szerint elhalasztva.</span>
     </div>
     <div class="grid g2">${list.map(ecardSmall).join("")}</div>
-    ${list.length?"":'<div class="empty"><span class="em-ico">🗓️</span><h3>Ebben a kategóriában most nincs program</h3><p>Nézd meg a többi eseményt!</p></div>'}
+    ${list.length?"":'<div class="empty"><span class="em-ico">🗓️</span><h3>Jelenleg nincs ellenőrzött esemény.</h3><p>Hiteles forrásból érkező esemény az ellenőrzés után jelenik meg.</p></div>'}
   </div>${footer()}`;
 };
 VIEWS.events.after = (root)=>{
@@ -285,8 +282,8 @@ VIEWS.events.after = (root)=>{
 
 /* ESEMÉNY RÉSZLETE (modal) */
 function eventModal(eid){
-  const e = EVENTS.find(x=>x.id===eid); if(!e) return;
-  const base = e.tour?tourById(e.tour):null;
+  const e = v122PublicEvents().find(x=>x.id===eid); if(!e) return;
+  const base = e.tour?(v122PublicTours().find(x=>x.id===e.tour)||tourById(e.tour)):null;
   openModal({ title:esc(e.name),
    body:`<div class="img-wrap" style="height:170px;border-radius:14px;margin-bottom:1rem">${imgTag(e.img,e.name)}</div>
      <div class="meta" style="margin-bottom:1rem"><span>📅 <b>${e.date?fmtDateFull(e.date):"Hamarosan — a szervező adja meg"}</b>${e.date?", "+dowHU(e.date):""}</span>
@@ -316,21 +313,21 @@ function eventModal(eid){
 
 /* ================= HELYEK ================= */
 VIEWS.places = () => {
-  const groups = WISH_CATS.map(c=>({ ...c, items: WISH.filter(w=>w.cat===c.name) }));
+  const groups = WISH_CATS.map(c=>({ ...c, items: v122PublicPlaces().filter(w=>w.cat===c.name) }));
   return `<div class="wrap pub-section tight">
     <div class="sect-head"><div><span class="eyebrow">Gyűjtsd a helyeket, amiket látni akarsz</span><h1 class="mb0" style="font-size:2rem">Legszebb helyek</h1></div></div>
     ${groups.map(g=>`<h2 style="font-size:1.3rem;margin-top:2rem">${g.icon} ${g.name}</h2>
       <div class="grid g4 smm2 places-grid">${g.items.map(w=>`<div class="card" style="overflow:hidden;border-radius:16px">
         <div class="img-wrap" style="height:130px">${imgTag(w.img,w.name)}</div>
         <div style="padding:.8rem .95rem"><b style="font-family:var(--font-display);font-size:1rem">${esc(w.name)}</b>
-        <div class="meta" style="margin-top:.3rem"><span>${esc(w.place)}</span><span>${esc(w.diff)}</span></div>
+        <div class="meta" style="margin-top:.3rem"><span>${esc(w.place)}</span><span>${esc(w.diff)}</span></div>${window.v122SourceLine?v122SourceLine(w):""}
         <div class="flex" style="margin-top:.6rem"><button class="btn btn-soft btn-sm" data-wish="${w.id}">${Store.me()&&Store.inWish(w)?"❤️ A listádban":"❤️ Mentés"}</button></div></div></div>`).join("")}</div>`).join("")}
   </div>${footer()}`;
 };
 VIEWS.places.after = root => {
   root.querySelectorAll("[data-wish]").forEach(b=>b.onclick=()=>{
     if(!Store.me()){ toast("A mentéshez jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
-    const w = WISH.find(x=>x.id===b.dataset.wish);
+    const w = v122PublicPlaces().find(x=>x.id===b.dataset.wish);
     Store.toggleWish(w); toast(Store.inWish(w)?"Felkerült a bakancslistára ❤️":"Eltávolítva","❤️"); render(); });
 };
 
@@ -361,7 +358,7 @@ VIEWS.szervezoknek = () => {
 
 /* ---------- TÚRA RÉSZLETE (publikus, módosítatlan katalógusnézet) ---------- */
 function tourModal(tid){
-  const t = tourById(tid); if(!t) return;
+  const t = v122PublicTours().find(x=>x.id===tid); if(!t) return;
   openModal({ title:esc(t.name),
     body:`<div class="img-wrap" style="height:190px;border-radius:14px;margin-bottom:1rem">${imgTag(t.img,t.name)}</div>
       <div class="meta" style="margin-bottom:.8rem"><span>📍 <b>${esc(t.start.name)}</b> · ${esc(t.region)}</span>
@@ -503,9 +500,7 @@ VIEWS.onboarding = () => {
   if(s >= OB_STEPS.length){
     return `<div class="auth-shell" style="min-height:70vh"><div class="card auth-card center" style="text-align:center">
       <div style="font-size:3rem">🥾</div><h1 class="mb0" style="font-size:1.6rem">Minden megvan, ${esc(Store.me()?Store.me().name.split(" ")[0]:"túrázó")}!</h1>
-      <p class="muted">Az első túrádat is előkészítettük: <b>Mária-kő</b> a közelgő hétvégére. Ezek a preferenciái alapján ajánlottuk.</p>
-      <img src="${IMG.hegylanc}" alt="" style="display:none" onerror="this.remove()"><div class="hcard" style="aspect-ratio:16/7">${imgTag(IMG.hegylanc,"")}
-        <div class="hb" style="text-align:left"><b style="font-family:var(--font-display);font-size:1.1rem">Legközelebb: Csukás-tető napfelkelte</b><div class="meta"><span>Gyergyói-havasok · 14 km · 5,5 óra · 820 m szint</span></div></div></div>
+      <p class="muted">A preferenciáid alapján ellenőrzött forrásokból választhatsz útvonalat és eseményt.</p>
       <button class="btn btn-primary btn-lg btn-block" id="ob-fin" style="margin-top:1.1rem">Irány a személyes túraközpontom →</button>
     </div></div>`;
   }

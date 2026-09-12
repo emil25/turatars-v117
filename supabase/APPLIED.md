@@ -1,5 +1,11 @@
 # V118 Supabase deployment record
 
+# V122 application release
+
+- Public catalog policy: only source-backed `verified` records are rendered.
+- Legacy unverified catalog data remains private compatibility data and is not seeded into the public UI.
+- Source review route: `#/forrasok` (authenticated, validation only; no automatic publication).
+
 - Applied: 2026-09-09
 - Supabase project ref: `reezefgcbdrcnuhcktma`
 - Supabase project URL: `https://reezefgcbdrcnuhcktma.supabase.co`

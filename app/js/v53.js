@@ -88,10 +88,7 @@ window.v53OnDecide=function(row,status,ev){ try{
   if(status==="declined" && row){ c53notify(row.uid, "🔴 Elutasította a jelentkezést: "+ev.name, "#/felfedezes", "ed-"+ev.id+"-"+row.uid+"-"+Date.now().toString().slice(-4)); Store.save(); }
 }catch(e){} };
 /* ---------- DEMOprofile-ok (egyértelmű jelöléssel) ---------- */
-function ensureDemo(){ var c=C(); if(c.demoSeeded) return; c.demoSeeded=true;
-  c.profiles.push({ uid:"DEMO-USER-1", av:"", name:"DEMO Anna", bio:"Szemléltető túrázó profil — valódi személy nem.", types:["Körös túra","Kilátás"], regions:["Gyergyói-havasok"], exp:"Közepes", len:"Egynapos", avail:true, demo:true });
-  c.profiles.push({ uid:"DEMO-USER-2", av:"", name:"DEMO Péter", bio:"Szemléltető többnapos túrázó — valódi adat nem.", types:["Gerinctúra","Sátoros"], regions:["Hargita"], exp:"Haladó", len:"Többnapos", avail:false, demo:true });
-  Store.save(); }
+function ensureDemo(){ var c=C(), before=c.profiles.length; c.profiles=(c.profiles||[]).filter(function(p){ return !p.demo && !/^DEMO/i.test(String(p.uid||"")) && !/^DEMO/i.test(String(p.name||"")); }); if(c.profiles.length!==before){ c.connections=(c.connections||[]).filter(function(x){ return !/^DEMO/i.test(String(x.a||"")) && !/^DEMO/i.test(String(x.b||"")); }); Store.save(); } }
 function typeOpts(){ return ["Körös túra","Gerinctúra","Kilátás","Vízesés","Sátoros","Teljesítménytúra","Családi"]; }
 function userStats(uid){ try{ var d=Store.userDataOf(uid)||{}; var tours=d.tours||[]; var j=d.journal||[];
   var done=tours.filter(function(t){ return t.status==="teljesítve"||t.status==="archiválva"; });
@@ -106,7 +103,7 @@ function renderCard(p){ var me=myId(); var s=pairStatus(me,p.uid); var btn="";
   else btn='<span class="chip chip-green">🟢 Túratársak</span> <button class="btn btn-ghost btn-sm" data-c53dec="'+connOf(me,p.uid).id+':none">Kapcsolat törlése</button>';
   var s2=userStats(p.uid);
   return '<article class="f9card card c53card"><div class="f9-b"><div class="f9-t1">'+(p.av?'<img src="'+esc3(p.av)+'" class="c53-av img" alt="">':'<span class="c53-av">'+esc3((p.name||"T").charAt(0))+"</span>")
-    +"<b>"+esc3((p.name||"Túrázó")+(p.demo?" (DEMO)":""))+"</b>"+((p.regions||[]).map(function(r){return '<span class="chip chip-sand">📍 '+esc3(r)+"</span>";}).join(""))
+    +"<b>"+esc3(p.name||"Túrázó")+"</b>"+((p.regions||[]).map(function(r){return '<span class="chip chip-sand">📍 '+esc3(r)+"</span>";}).join(""))
     +"</div><p class=\"small muted mb0\">🥾 "+s2.tours+" túra · 📏 "+s2.km+" km · ⛰️ "+s2.up+" m"+(s2.badges?" · 🏆 "+s2.badges:"")+((p.exp)?(" · 🎓 "+esc3(p.exp)):"")+((p.len)?(" · ⏱ "+esc3(p.len)):"")+(p.avail?" · 🟢 elérhető":" · ⚪ most nem")+"</p>"
     +'<p class="small mb0">'+((p.types||[]).map(function(t){return '<span class="chip chip-green">'+esc3(t)+"</span>";}).join(" ")||"")+"</p>"
     +'<div class="f9cta">'+btn+"</div></div></article>"; }
@@ -124,7 +121,7 @@ function c53Inner(){ ensureDemo(); var u=curU(); var me=myId(); var P5=myProf();
     +'<select class="input" id="c53-len"><option value="">⏱ Hossz</option>'+["Egynapos","Többnapos","Változó"].map(function(x){return "<option>"+x+"</option>";}).join("")+"</select>"
     +'<select class="input" id="c53-type"><option value="">🥾 Típus</option>'+typeOpts().map(function(x){return "<option>"+x+"</option>";}).join("")+"</select>"
     +'<label class="c53-chk"><input type="checkbox" id="c53-avail" style="width:auto"> csak elérhető</label></div>'
-    +'<div id="c53-list">'+ (pool.length? pool.map(renderCard).join("") : '<p class="muted">Nincs még一条 megjeleníthető profil — hozz létre közösségi profilt, majd jelölj másokat. (Csak valódi profilok jelennek meg; a DEMO jelöltek egyértelműek.)</p>')+"</div>";
+    +'<div id="c53-list">'+ (pool.length? pool.map(renderCard).join("") : '<p class="muted">Nincs még megjeleníthető profil — hozz létre közösségi profilt, majd jelölj másokat.</p>')+"</div>";
   var inc=C().connections.filter(function(cn){ return (cn.a===me||cn.b===me) && cn.status==="pending" && cn.req!==me; });
   var pf={}; C().profiles.forEach(function(p){ pf[p.uid]=p.name; });
   html+='<section class="card panel c53-sec"><h2>📩 Bejövő jelölések</h2>'+ (inc.length? '<div class="c53-rows">'+ inc.map(function(cn){ var other=cn.a===me?cn.b:cn.a;
@@ -141,7 +138,7 @@ VIEWS.tarsak.after=function(root){ try{ var me=myId();
     var fr=pool.filter(function(p){ if(qq && String((p.name||"")+" "+((p.regions||[]).join(" "))+" "+((p.types||[]).join(" "))).toLowerCase().indexOf(qq)<0) return false;
       if(rg && (p.regions||[]).indexOf(rg)<0) return false; if(ex && p.exp!==ex) return false; if(ln && p.len!==ln) return false;
       if(ty && (p.types||[]).indexOf(ty)<0) return false; if(av && !p.avail) return false; return true; });
-    l.innerHTML= fr.length? fr.map(renderCard).join("") : '<div class="empty"><span class="em-ico">🔎</span><h3>Nincs találat</h3><p class="muted">Csak valódi (vagy jelölt DEMO) profilok jelennek meg — a szűrőn lazíthatsz.</p></div>'; }
+    l.innerHTML= fr.length? fr.map(renderCard).join("") : '<div class="empty"><span class="em-ico">🔎</span><h3>Nincs találat</h3><p class="muted">Nincs a szűrőnek megfelelő profil.</p></div>'; }
   ["c53-q","c53-reg","c53-exp","c53-len","c53-type"].forEach(function(idd){ var elx=root.querySelector("#"+idd); if(elx){ elx.oninput=rf; elx.onchange=rf; } });
   var ack=root.querySelector("#c53-avail"); if(ack) ack.onchange=rf;
   var ep=root.querySelector("#c53-editprof"); if(ep) ep.onclick=function(){ profForm(); }; }catch(e){} };

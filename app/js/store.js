@@ -36,7 +36,10 @@ const Store = (() => {
       {id:uid("g"), icon:"🥾", label:"km túrázva idén", metric:"km", target:300, unit:"km"},
       {id:uid("g"), icon:"🏔️", label:"új csúcs", metric:"summits", target:10, unit:"db"},
       {id:uid("g"), icon:"🌄", label:"napfelkelte túra", metric:"napkelte", target:3, unit:"db"}];
-    if(!d.challenges) d.challenges = (typeof CHALLENGES_DEMO!=="undefined" ? JSON.parse(JSON.stringify(CHALLENGES_DEMO)) : []);
+    // Challenges are user-owned records. Do not seed fabricated/demo entries,
+    // and remove the legacy seeded challenge IDs from existing local data.
+    if(!d.challenges) d.challenges = [];
+    if(Array.isArray(d.challenges)) d.challenges = d.challenges.filter(x => !/^ch[123]$/.test(String(x&&x.id||"")));
     if(!d.inbox) d.inbox=[];
     if(!d.widgets) { d.widgets = ["hub","readi","quick","sun","inbox","recent","chall","recs","goal","cal","memory","terep","tools","tiles"]; }    if(!d.widgets.includes("recent")) { const si=d.widgets.indexOf("sun"); d.widgets.splice(si>=0?si+1:4,0,"recent"); }
 

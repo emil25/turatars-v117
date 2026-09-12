@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V121 application shell', () => {
+test('production output contains the complete V122 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V121 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v121/);
+test('PWA service worker is on the V122 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v122/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -76,4 +76,15 @@ test('production bundle includes the V121 offline and GPX extensions', () => {
   assert.match(bundle, /v121-offroute/);
   assert.match(bundle, /v121-offline/);
   assert.match(bundle, /offRouteConsecutive/);
+});
+
+test('production bundle includes the V122 verified catalog boundary', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V122/);
+  assert.match(bundle, /dataStatus/);
+  assert.match(bundle, /sourceUrl/);
+  assert.match(bundle, /Jelenleg nincs ellenőrzött esemény/);
+  assert.doesNotMatch(bundle, /DEMO — szemléltető/);
 });
