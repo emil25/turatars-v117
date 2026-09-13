@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V128 application shell', () => {
+test('production output contains the complete V129 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V128 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v128/);
+test('PWA service worker is on the V129 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v129/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -190,6 +190,30 @@ test('production bundle includes the V128 intelligent tour planner', () => {
   assert.match(bundle, /Túraterv létrehozása/);
   assert.match(bundle, /return to start|vissza a kezdőpontra/);
   assert.doesNotMatch(bundle, /fake.*route|mock.*route/i);
+});
+
+test('production bundle includes the V129 personal tour project layer', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V129/);
+  assert.match(bundle, /SAJÁT TÚRA PROJEKT/);
+  assert.match(bundle, /Felkészültség/);
+  assert.match(bundle, /Csomaglista/);
+  assert.match(bundle, /Indítás GPS-szel/);
+  assert.match(bundle, /Szinkron most/);
+  assert.match(bundle, /TERVEZETT/);
+  assert.match(bundle, /KÉSZÜLŐDIK/);
+  assert.match(bundle, /INDULÁSRA KÉSZ/);
+  assert.match(bundle, /FOLYAMATBAN/);
+  assert.match(bundle, /TELJESÍTVE/);
+  assert.match(bundle, /ARCHIVÁLT/);
+  assert.match(bundle, /Duplikálás/);
+  assert.match(bundle, /expected_version_required/);
+  assert.match(bundle, /hydrateRoute/);
+  assert.match(bundle, /projectGearIds/);
+  assert.match(bundle, /packList/);
+  assert.match(bundle, /Szintadat jelenleg nem érhető el/);
 });
 
 test('routing proxy keeps its provider key server-side', () => {
