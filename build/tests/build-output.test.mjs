@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V127 application shell', () => {
+test('production output contains the complete V128 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V127 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v127/);
+test('PWA service worker is on the V128 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v128/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -174,6 +174,24 @@ test('production bundle includes the V127 real routing planner boundary', () => 
   assert.doesNotMatch(bundle, /ORS_API_KEY/);
 });
 
+test('production bundle includes the V128 intelligent tour planner', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V128Planner/);
+  assert.match(bundle, /v128-trip-type/);
+  assert.match(bundle, /v128-duration/);
+  assert.match(bundle, /v128-distance/);
+  assert.match(bundle, /v128-difficulty/);
+  assert.match(bundle, /v128-experience/);
+  assert.match(bundle, /Körút/);
+  assert.match(bundle, /Szintadat jelenleg nem érhető el/);
+  assert.match(bundle, /Mentés a túráimhoz/);
+  assert.match(bundle, /Túraterv létrehozása/);
+  assert.match(bundle, /return to start|vissza a kezdőpontra/);
+  assert.doesNotMatch(bundle, /fake.*route|mock.*route/i);
+});
+
 test('routing proxy keeps its provider key server-side', () => {
   const edge = path.resolve(here, '..', '..', 'supabase', 'functions', 'route-proxy', 'index.ts');
   assert.ok(fs.existsSync(edge), 'route-proxy Edge Function is missing');
@@ -183,3 +201,4 @@ test('routing proxy keeps its provider key server-side', () => {
   assert.match(source, /foot-hiking/);
   assert.doesNotMatch(source, /VITE_/);
 });
+
