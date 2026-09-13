@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
-test('production output contains the complete V129 application shell', () => {
+test('production output contains the complete V130 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');
   assert.ok(fs.existsSync(path.join(dist, 'sw.js')), 'service worker is missing');
@@ -50,8 +50,8 @@ test('production bundle preserves the tour workspace controls', () => {
   assert.match(bundle, /cfm-yes/);
 });
 
-test('PWA service worker is on the V129 cache namespace', () => {
-  assert.match(read('sw.js'), /turatears-v129/);
+test('PWA service worker is on the V130 cache namespace', () => {
+  assert.match(read('sw.js'), /turatears-v130/);
 });
 
 test('production bundle includes the V120 live GPS tour mode', () => {
@@ -214,6 +214,24 @@ test('production bundle includes the V129 personal tour project layer', () => {
   assert.match(bundle, /projectGearIds/);
   assert.match(bundle, /packList/);
   assert.match(bundle, /Szintadat jelenleg nem érhető el/);
+});
+
+test('production bundle includes the V130 outdoor tour mode layer', () => {
+  const assets = fs.readdirSync(path.join(dist, 'assets'));
+  const jsName = assets.find((name) => /^index-.*\.js$/.test(name));
+  const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
+  assert.match(bundle, /V130/);
+  assert.match(bundle, /TÚRA MÓD/);
+  assert.match(bundle, /TÚRA INDÍTÁSA/);
+  assert.match(bundle, /HOL VAGYOK/);
+  assert.match(bundle, /VISSZA AZ ÚTVONALRA/);
+  assert.match(bundle, /SEGÍTSÉG/);
+  assert.match(bundle, /TÚRA TELJESÍTVE/);
+  assert.match(bundle, /Élmény mentése/);
+  assert.match(bundle, /__V130_PLAN_POINTS/);
+  assert.match(bundle, /navigator\.geolocation/);
+  assert.match(bundle, /openrouteservice/);
+  assert.doesNotMatch(bundle, /fake.*gps|mock.*gps/i);
 });
 
 test('routing proxy keeps its provider key server-side', () => {

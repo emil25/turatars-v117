@@ -11,9 +11,12 @@ let v120Timer = null;
 let v120Map = null;
 let v120MapLine = null;
 let v120MapMarker = null;
+let v120PlannedLine = null;
+let v120PlannedStart = null;
+let v120RejoinLine = null;
 
 function v120Now(){ return Date.now(); }
-function v120Point(pos){ const c=pos&&pos.coords||{}; return {lat:+c.latitude,lng:+c.longitude,timestamp:pos.timestamp||v120Now(),accuracy:Number.isFinite(+c.accuracy)?+c.accuracy:null,altitude:Number.isFinite(+c.altitude)?+c.altitude:null}; }
+function v120Point(pos){ const c=pos&&pos.coords||{}; return {lat:+c.latitude,lng:+c.longitude,timestamp:pos.timestamp||v120Now(),accuracy:c.accuracy!=null&&Number.isFinite(+c.accuracy)?+c.accuracy:null,altitude:c.altitude!=null&&Number.isFinite(+c.altitude)?+c.altitude:null}; }
 function v120Distance(a,b){
   if(typeof haversine==="function") return haversine([a.lat,a.lng],[b.lat,b.lng]);
   const p=Math.PI/180,R=6371000,dLat=(b.lat-a.lat)*p,dLng=(b.lng-a.lng)*p,q=Math.sin(dLat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dLng/2)**2;
@@ -34,14 +37,22 @@ function v120Accept(live,point){
 }
 function v120GetTour(id){ return Store.getTour(String(id)); }
 function v120Persist(t){ try{ Store.updateTour(t.id,{liveTrack:t.liveTrack}); return true; }catch(e){ return false; } }
-function v120MapReset(){ if(v120Map){try{v120Map.remove();}catch(e){}} v120Map=null;v120MapLine=null;v120MapMarker=null; }
+function v120MapReset(){ if(v120Map){try{v120Map.remove();}catch(e){}} v120Map=null;v120MapLine=null;v120MapMarker=null;v120PlannedLine=null;v120PlannedStart=null;v120RejoinLine=null;window.__V120_MAP=null; }
 function v120MapDraw(points){
-  const el=document.getElementById("v120-map"); if(!el||!points.length)return;
-  if(!v120Map&&typeof MapKit!=="undefined"&&window.L){v120Map=MapKit.make(el,{center:[points[0].lat,points[0].lng],zoom:16,scroll:true});if(!v120Map)return;}
+  const el=document.getElementById("v120-map"), planned=Array.isArray(window.__V130_PLAN_POINTS)?window.__V130_PLAN_POINTS:[], rejoin=Array.isArray(window.__V130_REJOIN_POINTS)?window.__V130_REJOIN_POINTS:[];
+  if(!el)return;
+  const seed=points.length?points:planned;
+  if(!seed.length)return;
+  if(!v120Map&&typeof MapKit!=="undefined"&&window.L){v120Map=MapKit.make(el,{center:[seed[0].lat,seed[0].lng],zoom:16,scroll:true});if(!v120Map)return;window.__V120_MAP=v120Map;}
   if(!v120Map||!window.L)return; const line=points.map(p=>[p.lat,p.lng]);
-  if(v120MapLine)v120MapLine.setLatLngs(line);else v120MapLine=L.polyline(line,{color:"#E07A2F",weight:5,opacity:.9}).addTo(v120Map);
-  const last=points[points.length-1]; if(v120MapMarker)v120MapMarker.setLatLng([last.lat,last.lng]);else v120MapMarker=L.circleMarker([last.lat,last.lng],{radius:8,color:"#1C4A36",fillColor:"#E07A2F",fillOpacity:1}).addTo(v120Map).bindTooltip("📍 Aktuális pozíció");
-  if(line.length>1)v120Map.fitBounds(L.latLngBounds(line).pad(.25));else v120Map.setView(line[0],16);
+  if(line.length){if(v120MapLine)v120MapLine.setLatLngs(line);else v120MapLine=L.polyline(line,{color:"#E07A2F",weight:5,opacity:.9}).addTo(v120Map);
+    const last=points[points.length-1]; if(v120MapMarker)v120MapMarker.setLatLng([last.lat,last.lng]);else v120MapMarker=L.circleMarker([last.lat,last.lng],{radius:8,color:"#1C4A36",fillColor:"#E07A2F",fillOpacity:1}).addTo(v120Map).bindTooltip("📍 Aktuális pozíció");
+  }
+  const plannedLine=planned.map(p=>[p[0],p[1]]);
+  if(plannedLine.length>1){if(v120PlannedLine)v120PlannedLine.setLatLngs(plannedLine);else v120PlannedLine=L.polyline(plannedLine,{color:"#1C4A36",weight:5,opacity:.75,dashArray:"10 8"}).addTo(v120Map);if(!v120PlannedStart)v120PlannedStart=L.circleMarker(plannedLine[0],{radius:7,color:"#1C4A36",fillColor:"#B9D6A7",fillOpacity:1}).addTo(v120Map).bindTooltip("🥾 Indulási pont");}
+  const rejoinLine=rejoin.map(p=>[p[0],p[1]]);
+  if(rejoinLine.length>1){if(v120RejoinLine)v120RejoinLine.setLatLngs(rejoinLine);else v120RejoinLine=L.polyline(rejoinLine,{color:"#3A79A8",weight:4,opacity:.9,dashArray:"5 7"}).addTo(v120Map);}
+  const bounds=plannedLine.concat(rejoinLine).concat(line); if(bounds.length>1)v120Map.fitBounds(L.latLngBounds(bounds).pad(.25));else v120Map.setView(bounds[0],16);
 }
 function v120Stat(root,t){
   const live=v120Live(t);if(!live||!root)return;const now=v120Now(),active=v120ActiveMs(live,now),total=v120TotalMs(live,now),km=(+live.distanceM||0)/1000;
