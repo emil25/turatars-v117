@@ -199,6 +199,13 @@ test('routing proxy keeps its provider key server-side', () => {
   assert.match(source, /Deno\.env\.get\("ORS_API_KEY"\)/);
   assert.match(source, /openrouteservice\/v2/);
   assert.match(source, /foot-hiking/);
+  assert.match(source, /boundary\.country/);
+  assert.match(source, /ROU/);
+  assert.match(source, /lang/);
+  assert.match(source, /gyimes/);
+  assert.match(source, /gyimeskozeplok/);
+  assert.match(source, /Lunca de Jos/);
+  assert.match(source, /score/);
   assert.doesNotMatch(source, /VITE_/);
 });
 

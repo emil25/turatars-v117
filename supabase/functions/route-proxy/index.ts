@@ -80,22 +80,76 @@ async function provider(request: Request, path: string, body?: unknown) {
 async function search(query: string, request: Request) {
   const apiKey = Deno.env.get("ORS_API_KEY") || "";
   if (!apiKey) return fail("routing_not_configured", "A helykeresés szerveroldali kulcsa még nincs beállítva.", 503);
-  const url = new URL(`${PELIAS_BASE}/search`);
-  url.searchParams.set("text", query);
-  url.searchParams.set("size", "5");
-  const response = await fetch(url, { headers: { Authorization: apiKey, Accept: "application/json" } });
-  const text = await response.text();
-  let parsed: unknown = null;
-  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
-  if (!response.ok) return fail(response.status === 429 ? "routing_rate_limited" : "routing_search_failed", `A helykeresés hibát adott (${response.status}).`, response.status === 429 ? 429 : 502);
-  const features = Array.isArray((parsed as { features?: unknown[] } | null)?.features) ? (parsed as { features: unknown[] }).features : [];
-  return json({ results: features.slice(0, 5).map((feature) => {
-    const item = feature as { properties?: { label?: string; name?: string }; geometry?: { coordinates?: unknown } };
-    const coords = Array.isArray(item.geometry?.coordinates) ? item.geometry.coordinates : [];
-    const lng = number(coords[0]);
-    const lat = number(coords[1]);
-    return { label: String(item.properties?.label || item.properties?.name || "Helyszín"), lat, lng };
-  }).filter((item) => item.lat !== null && item.lng !== null) });
+  /* Pelias defaults to global text search.  Without a country boundary a
+   * Hungarian name such as “Gyimes” commonly resolves to a Hungarian street.
+   * Keep the aliases here as search hints only; all coordinates still come
+   * from the real HeiGIT/Pelias response. */
+  const aliases: Record<string, { display: string; searches: string[] }> = {
+    gyimes: { display: "Gyimes", searches: ["Ghimeș-Făget", "Ghimeș"] },
+    gyimesbukk: { display: "Gyimesbükk", searches: ["Ghimeș-Făget", "Ghimeș"] },
+    gyimeskozeplok: { display: "Gyimesközéplok", searches: ["Lunca de Jos", "Gyimesközéplok"] },
+    csikszereda: { display: "Csíkszereda", searches: ["Miercurea Ciuc", "Csíkszereda"] },
+    hargitafurdo: { display: "Hargitafürdő", searches: ["Harghita-Băi", "Băile Harghita"] },
+    "szent anna to": { display: "Szent Anna-tó", searches: ["Lacul Sfânta Ana", "Sfânta Ana"] },
+    "gyilkos to": { display: "Gyilkos-tó", searches: ["Lacul Roșu", "Lacul Ghilcoș"] },
+  };
+  const normalize = (value: string) => value.toLocaleLowerCase("hu").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/[–—-]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  const normalizedQuery = normalize(query);
+  const alias = Object.entries(aliases).find(([key]) => normalizedQuery === key || normalizedQuery.startsWith(`${key} `))?.[1];
+  const texts = [query, ...(alias?.searches || [])].filter((text, index, arr) => arr.indexOf(text) === index).slice(0, 3);
+  type PeliasFeature = { properties?: Record<string, unknown>; geometry?: { coordinates?: unknown } };
+  type Candidate = { label: string; providerLabel: string; lat: number; lng: number; score: number; country: string; region: string };
+  const all: Candidate[] = [];
+  for (const text of texts) {
+    const url = new URL(`${PELIAS_BASE}/search`);
+    url.searchParams.set("text", text);
+    url.searchParams.set("size", "10");
+    url.searchParams.set("boundary.country", "ROU");
+    url.searchParams.set("lang", "hu");
+    const response = await fetch(url, { headers: { Authorization: apiKey, Accept: "application/json" } });
+    const responseText = await response.text();
+    let parsed: unknown = null;
+    try { parsed = responseText ? JSON.parse(responseText) : null; } catch { parsed = null; }
+    if (!response.ok) return fail(response.status === 429 ? "routing_rate_limited" : "routing_search_failed", `A helykeresés hibát adott (${response.status}).`, response.status === 429 ? 429 : 502);
+    const features = Array.isArray((parsed as { features?: unknown[] } | null)?.features) ? (parsed as { features: unknown[] }).features : [];
+    const queryNorm = normalize(text);
+    for (const feature of features as PeliasFeature[]) {
+      const props = feature.properties || {};
+      const coords = Array.isArray(feature.geometry?.coordinates) ? feature.geometry.coordinates : [];
+      const lng = number(coords[0]);
+      const lat = number(coords[1]);
+      if (lat === null || lng === null) continue;
+      const providerLabel = String(props.label || props.name || "Helyszín");
+      const country = String(props.country || props.country_a || props.country_code || "");
+      const region = String(props.region || props.county || props.locality || "");
+      const context = normalize(`${providerLabel} ${country} ${region}`);
+      const isRomania = /romania|roman\u00eda|rou/.test(normalize(country) + " " + context);
+      let score = Number(props.confidence || 0) * 10;
+      score += isRomania ? 1000 : -1000;
+      if (/harghita|hargita/.test(context)) score += 260;
+      if (/covasna|kovaszna/.test(context)) score += 220;
+      if (/mures|maros/.test(context)) score += 180;
+      if (/bacau|erdely|transylvania/.test(context)) score += 120;
+      if (context.includes(queryNorm)) score += 120;
+      if (text !== query) score += 45;
+      if (/utca|strada|street/.test(context)) score -= 160;
+      const display = alias?.display && text !== query ? `${alias.display} · ${providerLabel}` : providerLabel;
+      all.push({ label: display, providerLabel, lat, lng, score, country, region });
+    }
+  }
+  const romanian = all.filter((item) => /romania|roman\u00eda|rou/.test(normalize(`${item.country} ${item.providerLabel} ${item.region}`)));
+  const pool = romanian.length ? romanian : all;
+  const dedup = new Map<string, Candidate>();
+  for (const item of pool) {
+    const key = `${item.lat.toFixed(5)}|${item.lng.toFixed(5)}`;
+    const current = dedup.get(key);
+    if (!current || item.score > current.score) dedup.set(key, item);
+  }
+  const results = [...dedup.values()].sort((a, b) => b.score - a.score).slice(0, 8)
+    .map(({ label, lat, lng }) => ({ label, lat, lng }));
+  return json({ results });
 }
 
 Deno.serve(async (request) => {
