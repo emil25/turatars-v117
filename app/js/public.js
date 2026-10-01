@@ -13,7 +13,7 @@ function tourCard(t){
   return `<article class="card tcard"><a class="card-link" href="#/turak/${t.id}">
     <div class="img-wrap" style="height:168px">${imgTag(t.img,t.name)}
       <span class="chip chip-pine">${esc(t.region)}</span>
-      <span class="rate">★ ${t.rating}</span></div></a>
+      ${t.reviews>0&&t.rating>0?`<span class="rate">★ ${t.rating}</span>`:""}</div></a>
     <div class="tbody">
       <span class="region">${esc(t.region)} · ${esc(t.difficulty||t.diff)}</span>
       <h3><a href="#/turak/${t.id}">${esc(t.name)}</a></h3>
@@ -52,14 +52,15 @@ function handleSaveEvents(root){
 
 /* ================= KEZDŐLAP ================= */
 const VIEWS = {};
+function homeRecommendations(kind){
+  const tours = v122PublicTours();
+  if(kind === "family") return tours.filter(t=>t.tags.includes("family"));
+  if(kind === "easy") return tours.filter(t=>t.diff === "Könnyű");
+  if(kind === "sunrise") return tours.filter(t=>t.tags.includes("napkelte"));
+  return tours.filter(t=>t.h != null && t.h <= 3.5);
+}
 VIEWS.home = () => {
-  const upcomingEvents = v122PublicEvents().filter(e=>e.date?e.date>=Store.todayISO():false).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
   const popular = v122PublicTours().slice().sort((a,b)=>b.reviews-a.reviews).slice(0,6);
-  const weekend = v122PublicTours().filter(t=>t.h<=4.5).slice(0,3);
-  const best = v122PublicPlaces().slice(0,6);
-  const sunrise = v122PublicTours().filter(t=>t.tags.includes("napkelte")||t.rating>=4.8).slice(0,3);
-  const family = v122PublicTours().filter(t=>t.tags.includes("family"));
-  const easy = v122PublicTours().filter(t=>t.diff==="Könnyű").slice(0,6);
   const u = Store.me();
   return `
   <section class="hero"><div class="bg">${imgTag(IMG.hegylanc,"Hegyaljai gerinc")}</div>
@@ -83,7 +84,15 @@ VIEWS.home = () => {
       </div>
     </div></section>
 
-  <div class="wrap">
+  <div class="wrap home-content">
+    <nav class="home-shortcuts" aria-label="Főoldali gyors elérés">
+      <a href="#/felfedezes"><span aria-hidden="true">🥾</span> Túrák felfedezése</a>
+      <a href="#/tervezes"><span aria-hidden="true">🧭</span> Túra tervezése</a>
+      <a href="#/turaim"><span aria-hidden="true">🎒</span> Saját túráim</a>
+      <a href="#/esemenyek"><span aria-hidden="true">📅</span> Események</a>
+      <a href="#/helyek"><span aria-hidden="true">📍</span> Helyek</a>
+      <a href="#/kozossegi"><span aria-hidden="true">🌲</span> Közösség</a>
+    </nav>
     <section class="pub-section">
       <div class="flex" style="gap:.6rem;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap">
       <div class="sect-head" style="margin:0 2rem 0 0"><div><span class="eyebrow">Naptár</span><h2 class="mb0">Közelgő túraesemények</h2></div>
@@ -97,32 +106,28 @@ VIEWS.home = () => {
     <section class="pub-section">
       <div class="sect-head"><div><span class="eyebrow">A közösség kedvencei</span><h2 class="mb0">Népszerű túrák</h2></div>
         <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
-      <div class="grid g3">${popular.map(t=>tourCard(t)).join("")}</div>
-      ${(function(){ const uj=v122PublicTours().filter(t=>t.src).slice(0,4); return uj.length?`<p class="small muted" style="margin-top:.9rem">Újonnan a kínálatban — forrással a túrakártyákon: ${uj.map(x=>`<a href="#/turak/${x.id}" style="color:var(--sky);font-weight:600">${esc(x.name.split(" (")[0])}</a>`).join(" · ")}</p>`:""; })()}
+      <div class="grid g3">${popular.slice(0,3).map(t=>tourCard(t)).join("")}</div>
+      ${popular.length>3?`<details class="home-more"><summary>További túrák megtekintése</summary><div class="grid g3">${popular.slice(3).map(t=>tourCard(t)).join("")}</div></details>`:""}
     </section>
 
     <section class="pub-section tight">
-      <div class="sect-head"><div><span class="eyebrow">Pihizsák a hétre</span><h2 class="mb0">Hétvégi ajánlatok</h2></div></div>
-      <div class="grid g3" id="weekend-grid"></div>
+      <div class="sect-head"><div><span class="eyebrow">Találd meg a hozzád illő túrát</span><h2 class="mb0">Túraajánló</h2></div></div>
+      <div class="home-categories" role="group" aria-label="Túraajánló kategóriák">
+        <button class="btn btn-primary" data-home-category="weekend" aria-pressed="true" aria-controls="weekend-grid">Hétvégi ajánlatok</button>
+        <button class="btn btn-soft" data-home-category="family" aria-pressed="false" aria-controls="weekend-grid">Családi túrák</button>
+        <button class="btn btn-soft" data-home-category="easy" aria-pressed="false" aria-controls="weekend-grid">Kezdőknek</button>
+        <button class="btn btn-soft" data-home-category="sunrise" aria-pressed="false" aria-controls="weekend-grid">Napfelkelte túrák</button>
+      </div>
+      <div class="grid g3" id="weekend-grid" aria-live="polite"></div>
     </section>
 
     <section class="pub-section">
-      <div class="sect-head"><div><span class="eyebrow">Ahol a szívöd lakik</span><h2 class="mb0">Legszebb helyek</h2></div>
+      <div class="sect-head"><div><span class="eyebrow">Helyek, ahová visszavágysz</span><h2 class="mb0">Legszebb helyek</h2></div>
         <a class="sect-more" href="#/helyek">Minden hely →</a></div>
       <div class="grid g3" id="best-places"></div>
     </section>
 
-    <div class="trail-divider"><span class="trail-blaze"></span></div>
-
-    <section class="pub-section">
-      <div class="sect-head"><div><span class="eyebrow">Hajnalban a tetőn</span><h2 class="mb0">Napfelkelte túrák</h2></div></div>
-      <div class="p-h-scroll">${sunrise.map(t=>tourCard(t)).join("")}</div>
-      <div class="sect-head" style="margin-top:2.4rem"><div><span class="eyebrow">Apró lábaknak is</span><h2 class="mb0">Családi túrák</h2></div></div>
-      <div class="p-h-scroll">${family.map(t=>tourCard(t)).join("")}</div>
-      <div class="sect-head" style="margin-top:2.4rem"><div><span class="eyebrow">Első lépések</span><h2 class="mb0">Kezdőknek ajánlott túrák</h2></div>
-        <a class="sect-more" href="#/felfedezes">Továbbiak →</a></div>
-      <div class="grid g3">${easy.slice(0,3).map(t=>tourCard(t)).join("")}</div>
-    </section>
+    <div data-home-known></div>
 
     <section class="pub-section">
       <div class="band band-sand topo">
@@ -138,6 +143,8 @@ VIEWS.home = () => {
         </div>
       </div>
     </section>
+
+    <div data-home-community></div>
 
     <section class="pub-section">
       <div class="band band-green topo">
@@ -169,11 +176,21 @@ VIEWS.home = () => {
   ${footer()}`;
 };
 VIEWS.home.after = (root) => {
-  root.querySelector("#home-events").innerHTML =
-    v122PublicEvents().filter(e=>e.date>=Store.todayISO()).slice(0,6).map(ecardSmall).join("");
-  const wday = new Date(); const wsat = Store.addDays(Store.todayISO(), (6-wday.getDay()+7)%7);
-  root.querySelector("#weekend-grid").innerHTML =
-    v122PublicTours().filter(t=>t.h<=3.5).slice(0,3).map(t=>tourCard(t)).join("");
+  const events = v122PublicEvents().filter(e=>e.date>=Store.todayISO()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  root.querySelector("#home-events").innerHTML = events.length ? events.map(ecardSmall).join("") :
+    '<div class="empty home-empty"><p class="mb0">Jelenleg nincs ellenőrzött közelgő esemény.</p><a class="sect-more" href="#/esemenyek">Események megtekintése →</a></div>';
+  const showRecommendations = kind => {
+    const rows = homeRecommendations(kind).slice(0,3);
+    root.querySelector("#weekend-grid").innerHTML = rows.length ? rows.map(tourCard).join("") :
+      '<div class="empty home-empty"><p class="mb0">Ebben a kategóriában még nincs ellenőrzött túra.</p><a class="sect-more" href="#/felfedezes">Összes túra megtekintése →</a></div>';
+    root.querySelectorAll("[data-home-category]").forEach(b=>{
+      const active = b.dataset.homeCategory === kind;
+      b.setAttribute("aria-pressed", String(active));
+      b.classList.toggle("btn-primary", active); b.classList.toggle("btn-soft", !active);
+    });
+  };
+  showRecommendations("weekend");
+  root.querySelectorAll("[data-home-category]").forEach(b=>b.onclick=()=>showRecommendations(b.dataset.homeCategory));
   root.querySelector("#best-places").innerHTML = v122PublicPlaces().slice(0,6).map(w=>
     `<div class="hcard">${imgTag(w.img,w.name)}<div class="hb"><span class="chip chip-pine">${esc(w.cat)}</span><h3 style="margin-top:.35rem">${esc(w.name)}</h3><div class="meta"><span>${esc(w.place)}</span><span>${esc(w.diff)}</span></div></div></div>`).join("");
   handleSaveEvents(root);
@@ -200,7 +217,7 @@ function footer(){ return `<footer class="pub-foot"><div class="wrap">
   <div><div class="fbrand">Túratárs</div>
     <p class="small" style="max-width:34ch;color:#bcd6c2">A túrázók személyes digitális központja. Tervezés · szervezés · teljesítés · dokumentálás — egy helyen, magyarul.</p></div>
   <div><h4>Felfedezés</h4><a href="#/felfedezes">Túrák</a><a href="#/esemenyek">Események</a><a href="#/helyek">Helyek</a></div>
-  <div><h4>Fiók</h4><a href="#/regisztracio">Regisztráció</a><a href="#/belepes">Bejelentkezés</a><a href="##/vezerlopult">Vezérlőpult</a></div>
+  <div><h4>Fiók</h4><a href="#/regisztracio">Regisztráció</a><a href="#/belepes">Bejelentkezés</a><a href="#/vezerlopult">Vezérlőpult</a></div>
   <div><h4>Közösség</h4><a href="#/csapatok">Túracsoportok</a><a href="#/ai">AI Túratervező</a><a href="#/terkep">Túratérkép</a></div>
   <div class="fine"><span>© 2026 Túratárs · turatars.ro · Képek: Unsplash, Nagyhagymás KKT · Eseményforrások: CsEKE, SzATT, visitharghita.ro</span><span>Készült: 🌲 a Bakban és a Székelyföldön</span></div>
 </div></footer>`; }

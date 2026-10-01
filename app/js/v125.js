@@ -20,7 +20,7 @@ function v125Card(r,i,compact){
       (compact?'':'<button class="btn btn-primary btn-sm" data-v125-known-start="'+i+'">🥾 Útvonal használata</button>')+'</div></article>';
 }
 function v125Section(id, compact){
-  var rows=v125Routes(), first=compact?rows.slice(0,6):rows.slice(0,8), rest=rows.slice(first.length);
+  var rows=v125Routes(), first=compact?rows.slice(0,3):rows.slice(0,8), rest=rows.slice(first.length);
   if(!rows.length) return '';
   var html='<section class="pub-section v125-known" id="'+id+'"><div class="sect-head"><div><span class="eyebrow">Nagy-Hagymás · ellenőrzött forrás</span><h2 class="mb0">Ismert túraútvonalak</h2></div><a class="sect-more" href="#/hagymas">Teljes útvonalhálózat →</a></div><p class="muted small">A megjelenő GPX- és KML-linkek a Nagyhagymás KKT eredeti adatforrására mutatnak. Ismeretlen távot és szintet nem pótolunk kitalált értékkel.</p><div class="grid g3 v125-route-grid">'+first.map(function(r,i){return v125Card(r,i,compact);}).join('')+'</div>';
   if(rest.length) html+='<details class="v125-route-more"><summary>＋ '+rest.length+' további ismert útvonal</summary><div class="grid g3 v125-route-grid">'+rest.map(function(r,i){return v125Card(r,i+first.length,compact);}).join('')+'</div></details>';
@@ -94,7 +94,7 @@ VIEWS.planner.after=function(root){
 
 /* A meglévő főoldal és felfedező oldal kap egy kis, valódi útvonal-sávot. */
 var _home=VIEWS.home, _homeA=VIEWS.home&&VIEWS.home.after;
-VIEWS.home=function(){ var html=_home(); return html.replace(/Hova mennél\?/g,"Hová túráznál?").replace(/<footer class="pub-foot"/,v125Section("v125-home-known",true)+'<footer class="pub-foot"'); };
+VIEWS.home=function(){ var html=_home().replace(/Hova mennél\?/g,"Hová túráznál?"); var section=v125Section("v125-home-known",true); return html.includes('<div data-home-known></div>')?html.replace('<div data-home-known></div>',section):html.replace(/<footer class="pub-foot"/,'<div class="wrap">'+section+'</div><footer class="pub-foot"'); };
 VIEWS.home.after=function(root){ if(_homeA) _homeA(root); v125BindKnown(root); };
 var _disc=VIEWS.discover, _discA=VIEWS.discover&&VIEWS.discover.after;
 VIEWS.discover=function(){ return _disc(); };
