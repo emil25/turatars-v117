@@ -1145,6 +1145,32 @@ function handleSaveEvents(root){
 
 /* ================= KEZDŐLAP ================= */
 const VIEWS = {};
+// Presentation assets only: never modify the catalog, user Store or route data.
+const HOME_PHOTOS = {
+  hargita: {file:"hargita.jpg",label:"Hargita · Kakukk-hegy környéke",author:"Szabi237",license:"CC BY 3.0",licenseUrl:"https://creativecommons.org/licenses/by/3.0/",sourceUrl:"https://commons.wikimedia.org/wiki/File:Harghita.JPG"},
+  "vh-lacul-sfanta-ana": {file:"szent-anna.jpg",label:"Szent Anna-tó",author:"Sie",license:"Közkincs",licenseUrl:"https://commons.wikimedia.org/wiki/File:Szent_Anna-t%C3%B3_felh%C5%91kkel.jpg",sourceUrl:"https://commons.wikimedia.org/wiki/File:Szent_Anna-t%C3%B3_felh%C5%91kkel.jpg"},
+  "vh-lacu-rosu": {file:"gyilkos-to.jpg",label:"Gyilkos-tó",author:"DimiTalen",license:"CC0",licenseUrl:"https://creativecommons.org/publicdomain/zero/1.0/",sourceUrl:"https://commons.wikimedia.org/wiki/File:View_of_Lacul_Ro%C8%99u_from_the_south_end_on_a_rainy_day,_Gheorgheni,_2017.jpg"},
+  "vh-harghita-bai": {file:"hargitafurdo.jpg",label:"Hargitafürdő · túrajelzések",author:"Einstein2",license:"CC BY-SA 3.0",licenseUrl:"https://creativecommons.org/licenses/by-sa/3.0/",sourceUrl:"https://commons.wikimedia.org/wiki/File:Hiking_signs_near_Hargitaf%C3%BCrd%C5%91.jpg"}
+};
+function homePhoto(key, eager){
+  const p=HOME_PHOTOS[key];
+  if(!p) return "";
+  return `<img src="./photos/${p.file}" alt="${esc(p.label)}" loading="${eager?"eager":"lazy"}" ${eager?'fetchpriority="high"':""} decoding="async">`;
+}
+function homeNumber(n){ return n==null||!Number.isFinite(+n)?"—":new Intl.NumberFormat("hu-HU",{maximumFractionDigits:1}).format(+n); }
+function homeTourCard(t){
+  return `<article class="card tcard home-tour-card"><div class="home-tour-top"><span class="region">${esc(t.region)}</span>${diffChip(t.diff)}</div>
+    <h3><a href="#/turak/${esc(t.id)}">${esc(t.name)}</a></h3><p class="home-tour-start">${esc(t.start&&t.start.name||t.place||"")}</p>
+    <div class="home-tour-facts"><div><b>${homeNumber(t.km)}<small> km</small></b><span>Táv</span></div><div><b>${homeNumber(t.up)}<small> m</small></b><span>Szintemelkedés</span></div><div><b>${homeNumber(t.h)}<small> ó</small></b><span>Becsült idő</span></div></div>
+    <div class="home-tour-bottom"><span>${t.gpxUrl?"GPX elérhető":"Útvonaladat még nem érhető el"}</span><a href="#/turak/${esc(t.id)}" aria-label="${esc(t.name)} – részletek">Részletek <span aria-hidden="true">↗</span></a></div>${v122SourceLine(t)}</article>`;
+}
+function homeTourRow(t){
+  return `<article class="home-tour-row"><span class="home-row-mark" aria-hidden="true">↗</span><div><h3><a href="#/turak/${esc(t.id)}">${esc(t.name)}</a></h3><p>${esc(t.region)} · ${esc(t.diff)}${t.gpxUrl?" · GPX elérhető":""}</p></div><a class="home-row-facts" href="#/turak/${esc(t.id)}" aria-label="${esc(t.name)} – megnyitás"><b>${homeNumber(t.km)} km</b><span>${homeNumber(t.h)} ó · +${homeNumber(t.up)} m</span></a></article>`;
+}
+function homeEventRow(e){
+  const parts=e.date.split("-");
+  return `<article class="home-event-row"><time datetime="${esc(e.date)}"><span>${MONTHS_HU[+parts[1]-1].slice(0,3)}.</span><b>${+parts[2]}</b></time><div class="home-event-body"><span class="eyebrow">${esc(e.cat)}</span><h3><a href="#/esemenyek/${esc(e.id)}">${esc(e.name)}</a></h3><p>${esc(e.place)}${e.time?" · "+esc(e.time):""}</p><p class="home-event-org">${esc(e.org)}</p>${v122SourceLine(e)}</div><button class="btn btn-soft btn-sm" data-save-event="${esc(e.id)}">${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés"}</button></article>`;
+}
 function homeRecommendations(kind){
   const tours = v122PublicTours();
   if(kind === "family") return tours.filter(t=>t.tags.includes("family"));
@@ -1153,31 +1179,31 @@ function homeRecommendations(kind){
   return tours.filter(t=>t.h != null && t.h <= 3.5);
 }
 VIEWS.home = () => {
-  const popular = v122PublicTours().slice().sort((a,b)=>b.reviews-a.reviews).slice(0,6);
+  const tours=v122PublicTours(), places=v122PublicPlaces();
+  const selected=["vh-around-red-lake","vh-balan-piatra-singuratica","vh-harghita-bai-subpadure"].map(id=>tours.find(t=>t.id===id)).filter(Boolean);
+  const more=tours.filter(t=>!selected.some(s=>s.id===t.id)).slice(0,3);
   const u = Store.me();
   return `
-  <section class="hero"><div class="bg">${imgTag(IMG.hegylanc,"Hegyaljai gerinc")}</div>
-    <div class="wrap hero-in">
-      <span class="kicker">🥾 ${v122PublicTours().length} túraútvonal · ${v122PublicEvents().filter(e=>e.date>=Store.todayISO()).length} közelgő esemény · ${v122PublicPlaces().length} bakancslista-hely</span>
+  <section class="hero home-hero"><div class="wrap hero-in">
+    <div class="home-hero-copy"><span class="kicker">SZÉKELYFÖLDÖN KEZDŐDIK</span>
       <h1>Merre kalandozol <br><i>legközelebb?</i></h1>
       <p class="sub">Fedezd fel, tervezd meg és őrizd meg minden túrádat egy helyen — Székelyföld hágóitól a Fogarasokig.</p>
       <p class="hero-proof">Útvonalak, GPX, időterv, felszerelés, társak és napló — egy helyen.</p>
-      <div class="searchbox" role="search" aria-label="Túrák keresése">
+      <div class="home-hero-actions"><a href="#home-find" class="btn btn-primary">Találj túrát <span aria-hidden="true">↓</span></a><a href="#/tervezes" class="home-text-link">Saját túrát tervezek ↗</a></div>
+      <div class="home-hero-counts"><span><b>${tours.length}</b> forrásolt túra</span><span><b>${typeof v125KnownRouteCount==="function"?v125KnownRouteCount():0}</b> GPX / KML útvonal</span><span><b>${places.length}</b> felfedezhető hely</span></div>
+    </div>
+    <figure class="home-hero-photo">${homePhoto("hargita",true)}<figcaption><span>Hargita</span><b>Kakukk-hegy környéke</b><a href="#home-photo-credits">Fotó: Szabi237 · CC BY 3.0</a></figcaption><span class="home-photo-note">Valódi hely. A következő élményed?</span></figure>
+  </div></section>
+
+  <div class="wrap home-content home-redesign">
+    <section class="home-search" id="home-find"><div class="home-search-title"><span class="eyebrow">A következő szabadnapod</span><h2>Hová túráznál?</h2></div>
+      <form class="searchbox" id="home-search-form" role="search" aria-label="Túrák keresése">
         <div class="sc-field"><label for="q-hova">Hova mennél?</label><input id="q-hova" placeholder="Hely, régió vagy túranév"></div>
-        <div class="sc-field"><label for="q-mikor">Mikor?</label><select id="q-mikor"><option value="">Bármikor</option><option value="hk">Jövő héten</option><option value="honap">Ebben a hónapban</option><option value="og">A hegyekben</option></select></div>
         <div class="sc-field"><label for="q-nehezseg">Nehézség</label><select id="q-nehezseg"><option value="">Mindegy</option><option>Könnyű</option><option>Közepes</option><option>Nehéz</option></select></div>
         <div class="sc-field"><label for="q-id">Mennyi időd van?</label><select id="q-id"><option value="">Bármennyi</option><option value="3">max 3 óra</option><option value="5">max 5 óra</option><option value="24">egész napos / többnapos</option></select></div>
-        <button class="btn btn-primary btn-lg" id="q-go">Túrák keresése</button>
-      </div>
-      <div class="hero-stats">
-        <div class="hs"><b>${v122PublicTours().length}</b><span>túraútvonal</span></div>
-        <div class="hs"><b>${v122PublicEvents().length}</b><span>vezetett esemény</span></div>
-        <div class="hs"><b>${new Set(v122PublicTours().map(t=>t.region).filter(Boolean)).size}</b><span>ellenőrzött tájegység</span></div>
-        <div class="hs"><b>${u?"Aktív 👋":"Ingyenes"}</b><span>a személyes túraközpont</span></div>
-      </div>
-    </div></section>
-
-  <div class="wrap home-content">
+        <button class="btn btn-primary" id="q-go" type="submit">Keresés <span aria-hidden="true">→</span></button>
+      </form><div class="home-region-links"><span>Merre indulnál?</span>${[...new Set(tours.map(t=>t.region).filter(Boolean))].map(r=>`<button type="button" data-home-region="${esc(r)}">${esc(r)} ↗</button>`).join("")}</div>
+    </section>
     <nav class="home-shortcuts" aria-label="Főoldali gyors elérés">
       <a href="#/felfedezes"><span aria-hidden="true">🥾</span> Túrák felfedezése</a>
       <a href="#/tervezes"><span aria-hidden="true">🧭</span> Túra tervezése</a>
@@ -1187,50 +1213,44 @@ VIEWS.home = () => {
       <a href="#/kozossegi"><span aria-hidden="true">🌲</span> Közösség</a>
     </nav>
     <section class="pub-section">
-      <div class="flex" style="gap:.6rem;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap">
-      <div class="sect-head" style="margin:0 2rem 0 0"><div><span class="eyebrow">Naptár</span><h2 class="mb0">Közelgő túraesemények</h2></div>
-        <a class="sect-more" href="#/esemenyek">Összes esemény →</a></div>
-      <a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php/turaterv">🗓 CsEKE éves túraterv ↗</a></div>
-      <div class="p-h-scroll" id="home-events"></div>
-    </section>
-
-    <div class="trail-divider"><span class="trail-blaze"></span></div>
-
-    <section class="pub-section">
-      <div class="sect-head"><div><span class="eyebrow">A közösség kedvencei</span><h2 class="mb0">Népszerű túrák</h2></div>
+      <div class="sect-head"><div><span class="eyebrow">Ellenőrzött forrásból</span><h2 class="mb0">Ezekkel érdemes kezdeni</h2></div>
         <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
-      <div class="grid g3">${popular.slice(0,3).map(t=>tourCard(t)).join("")}</div>
-      ${popular.length>3?`<details class="home-more"><summary>További túrák megtekintése</summary><div class="grid g3">${popular.slice(3).map(t=>tourCard(t)).join("")}</div></details>`:""}
+      <div class="grid g3">${selected.map(homeTourCard).join("")}</div>
+      ${more.length?`<details class="home-more"><summary>További túrák megtekintése</summary><div class="grid g3">${more.map(homeTourCard).join("")}</div></details>`:""}
     </section>
 
-    <section class="pub-section tight">
-      <div class="sect-head"><div><span class="eyebrow">Találd meg a hozzád illő túrát</span><h2 class="mb0">Túraajánló</h2></div></div>
+    <section class="pub-section home-destinations">
+      <div class="sect-head"><div><span class="eyebrow">Vannak helyek, amik hívnak</span><h2 class="mb0">Nem kell messzire menned</h2></div><a class="sect-more" href="#/helyek">Minden hely →</a></div>
+      <div class="grid g3" id="best-places"></div>
+    </section>
+
+    <section class="pub-section home-recommendations">
+      <div class="sect-head"><div><span class="eyebrow">Találd meg a hozzád illő túrát</span><h2 class="mb0">A saját tempódban</h2></div></div>
       <div class="home-categories" role="group" aria-label="Túraajánló kategóriák">
         <button class="btn btn-primary" data-home-category="weekend" aria-pressed="true" aria-controls="weekend-grid">Hétvégi ajánlatok</button>
         <button class="btn btn-soft" data-home-category="family" aria-pressed="false" aria-controls="weekend-grid">Családi túrák</button>
         <button class="btn btn-soft" data-home-category="easy" aria-pressed="false" aria-controls="weekend-grid">Kezdőknek</button>
         <button class="btn btn-soft" data-home-category="sunrise" aria-pressed="false" aria-controls="weekend-grid">Napfelkelte túrák</button>
       </div>
-      <div class="grid g3" id="weekend-grid" aria-live="polite"></div>
+      <div class="home-recommendation-list" id="weekend-grid" aria-live="polite"></div>
     </section>
 
-    <section class="pub-section">
-      <div class="sect-head"><div><span class="eyebrow">Helyek, ahová visszavágysz</span><h2 class="mb0">Legszebb helyek</h2></div>
-        <a class="sect-more" href="#/helyek">Minden hely →</a></div>
-      <div class="grid g3" id="best-places"></div>
+    <section class="pub-section home-calendar">
+      <div class="sect-head"><div><span class="eyebrow">Ne csak tervezd. Indulj is el.</span><h2 class="mb0">Közelgő túraesemények</h2></div><a class="sect-more" href="#/esemenyek">Összes esemény →</a></div>
+      <div id="home-events"></div><a class="home-text-link" target="_blank" rel="noopener" href="https://www.cseke.ro/index.php/turaterv">CsEKE éves túraterv ↗</a>
     </section>
 
     <div data-home-known></div>
 
     <section class="pub-section">
-      <div class="band band-sand topo">
+      <div class="band home-map-band">
         <div class="split2">
           <div>
-            <span class="eyebrow" style="color:var(--moss)">Térképes felfedezés</span>
-            <h2>Az egész Erdély egy térképen</h2>
-            <p class="muted">A térképen csak ellenőrzött, forrással rendelkező nyilvános adatok jelennek meg. Saját túráid és GPX-útvonalaid a személyes központban érhetők el.</p>
-            <a class="btn btn-primary" href="#/felfedezes">Térképes felfedezés</a>
-            <a class="btn btn-ghost" href="#/hagymas" style="margin-left:.5rem">🕹 Hagymás útvonalak</a>
+            <span class="eyebrow">A térképen kezdődik</span>
+            <h2>Lásd, merre visz a következő túrád</h2>
+            <p class="muted">Keresd meg a katalógustúrák kezdőpontját. Válassz ismert útvonalat, vagy tervezd meg a sajátodat.</p>
+            <a class="btn btn-primary" href="#/tervezes">Túrát tervezek ↗</a>
+            <a class="home-text-link" href="#/felfedezes">Összes túra a térképen</a>
           </div>
           <div class="mapbox tall" id="home-map" aria-label="Túratérkép"></div>
         </div>
@@ -1239,42 +1259,28 @@ VIEWS.home = () => {
 
     <div data-home-community></div>
 
-    <section class="pub-section">
-      <div class="band band-green topo">
-        <div class="split2">
-          <div>
-            <span class="eyebrow" style="color:#9ec6a5">🤖 AI Túratervező · béta</span>
-            <h2>Írd le, milyen túrát szeretnél — ő össze is rakja</h2>
-            <p>Írd le a kívánt nehézséget, időtartamot és célvidéket — az AI ezekből készít tervet, időrendet, felszerelés- és ételvíz-javaslatot. A tervet egy gombbal elmentheted a munkaterületedre.</p>
-            <a class="btn btn-ember btn-lg" href="#/ai">💬 Kipróbálom az AI Túratervezőt</a>
-          </div>
-          <div class="ai-prev" aria-hidden="true">
-            <div class="bub user">Írd le a túracéljaidat és a rendelkezésre álló időt.</div>
-            <div class="bub ai">A megadott szempontok alapján ellenőrzött forrásokból készít javaslatot.</div>
-          </div>
-        </div>
-      </div>
-      ${u? "" : `
-      <div class="band" style="margin-top:22px;background:linear-gradient(120deg,#fff,#f2f6ef);text-align:center;border:1px solid var(--line)">
-        <h2>Az ösvény itt nem ér véget — innen indul a te túraközpontod</h2>
-        <p class="muted">Regisztráció után saját túráid, idoterved, felszereléslistád, naptárad, naplód és statisztikáid egy helyen.</p>
-        <div class="flex center" style="justify-content:center;gap:.7rem;flex-wrap:wrap">
-          <a class="btn btn-primary btn-lg" href="#/regisztracio">Ingyenes regisztráció</a>
-          <a class="btn btn-ghost btn-lg" href="#/belepes">Bejelentkezés</a>
-        </div>
-
-      </div>`}
+    <section class="pub-section home-personal">
+      <div class="home-personal-copy"><span class="eyebrow">A túraötlettől az emlékig</span><h2>Az út a tiéd.<br>A részleteket tartsd egy helyen.</h2><p class="muted">Saját túraterv, GPX, felszereléslista és túranapló. Terepen GPS-rögzítés, internet nélkül is.</p><a class="btn btn-primary" href="${u?"#/turaim":"#/regisztracio"}">${u?"Megnyitom a túráimat":"Létrehozom a túraközpontomat"} →</a></div>
+      <div class="home-steps"><a href="#/tervezes"><span>01</span><div><h3>Találd meg az utad</h3><p>Valódi útvonalak és saját túratervezés.</p></div><b aria-hidden="true">↗</b></a><a href="#/turaim"><span>02</span><div><h3>Készülj fel az indulásra</h3><p>Időterv, GPX és felszerelés a túrád mellett.</p></div><b aria-hidden="true">↗</b></a><a href="#/naplo"><span>03</span><div><h3>Őrizd meg az élményt</h3><p>Saját GPS-felvétel és személyes túranapló.</p></div><b aria-hidden="true">↗</b></a><a class="home-ai-link" href="#/ai">Segítség a tervezéshez: AI Túratervező ↗</a></div>
     </section>
+    <details class="home-photo-credits" id="home-photo-credits"><summary>Fotók és források</summary><p>A fotók a megnevezett helyeket ábrázolják; nem a teljes túra nyomvonalát. A képek méretét a webes megjelenítéshez csökkentettük, a felületen kivágva jelenhetnek meg.</p>${Object.values(HOME_PHOTOS).map(p=>`<p><a href="${p.sourceUrl}" target="_blank" rel="noopener">${esc(p.label)}</a> · ${esc(p.author)} · <a href="${p.licenseUrl}" target="_blank" rel="noopener">${esc(p.license)}</a></p>`).join("")}</details>
   </div>
-  ${footer()}`;
+  ${footer().replace("Képek: Unsplash, Nagyhagymás KKT","Főoldali fotók: Wikimedia Commons · források fent")}`;
 };
 VIEWS.home.after = (root) => {
+  root.querySelectorAll('a[href="#home-find"],a[href="#home-photo-credits"]').forEach(a=>a.onclick=e=>{
+    e.preventDefault();
+    const target=root.querySelector(a.getAttribute("href"));
+    if(!target) return;
+    if(target.tagName==="DETAILS") target.open=true;
+    target.scrollIntoView({behavior:"smooth",block:"start"});
+  });
   const events = v122PublicEvents().filter(e=>e.date>=Store.todayISO()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
-  root.querySelector("#home-events").innerHTML = events.length ? events.map(ecardSmall).join("") :
+  root.querySelector("#home-events").innerHTML = events.length ? events.map(homeEventRow).join("") :
     '<div class="empty home-empty"><p class="mb0">Jelenleg nincs ellenőrzött közelgő esemény.</p><a class="sect-more" href="#/esemenyek">Események megtekintése →</a></div>';
   const showRecommendations = kind => {
     const rows = homeRecommendations(kind).slice(0,3);
-    root.querySelector("#weekend-grid").innerHTML = rows.length ? rows.map(tourCard).join("") :
+    root.querySelector("#weekend-grid").innerHTML = rows.length ? rows.map(homeTourRow).join("") :
       '<div class="empty home-empty"><p class="mb0">Ebben a kategóriában még nincs ellenőrzött túra.</p><a class="sect-more" href="#/felfedezes">Összes túra megtekintése →</a></div>';
     root.querySelectorAll("[data-home-category]").forEach(b=>{
       const active = b.dataset.homeCategory === kind;
@@ -1285,23 +1291,24 @@ VIEWS.home.after = (root) => {
   showRecommendations("weekend");
   root.querySelectorAll("[data-home-category]").forEach(b=>b.onclick=()=>showRecommendations(b.dataset.homeCategory));
   root.querySelector("#best-places").innerHTML = v122PublicPlaces().slice(0,6).map(w=>
-    `<div class="hcard">${imgTag(w.img,w.name)}<div class="hb"><span class="chip chip-pine">${esc(w.cat)}</span><h3 style="margin-top:.35rem">${esc(w.name)}</h3><div class="meta"><span>${esc(w.place)}</span><span>${esc(w.diff)}</span></div></div></div>`).join("");
+    `<article class="home-place-card"><a class="home-place-photo" href="${esc(w.sourceUrl)}" target="_blank" rel="noopener" aria-label="${esc(w.name)} – hivatalos adatlap">${homePhoto(w.id)}<span>${esc(w.cat)}</span></a><div class="home-place-body"><span class="region">${esc(w.place)}</span><h3>${esc(w.name)}</h3><div class="home-place-links"><a href="${esc(w.sourceUrl)}" target="_blank" rel="noopener">Hely megismerése ↗</a><button data-home-place-search="${esc(w.name)}">Túrák a környéken →</button></div>${v122SourceLine(w)}</div></article>`).join("");
   handleSaveEvents(root);
-  const go = root.querySelector("#q-go");
-  if(go) go.onclick = () => {
+  const search = e => {
+    if(e) e.preventDefault();
     const q = encodeURIComponent(root.querySelector("#q-hova").value.trim());
     const diff = encodeURIComponent(root.querySelector("#q-nehezseg").value);
     const h = root.querySelector("#q-id").value;
     sessionStorage.setItem("tvq", JSON.stringify({q:decodeURIComponent(q), diff:decodeURIComponent(diff), h}));
     NAV.to("#/felfedezes"); };
+  root.querySelector("#home-search-form").onsubmit=search;
+  root.querySelectorAll("[data-home-region],[data-home-place-search]").forEach(b=>b.onclick=()=>{
+    root.querySelector("#q-hova").value=b.dataset.homeRegion||b.dataset.homePlaceSearch;
+    root.querySelector("#q-nehezseg").value=""; root.querySelector("#q-id").value=""; search();
+  });
   const map = MapKit.make(root.querySelector("#home-map"), {zoom:7});
   if(map){
-    v122PublicTours().forEach(t=>MapKit.pin(map,t.start.lat,t.start.lng,"pin-cat",
+    v122PublicTours().filter(t=>t.start&&Number.isFinite(+t.start.lat)&&Number.isFinite(+t.start.lng)).forEach(t=>MapKit.pin(map,t.start.lat,t.start.lng,"pin-cat",
       `<b><a href="#/turak/${t.id}">${esc(t.name)}</a></b><br>${esc(t.region)} · ${t.km} km · ${esc(t.diff)}`));
-    v122PublicEvents().filter(e=>e.date>=Store.todayISO()).forEach(e=>{
-      const base=e.tour?(v122PublicTours().find(x=>x.id===e.tour)||tourById(e.tour)):null; if(!base) return;
-      MapKit.pin(map,base.start.lat+((Math.random()-.5)/9),base.start.lng+((Math.random()-.5)/9),"pin-event",
-        `<b><a href="#/esemenyek/${e.id}">${esc(e.name)}</a></b><br>${fmtDate(e.date)} · ${esc(e.place)}`); });
   }
 };
 
@@ -7987,7 +7994,7 @@ function v125Card(r,i,compact){
 function v125Section(id, compact){
   var rows=v125Routes(), first=compact?rows.slice(0,3):rows.slice(0,8), rest=rows.slice(first.length);
   if(!rows.length) return '';
-  var html='<section class="pub-section v125-known" id="'+id+'"><div class="sect-head"><div><span class="eyebrow">Nagy-Hagymás · ellenőrzött forrás</span><h2 class="mb0">Ismert túraútvonalak</h2></div><a class="sect-more" href="#/hagymas">Teljes útvonalhálózat →</a></div><p class="muted small">A megjelenő GPX- és KML-linkek a Nagyhagymás KKT eredeti adatforrására mutatnak. Ismeretlen távot és szintet nem pótolunk kitalált értékkel.</p><div class="grid g3 v125-route-grid">'+first.map(function(r,i){return v125Card(r,i,compact);}).join('')+'</div>';
+  var html='<section class="pub-section v125-known" id="'+id+'"><div class="sect-head"><div><span class="eyebrow">Nagy-Hagymás · ellenőrzött forrás</span><h2 class="mb0">Ismert túraútvonalak</h2></div><a class="sect-more" href="#/hagymas">Teljes útvonalhálózat →</a></div><p class="muted small">'+(compact?rows.length+' eredeti GPX / KML útvonal a Nagyhagymás KKT forrásából. Nyisd meg a térképen, és nézd meg a forrásfájlból számított adatokat.':'A megjelenő GPX- és KML-linkek a Nagyhagymás KKT eredeti adatforrására mutatnak. Ismeretlen távot és szintet nem pótolunk kitalált értékkel.')+'</p><div class="grid g3 v125-route-grid">'+first.map(function(r,i){return v125Card(r,i,compact);}).join('')+'</div>';
   if(rest.length) html+='<details class="v125-route-more"><summary>＋ '+rest.length+' további ismert útvonal</summary><div class="grid g3 v125-route-grid">'+rest.map(function(r,i){return v125Card(r,i+first.length,compact);}).join('')+'</div></details>';
   return html+'</section>';
 }

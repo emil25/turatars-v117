@@ -251,3 +251,16 @@ test('routing proxy keeps its provider key server-side', () => {
   assert.doesNotMatch(source, /VITE_/);
 });
 
+test('homepage photos and license notices are shipped inside the Pages artifact', () => {
+  const photoDir = path.join(dist, 'photos');
+  for (const file of ['hargita.jpg', 'szent-anna.jpg', 'gyilkos-to.jpg', 'hargitafurdo.jpg']) {
+    const bytes = fs.readFileSync(path.join(photoDir, file));
+    assert.ok(bytes.length > 20000, `${file} must contain actual image data`);
+    assert.equal(bytes.readUInt16BE(0), 0xffd8, `${file} must be a JPEG, not an HTTP error page`);
+  }
+  const licenses = fs.readFileSync(path.join(photoDir, 'LICENSES.md'), 'utf8');
+  for (const author of ['Szabi237', 'Sie', 'DimiTalen', 'Einstein2']) assert.ok(licenses.includes(author));
+  assert.match(licenses, /creativecommons\.org\/licenses\/by-sa\/3\.0/);
+  assert.match(licenses, /creativecommons\.org\/publicdomain\/zero\/1\.0/);
+});
+

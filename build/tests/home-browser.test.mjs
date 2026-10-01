@@ -48,8 +48,32 @@ try {
   assert.equal(await page.locator('.home-content #v125-home-known').count(), 1);
   assert.equal(await page.locator('.home-content .v126-home-community').count(), 1);
   assert.equal(await page.locator('a[href^="##"]').count(), 0);
+  assert.equal(await page.locator('.home-redesign').count(),1);
+  assert.equal(await page.locator('.home-tour-card img,#home-events img,#weekend-grid img').count(),0,
+    'Tour facts and dated events must not use unrelated repeated stock photos');
+  assert.deepEqual(await page.locator('.home-place-card h3').allTextContents(),['Szent Anna-tó','Gyilkos-tó','Hargitafürdő']);
+  const photoPaths = await page.locator('.home-hero-photo>img,.home-place-photo>img').evaluateAll(images=>images.map(img=>img.getAttribute('src')));
+  assert.equal(photoPaths.length,4);
+  assert.equal(new Set(photoPaths).size,4,'Each homepage photograph must be different');
+  assert.ok(photoPaths.every(src=>src.startsWith('./photos/')),'Licensed photos must be hosted with the application');
+  for(const src of photoPaths) {
+    const response=await page.request.get(new URL(src,base).href);
+    assert.equal(response.status(),200,`Missing photo: ${src}`);
+    assert.match(response.headers()['content-type'],/image\/jpeg/);
+    assert.ok((await response.body()).length>20000,'A photo must contain the actual image data');
+  }
+  assert.equal(await page.locator('#home-photo-credits a').count(),8,'All photos must have source and license links');
+  assert.equal(await page.locator('#home-events .home-event-row').count(),await page.evaluate(()=>v122PublicEvents().slice(0,6).length));
+  assert.doesNotMatch(await page.locator('.home-content').innerText(),/\bDEMO\b|function\(\)\s*\{/);
   await checkLayout(1440);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight) < 6200, 'Default homepage should be compact');
+  await page.locator('.home-hero-actions a[href="#home-find"]').click();
+  await page.waitForFunction(()=>{const r=document.querySelector('#home-find').getBoundingClientRect();return r.top>=0&&r.top<200;});
+  assert.equal(await page.evaluate(()=>location.hash),'#/','Homepage section links must not trigger the SPA router');
+  await page.locator('.home-hero-photo a[href="#home-photo-credits"]').click();
+  assert.equal(await page.locator('#home-photo-credits[open]').count(),1,'Photo attribution must be accessible from the hero');
+  assert.equal(await page.evaluate(()=>location.hash),'#/');
+  await page.locator('#home-photo-credits summary').click();
 
   for(const category of ['family','easy','sunrise','weekend']) {
     await page.locator(`[data-home-category="${category}"]`).click();
@@ -72,6 +96,17 @@ try {
   await page.locator('#v125-home-known summary').click();
   await page.locator('.home-more summary').click();
 
+  await page.locator('[data-home-region="Csomád-hegység"]').click();
+  await page.waitForURL(/#\/felfedezes/);
+  assert.ok(await page.locator('#disc-results .tcard').count()>0);
+  assert.ok((await page.locator('#disc-results .region').allTextContents()).every(s=>s.includes('Csomád-hegység')));
+  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await page.locator('[data-home-place-search="Gyilkos-tó"]').click();
+  await page.waitForURL(/#\/felfedezes/);
+  assert.ok(await page.locator('#disc-results .tcard').count()>0);
+  assert.ok((await page.locator('#disc-results h3').allTextContents()).every(s=>s.includes('Gyilkos-tó')));
+  await page.goto(base+'#/',{waitUntil:'networkidle'});
+
   for(const width of [768,390,320]) {
     await page.setViewportSize({width,height:844});
     await checkLayout(width);
@@ -84,7 +119,7 @@ try {
     await page.screenshot({path:path.join(shotDir,'home-mobile.png'),fullPage:false});
   }
   await page.locator('#q-hova').fill('Gyilkos');
-  await page.locator('#q-go').click();
+  await page.locator('#q-hova').press('Enter');
   await page.waitForURL(/#\/felfedezes/);
   assert.ok(await page.locator('#disc-results .tcard').count() > 0);
   for(const title of await page.locator('#disc-results h3').allTextContents()) assert.match(title,/Gyilkos/i);

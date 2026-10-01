@@ -22,7 +22,7 @@ function v125Card(r,i,compact){
 function v125Section(id, compact){
   var rows=v125Routes(), first=compact?rows.slice(0,3):rows.slice(0,8), rest=rows.slice(first.length);
   if(!rows.length) return '';
-  var html='<section class="pub-section v125-known" id="'+id+'"><div class="sect-head"><div><span class="eyebrow">Nagy-Hagymás · ellenőrzött forrás</span><h2 class="mb0">Ismert túraútvonalak</h2></div><a class="sect-more" href="#/hagymas">Teljes útvonalhálózat →</a></div><p class="muted small">A megjelenő GPX- és KML-linkek a Nagyhagymás KKT eredeti adatforrására mutatnak. Ismeretlen távot és szintet nem pótolunk kitalált értékkel.</p><div class="grid g3 v125-route-grid">'+first.map(function(r,i){return v125Card(r,i,compact);}).join('')+'</div>';
+  var html='<section class="pub-section v125-known" id="'+id+'"><div class="sect-head"><div><span class="eyebrow">Nagy-Hagymás · ellenőrzött forrás</span><h2 class="mb0">Ismert túraútvonalak</h2></div><a class="sect-more" href="#/hagymas">Teljes útvonalhálózat →</a></div><p class="muted small">'+(compact?rows.length+' eredeti GPX / KML útvonal a Nagyhagymás KKT forrásából. Nyisd meg a térképen, és nézd meg a forrásfájlból számított adatokat.':'A megjelenő GPX- és KML-linkek a Nagyhagymás KKT eredeti adatforrására mutatnak. Ismeretlen távot és szintet nem pótolunk kitalált értékkel.')+'</p><div class="grid g3 v125-route-grid">'+first.map(function(r,i){return v125Card(r,i,compact);}).join('')+'</div>';
   if(rest.length) html+='<details class="v125-route-more"><summary>＋ '+rest.length+' további ismert útvonal</summary><div class="grid g3 v125-route-grid">'+rest.map(function(r,i){return v125Card(r,i+first.length,compact);}).join('')+'</div></details>';
   return html+'</section>';
 }
