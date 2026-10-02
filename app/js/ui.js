@@ -107,7 +107,7 @@ function renderHeader(){
   const u = Store.me();
   const h = document.getElementById("site-header");
   const route = location.hash||"#/";
-  h.style.display = (typeof isDashRoute==="function" && isDashRoute(route)) ? "none" : "";
+  h.style.display = document.querySelector("#view .dash") || (typeof isDashRoute==="function" && isDashRoute(route)) ? "none" : "";
   const link=(href,label)=>`<a href="${href}" class="${route===href?"on":""}">${label}</a>`;
   h.innerHTML = `<nav class="pub-nav"><div class="wrap">
     <a class="logo" href="#/" aria-label="Túratárs — Kezdőlap">
@@ -118,7 +118,7 @@ function renderHeader(){
       ${u ? `<a class="userchip" href="#/vezerlopult">Szia, <b>${esc((u.name||"").split(" ")[0]||"útitárs")}</b> 🥾</a>`
           : `<a class="btn btn-ghost btn-sm" href="#/belepes">Bejelentkezés</a>
              <a class="btn btn-primary btn-sm" href="#/regisztracio">Regisztráció</a>`}
-    </div></div></nav>`;
+    </div><details class="pub-menu"><summary aria-label="Navigáció megnyitása">☰ <span>Menü</span></summary><div class="pub-menu-links">${link("#/","Kezdőlap")}${link("#/felfedezes","Felfedezés")}${link("#/esemenyek","Események")}${link("#/helyek","Helyek")}${link("#/szervezoknek","Szervezőknek")}${link("#/tervezes","Túra tervezése")}${link("#/kozossegi","Közösségi túrák")}${u?link("#/turaim","Saját túráim"):link("#/belepes","Bejelentkezés")}</div></details></div></nav>`;
   const bell=document.getElementById("bell-btn");
   if(bell) bell.onclick=()=>renderNotifPanel(bell);
 }

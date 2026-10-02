@@ -75,7 +75,7 @@ VIEWS.dash = () => {
            : `<ul><li><span class="n">✓</span>Minden teendő kész — csak indulni kell! 🎉</li></ul>`}
         </div>
         <div style="position:relative">
-          <div class="img-wrap" style="height:100%;min-height:150px;border-radius:16px">${imgTag(next.img,next.title)}</div>
+          <div class="img-wrap" style="height:100%;min-height:150px;border-radius:16px">${personalCover(next.img,next.title)}</div>
           <a class="btn btn-primary btn-sm" style="position:absolute;bottom:10px;left:10px;background:#fff;color:var(--pine)" href="#/tura/${next.id}">Túramunkaterület megnyitása →</a>
         </div></div>
       <div id="overview-weather" style="margin-top:.9rem"></div>
@@ -180,7 +180,7 @@ VIEWS.tours = () => {
 function tourRow(t){
   const st = t.status==="teljesítve";
   return `<div class="card tour-row" data-tour-id="${esc(t.id)}">
-    <a class="img-wrap" style="height:92px;border-radius:12px" href="#/tura/${t.id}">${imgTag(t.img||IMG.erdo,t.title)}</a>
+    <a class="img-wrap" style="height:92px;border-radius:12px" href="#/tura/${t.id}" aria-label="${esc(t.title)} megnyitása">${personalCover(t.img,t.title)}</a>
     <div>
       <div class="meta" style="gap:.4rem .7rem">${statusChip(t.status)}${t.difficulty?diffChip(t.difficulty):""}${t.eventCat?`<span class="chip chip-sand">${esc(t.eventCat)}</span>`:""}</div>
       <h3 style="margin:.3rem 0 .1rem;font-size:1.08rem"><a href="#/tura/${t.id}">${esc(t.title)}</a></h3>

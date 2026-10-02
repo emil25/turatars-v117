@@ -196,7 +196,7 @@ VIEWS.journal = () => {
     ${js.length? js.map(j=>`
       ${(()=>{ const m=(j.date||"").slice(0,7); const lab=m?`${MONTHS_HU[+m.slice(5,7)-1]} ${m.slice(0,4)}`:""; const head = lab!==lastM? (lastM=lab, `<h2 style="font-size:1.1rem;margin:1.6rem 0 .6rem;color:var(--moss)">${lab}</h2>`):""; return head; })()}
       <article class="card jcard" style="margin-bottom:14px">
-        <div class="img-wrap">${imgTag(Store.myData().tours.find(t=>t.id===j.tourId)?.img||IMG.erdo, j.title)}</div>
+        <div class="img-wrap">${personalCover(Store.myData().tours.find(t=>t.id===j.tourId)?.img, j.title)}</div>
         <div class="jb">
           <div class="flex between wrapcol"><b>${esc(j.title)}</b><span class="small muted">${fmtDateFull(j.date)}</span></div>
           <span class="stars">${"★".repeat(j.rating||0)}${"☆".repeat(5-(j.rating||0))}</span>

@@ -28,7 +28,7 @@ const P = []; const ok = (n, c, d) => { P.push([!!c, n, d]); };
   await ev(() => { const x = [...document.querySelectorAll('[data-f9chip="Könnyű"]')][0]; x && x.click(); }); await sl(500);
   // 5 rendezés km
   await ev(() => { const s = document.getElementById('f9sort'); s.value = 'km'; s.dispatchEvent(new Event('change', { bubbles: true })); }); await sl(600);
-  ok('05 rendezés: km-értékek nőnek', await ev(() => { const a = [...document.querySelectorAll('#f9-list .f9card')].map(c => { const m = c.textContent.match(/📏 ([0-9.,]+) km/); return m ? parseFloat(m[1].replace(',', '.')) : -1; }).filter(x => x >= 0); for (let i = 1; i < a.length; i++) if (a[i] < a[i - 1]) return false; return a.length > 3; }));
+  ok('05 rendezés: km-értékek nőnek', await ev(() => { const a = [...document.querySelectorAll('#f9-list .f9card')].map(c => { const distance = c.querySelector('.catalog-facts b'); const m = (distance ? distance.textContent : c.textContent).match(/(?:📏 )?([0-9.,]+) km/); return m ? parseFloat(m[1].replace(',', '.')) : -1; }).filter(x => x >= 0); for (let i = 1; i < a.length; i++) if (a[i] < a[i - 1]) return false; return a.length > 3; }));
   // 6 részletek modal + térkép fallback
   await ev(() => { const x = [...document.querySelectorAll('[data-f9tour]')][0]; x && x.click(); }); await sl(700);
   ok('06 detail: meta + gombok + térkép-slot', await ev(() => { const m = document.querySelector('[data-modal]'); return m && /Megnézem|🥾|Tervet készítek/.test(m.innerText) && !!m.querySelector('.modmap9'); }));
