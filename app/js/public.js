@@ -9,13 +9,13 @@ function elevSpark(vals, color){
   const mx=Math.max(...vals), pts=vals.map((v,i)=>`${(i/(vals.length-1)*100).toFixed(1)},${(24-v/mx*20).toFixed(1)}`).join(" ");
   return `<svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color||"var(--moss)"}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 }
-function tourCard(t){
-  return `<article class="card tcard catalog-tour-card"><div class="tbody">
+function tourCard(t,compact=false){
+  return `<article class="card tcard catalog-tour-card${compact?" catalog-compact":""}"><div class="tbody">
       <div class="catalog-card-top"><span class="region">${esc(t.region)}</span>${diffChip(t.diff)}</div>
       <h3><a href="#/turak/${t.id}">${esc(t.name)}</a></h3>
-      <p class="small muted catalog-start">${esc(t.start&&t.start.name||t.place||"")}</p>
+      ${compact?"":`<p class="small muted catalog-start">${esc(t.start&&t.start.name||t.place||"")}</p>`}
       <div class="catalog-facts"><div><b>${homeNumber(t.km)} <small>km</small></b><span>Táv</span></div><div><b>${homeNumber(t.up)} <small>m</small></b><span>Szintemelkedés</span></div><div><b>${homeNumber(t.h)} <small>ó</small></b><span>Becsült idő</span></div></div>
-      <p class="small muted catalog-route-label">${window.v123RouteLabel?window.v123RouteLabel(t):((t.gpxUrl)?"GPX útvonal elérhető":"Útvonaladat még nem érhető el")}</p>${window.v122SourceLine?v122SourceLine(t):""}
+      ${compact?"":`<p class="small muted catalog-route-label">${window.v123RouteLabel?window.v123RouteLabel(t):((t.gpxUrl)?"GPX útvonal elérhető":"Útvonaladat még nem érhető el")}</p>`}${window.v122SourceLine?v122SourceLine(t):""}
       <a class="catalog-open" href="#/turak/${esc(t.id)}" aria-label="${esc(t.name)} – részletek">Túra megnyitása <span aria-hidden="true">↗</span></a>
     </div></article>`;
 }
@@ -204,7 +204,7 @@ VIEWS.home.after = (root) => {
     const q = encodeURIComponent(root.querySelector("#q-hova").value.trim());
     const diff = encodeURIComponent(root.querySelector("#q-nehezseg").value);
     const h = root.querySelector("#q-id").value;
-    sessionStorage.setItem("tvq", JSON.stringify({q:decodeURIComponent(q), diff:decodeURIComponent(diff), h}));
+    sessionStorage.setItem("tvq", JSON.stringify({q:decodeURIComponent(q), diff:decodeURIComponent(diff), h, pending:true}));
     NAV.to("#/felfedezes"); };
   root.querySelector("#home-search-form").onsubmit=search;
   root.querySelectorAll("[data-home-region],[data-home-place-search]").forEach(b=>b.onclick=()=>{

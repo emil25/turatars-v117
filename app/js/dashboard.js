@@ -93,7 +93,7 @@ VIEWS.dash = () => {
     <h2 style="font-size:1.25rem">Gyors indítás</h2>
     <div class="qa-grid" style="margin-bottom:26px">
       <a class="quickact" href="#/uj-tura"><span class="qi">🗓️</span><b>Új túra tervezése</b><span>Időterv, csomaglista, résztvevők</span></a>
-      <a class="quickact" href="#/felfedezes"><span class="qi">🗺️</span><b>Túra felfedezése</b><span>${TOURS.length} útvonal a térképen</span></a>
+      <a class="quickact" href="#/felfedezes"><span class="qi">🗺️</span><b>Túra felfedezése</b><span>${v122PublicTours().length} útvonal a térképen</span></a>
       <a class="quickact" href="#/esemenyek"><span class="qi">🎪</span><b>Esemény keresése</b><span>Vezetett és napkelte túrák</span></a>
       <a class="quickact" href="#/bakancslista"><span class="qi">❤️</span><b>Bakancslista</b><span>${d.wishlist.length} hely vár rád</span></a>
     </div>
@@ -101,10 +101,7 @@ VIEWS.dash = () => {
     <div class="grid" style="grid-template-columns:1.25fr .75fr;align-items:start">
       <div>
         <h2 style="font-size:1.25rem">Neked ajánlott túrák <span class="small muted" style="font-weight:400">a preferenciáid alapján</span></h2>
-        <div class="grid g2">${recs.length?recs.map(t=>`<a class="card tcard" href="#/turak/${t.id}" style="text-decoration:none">
-          <div class="img-wrap" style="height:130px">${imgTag(t.img,t.name)}<span class="rate">${t.rating}★</span></div>
-          <div class="tbody"><span class="region">${esc(t.region)} · ${esc(t.diff)}</span><h3 style="font-size:1rem">${esc(t.name)}</h3>
-          <div class="meta"><span>📏 ${t.km} km</span><span>⏱ ${t.h} ó</span></div></div></a>`).join(""):`
+        <div class="grid g2">${recs.length?recs.map(t=>tourCard(t,true)).join(""):`
           <div class="empty" style="grid-column:1/-1"><span class="em-ico">🌿</span>Válasz az onbard kérdéseire, és személyre szabjuk az ajánlásokat.</div>`}</div>
       </div>
       <div>
@@ -133,11 +130,11 @@ function recommendFor(u){
   const regionBonus = { "csíkszereda":"Csíki","csíksz":"Csíki","gyimes":"Csíki","keresztúr":"Csíki","udvarhely":"Hargita","brassó":"Hargita","sepsi":"Hargita","gyergyó":"Gyergyó","szentmiklós":"Gyergyó","kolozsvár":"Kolozs","torda":"Erdélyi-karszt","vasarhely":"Kolozs","d[ée]va":"Hunyad" };
   let rr = null; for(const k in regionBonus) if(home.toLowerCase().includes(k)) rr = regionBonus[k];
   const d = Store.myData(); const have = new Set(d.tours.map(t=>t.title));
-  return TOURS.filter(t=>!have.has(t.name))
+  return v122PublicTours().filter(t=>!have.has(t.name))
     .map(t=>({t, s:(p.types||[]).reduce((a,x)=>a+(t.tags.includes(typeTag[x])?1.5:0),0)
       + (p.diff&&t.diff===p.diff?1:0)
       + (rr&&t.region.includes(rr.split(" ")[0])?2:0)
-      + (radius>=2&&t.h<=6?1:0) + (radius<=1&&t.h<=3.5?1:0) + (t.rating-4.5)*3}))
+      + (radius>=2&&t.h<=6?1:0) + (radius<=1&&t.h<=3.5?1:0) + (t.rating>0&&t.reviews>0?(t.rating-4.5)*3:0)}))
     .sort((a,b)=>b.s-a.s).slice(0,4).map(x=>x.t);
 }
 VIEWS.dash.after = (root) => {
@@ -340,17 +337,18 @@ function suggestStep(){
   return `<p class="muted mt0">Ezt a preferenciáid és a közeledben lévő tájegységek alapján ajánljuk most. Válassz egyet, vagy kattints a <b>Tervezd át</b> gombra és az AI ír helyetted teljes tervet.</p>
     <div class="grid g2">${recs.map(t=>`<button class="opt ${wiz.sel===t.id?"sel":""}" data-sel="${t.id}" style="align-items:flex-start;flex-direction:column;gap:.3rem">
       <span class="region">${esc(t.region)} · ${esc(t.diff)}</span><span style="font-size:1rem;font-weight:700">${esc(t.name)}</span>
-      <small>📏 ${t.km} km · ⏱ ${t.h} ó · ⬆ ${t.up} m · ★ ${t.rating}</small></button>`).join("")}</div>
+      <small>📏 ${t.km} km · ⏱ ${t.h} ó · ⬆ ${t.up} m${t.rating>0&&t.reviews>0?` · ★ ${t.rating}`:""}</small>${v122SourceLine(t)}</button>`).join("")}</div>
     <div class="opt-grid"><button class="opt" data-sel="ai"><span class="oi">🤖</span><span>Egyik sem — kérdezzük az AI-t<small>Naturális nyelven fogalmazom meg, mit szeretnék</small></span></button></div>`;
 }
 function catalogPickerForm(free){
+  const selected = v122PublicTours().find(t=>t.id===wiz.place);
   return `<div class="grid g2" style="grid-template-columns:1fr 1fr">
     ${free?`
       <div><label class="f">Helyszín *</label><input class="input" id="wz-place" placeholder="Pl. Mária-kő, Hargita" value="${esc(wiz.place||"")}"></div>
       <div><label class="f">Kiinduló pont (városd)</label><input class="input" id="wz-start" placeholder="Pl. Csíkszereda, Gyergyó" value="${esc(wiz.start||Store.me().city||"")}" style="margin-top:0"></div>
     `:`
       <div style="grid-column:1/-1"><label class="f" for="wz-pick">Válassz egy ismert túrát, vagy írd be a saját helyszínedet</label>
-      <select class="input" id="wz-pick"><option value="">— Kézzel írom —</option>${TOURS.map(t=>`<option value="${t.id}">${esc(t.name)} (${esc(t.region)})</option>`).join("")}</select></div>
+      <select class="input" id="wz-pick"><option value="">— Kézzel írom —</option>${v122PublicTours().map(t=>`<option value="${t.id}" ${t.id===wiz.place?"selected":""}>${esc(t.name)} (${esc(t.region)})</option>`).join("")}</select></div>
     `}
     <div><label class="f">Dátum</label><input class="input" type="date" id="wz-date" value="${esc(wiz.date||"")}"></div>
     <div><label class="f">${wiz.kind==="multi"?"Hány napos?":"Hány napos túra?"}</label>
@@ -365,9 +363,8 @@ function catalogPickerForm(free){
     <div><label class="f" for="wz-ascent">Szintemelkedés (m)</label><input class="input" id="wz-ascent" type="number" min="0" step="10" value="${esc(wiz.ascent||"")}"></div>
     <div><label class="f" for="wz-duration">Becsült idő (óra)</label><input class="input" id="wz-duration" type="number" min="0" step="0.5" value="${esc(wiz.durationH||"")}"></div>`:""}
   </div>
-  ${!free&&wiz.place?`<div class="card" style="padding:.9rem 1.1rem;margin-top:1rem;display:flex;gap:.8rem;align-items:center;border-radius:14px">
-    ${imgTag((tourById(wiz.place)||{}).img||IMG.erdo,"")}<span style="width:44px;height:44px;border-radius:12px;overflow:hidden;display:inline-block"><img src="${(tourById(wiz.place)||{}).img||IMG.erdo}" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover"></span>
-    <div><b>${esc((tourById(wiz.place)||{}).name||wiz.place)}</b><div class="meta"><span>${esc((tourById(wiz.place)||{}).region||"")}</span><span>📏 ${(tourById(wiz.place)||{}).km||"?"} km</span><span>⬆ ${(tourById(wiz.place)||{}).up||"?"} m</span></div></div></div>`:""}
+  ${!free&&selected?`<div class="card" style="padding:.9rem 1.1rem;margin-top:1rem;border-radius:14px">
+    <b>${esc(selected.name)}</b><div class="meta"><span>${esc(selected.region)}</span><span>📏 ${homeNumber(selected.km)} km</span><span>⬆ ${homeNumber(selected.up)} m</span></div>${v122SourceLine(selected)}</div>`:""}
   <button class="btn btn-ember btn-lg btn-block" id="wz-go" style="margin-top:1.2rem">🥾 Túramunkaterület létrehozása</button>
   <p class="small muted center" style="margin-top:.6rem">A rendszer automatikus időtervet, felszereléslistát és ételvíz-listát készít — mintha baráttal terveznél.</p>`;
 }
@@ -390,7 +387,7 @@ VIEWS.newTour.after = root => {
       root.querySelectorAll("[data-sel]").forEach(b=>b.onclick=()=>{
         if(b.dataset.sel==="ai"){ NAV.to("#/ai"); return; }
         wiz.sel=b.dataset.sel; wiz.place=b.dataset.sel;
-        const t=tourById(b.dataset.sel); if(t){ wiz.title=t.name; wiz.difficulty=t.diff; } render(); });
+        const t=v122PublicTours().find(t=>t.id===b.dataset.sel); if(t){ wiz.title=t.name; wiz.difficulty=t.diff; } render(); });
       // detail: a form shows with pre-filled values when wiz.place set
       if(wiz.place) fillForm();
       return;
@@ -405,7 +402,7 @@ VIEWS.newTour.after = root => {
     bind("#wz-title","input","title");
     bind("#wz-with","input","who");
     const pick=q("#wz-pick");
-    if(pick) pick.onchange=()=>{ const t=tourById(pick.value); wiz.place=pick.value; wiz.title=t?t.name:wiz.title; wiz.difficulty=t?t.diff:wiz.difficulty; render(); };
+    if(pick) pick.onchange=()=>{ const t=v122PublicTours().find(t=>t.id===pick.value); wiz.place=pick.value; wiz.title=t?t.name:wiz.title; wiz.difficulty=t?t.diff:wiz.difficulty; render(); };
     ["#wz-date","#wz-days","#wz-hours","#wz-diff"].forEach(id=>{const e=q(id); if(e) e.onchange=()=>{
       if(id==="#wz-date") wiz.date=e.value; if(id==="#wz-days") wiz.days=+e.value;
       if(id==="#wz-hours") wiz.hours=e.value; if(id==="#wz-diff") wiz.difficulty=e.value; };});
@@ -416,8 +413,8 @@ VIEWS.newTour.after = root => {
       createTour(); };    if(step==="kind"){ }
   }
   function createTour(){
-    const isCat = wiz.place && tourById(wiz.place);
-    const base = isCat ? tourById(wiz.place) : null;
+    const base = v122PublicTours().find(t=>t.id===wiz.place) || null;
+    const isCat = !!base;
     const hoursNum = { "1-3":2.5, "3-5":4.5, "5-8":6.5, "8":9 }[wiz.hours] || 4;
     const days = wiz.kind==="multi" ? Math.max(2,wiz.days) : (wiz.days||1);
     const dr = {

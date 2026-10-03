@@ -542,7 +542,7 @@ VIEWS.dash = function(){
   W.quick = `<h2 style="font-size:1.25rem">Gyors indítás</h2>
     <div class="qa-grid" style="margin-bottom:26px">
       <a class="quickact" href="#/uj-tura"><span class="qi">🗓️</span><b>Új túra / sablonból</b><span>ötlet → munkaterület egy lépésben</span></a>
-      <a class="quickact" href="#/felfedezes"><span class="qi">🗺️</span><b>Túra felfedezése</b><span>${TOURS.length} útvonal a térképen</span></a>
+      <a class="quickact" href="#/felfedezes"><span class="qi">🗺️</span><b>Túra felfedezése</b><span>${v122PublicTours().length} útvonal a térképen</span></a>
       <a class="quickact" href="#/esemenyek"><span class="qi">🎪</span><b>Esemény keresése</b><span>vezetett, napkelte, fotós túrák</span></a>
       <a class="quickact" href="#/bakancslista"><span class="qi">❤️</span><b>Bakancslista</b><span>${d.wishlist.length} hely — tervezés egy koppintás</span></a></div>`;
   const recs = recommendFor(u);
@@ -571,10 +571,7 @@ VIEWS.dash = function(){
 
     W.recent = (d.recent&&d.recent.length) ? `<h2 style="font-size:1.2rem">🕝 Legutóbb néztem</h2><div class="recent-row">${d.recent.slice(0,4).map(r=>`<a class="recent-chip" href="${r.href}">${r.ico||"🧭"} ${esc(r.label.slice(0,30))}</a>`).join("")}</div>` : "";
   W.recs = `<h2 style="font-size:1.25rem">Neked ajánlott túrák <span class="small muted" style="font-weight:400">a preferenciáid alapján</span></h2>
-    <div class="grid g2">${recs.map(t=>`<a class="card tcard" href="#/turak/${t.id}" style="text-decoration:none;margin-bottom:0">
-      <div class="img-wrap" style="height:120px">${imgTag(t.img,t.name)}<span class="rate">${t.rating}★</span></div>
-      <div class="tbody"><span class="region">${esc(t.region)} · ${esc(t.diff)}</span><h3 style="font-size:1rem">${esc(t.name)}</h3>
-      <div class="meta"><span>📏 ${t.km} km</span><span>⏱ ${t.h} ó</span></div></div></a>`).join("")}</div>`;
+    <div class="grid g2">${recs.map(t=>tourCard(t,true)).join("")}</div>`;
   // GOAL widget
   const gl = Store.goalRows(), ach = Store.achievements();
   W.goal = `<div class="card panel" style="margin-bottom:18px"><h3>🏆 Célok${new Date().getFullYear()} — és kihívások</h3>

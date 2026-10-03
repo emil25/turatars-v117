@@ -445,6 +445,8 @@ const unlogged = d.tours.find(t=>t.status==="teljesítve" && !d.journal.some(j=>
   /* ---------- AI TÚRATÁRS (szabályalapú asszisztens) ---------- */
   function aiReply(text){
     const q = text.toLowerCase();
+    const catalog = window.v122PublicTours ? window.v122PublicTours() : [];
+    if(!catalog.length) return {tour:null, error:"Jelenleg nincs ellenőrzött túra, amelyből ajánlani tudnánk."};
     const want = { diff: /könny/.test(q)?"Könnyű" : /neh[ée]z/.test(q)?"Nehéz" : /k[öo]zep/.test(q)?"Közepes" : null,
       maxH: (()=>{ const m=q.match(/(\d+(?:[.,]\d+)?)\s*(?:[óo]ra|órás|órán|[h]\b|(?:h[óo]))/); return m?parseFloat(m[1].replace(",",".")):null; })(),
       region:null, tags:[] };
@@ -460,8 +462,8 @@ const unlogged = d.tours.find(t=>t.status==="teljesítve" && !d.journal.some(j=>
     if(/[ée]jszak/.test(q)) want.tags.push("éjszaka");
     if(/kil[áa]t|panor/.test(q)) want.tags.push("kilátás");
     if(/kezd/.test(q)) want.tags.push("kezdőknek");
-    for(const rg of [...new Set(TOURS.map(t=>t.region))]) if(q.includes(rg.toLowerCase().split(" ")[0])) want.region = rg;
-    const score = t => { let s=(t.rating-4.5)*2;
+    for(const rg of [...new Set(catalog.map(t=>t.region))]) if(q.includes(rg.toLowerCase().split(" ")[0])) want.region = rg;
+    const score = t => { let s=t.rating>0&&t.reviews>0?(t.rating-4.5)*2:0;
       if(want.diff) s += t.diff===want.diff ? 3 : -2;
       if(want.maxH) s += t.h > want.maxH ? -6 : 2 + Math.max(0,(want.maxH-t.h))*0.25;
       if(want.region) s += t.region.toLowerCase().startsWith(want.region.toLowerCase().slice(0,4)) ? 2 : -1;
@@ -469,7 +471,7 @@ const unlogged = d.tours.find(t=>t.status==="teljesítve" && !d.journal.some(j=>
       if(/r[öo]vid|s[ée]ta|k[öo]nnyed/.test(q) && t.km<=8) s+=1.5;
       if(/h[ée]v/.test(q) && !t.tags.includes("family")) s+=.5;
       return s; };
-    const t = TOURS.slice().sort((a,b)=>score(b)-score(a))[0];
+    const t = catalog.slice().sort((a,b)=>score(b)-score(a))[0];
     const date = /szombat/.test(q)?nextSatDate(): addDays(todayISO(), 3);
     const steps = TIMELINE_TPL.slice(0, Math.max(4, Math.min(8, 2+Math.round((t.h||3)/1.4))));
     const gear = recommendGear({difficulty:t.diff, durationH:t.h, days:1, tags:t.tags, date}, /es[öo]|rain/.test(q)).slice(0,10);

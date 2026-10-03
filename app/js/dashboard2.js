@@ -300,13 +300,13 @@ VIEWS.ai = () => {
     </div>`);
 };
 function aiRecCard(r){
-  if(!r) return "";
-  const t=r.tour;
+  if(!r||!r.tour) return "";
+  const t=v122PublicTours().find(t=>t.id===r.tour.id);
+  if(!t) return "";
   return `<div class="ai-card-rec">
-    <div class="img-wrap" style="height:110px">${imgTag(t.img,t.name)}</div>
     <div style="padding:.85rem .95rem">
       <b>${esc(t.name)}</b><div class="meta" style="font-size:.8rem;margin-top:.2rem"><span>${esc(t.region)}</span><span>📏 ${t.km} km</span><span>⏱ ${t.h} ó</span><span>⬆ ${t.up} m</span>${diffChip(t.diff)}</div>
-      <p class="small muted" style="margin:.5rem 0 .6rem">${r.why}</p>
+      <p class="small muted" style="margin:.5rem 0 .6rem">${r.why}</p>${v122SourceLine(t)}
       <div class="flex" style="gap:.4rem;flex-wrap:wrap">
         <button class="btn btn-ember btn-sm" data-aims="${t.id}" data-aidate="${r.date}">💾 Mentés új túraként</button>
         <a class="btn btn-ghost btn-sm" href="#/turak/${t.id}">👀 Részletek</a></div></div></div>`;
@@ -320,7 +320,8 @@ VIEWS.ai.after = root => {
     box.scrollTop = box.scrollHeight; wire(); };
   const wire = () => {
     root.querySelectorAll("[data-aims]").forEach(b=>b.onclick=()=>{
-      const t = tourById(b.dataset.aims);
+      const t = v122PublicTours().find(t=>t.id===b.dataset.aims);
+      if(!t){ toast("Ez a túra már nem érhető el az ellenőrzött katalógusban.","⚠️"); return; }
       const tour = Store.newTourFromDraft({ title:t.name, place:t.start.name, region:t.region, lengthKm:t.km, ascent:t.up,
         durationH:t.h, difficulty:t.diff, tags:t.tags.slice(), img:t.img, desc:t.desc, coords:{...t.start}, date:b.dataset.aidate });
       toast("Munkaterület létrehozva az AI-tervből — nézd meg a csomaglistát! 🎒","🤖"); NAV.to("#/tura/"+tour.id); });
@@ -331,6 +332,10 @@ VIEWS.ai.after = root => {
     if(!d.aiChat) d.aiChat=[];
     d.aiChat.push({role:"user", text});
     const res = Store.aiReply(text); res.date = res.date|| Store.nextSatDate();
+    if(!res.tour){
+      d.aiChat.push({role:"ai",text:res.error||"Jelenleg nincs megfelelő ellenőrzött túra."});
+      Store.save(); push(); return;
+    }
     d.aiChat.push({role:"ai", text:"", result:res,
       html:`<i class="typing" id="tp"><i></i><i></i></i>`, _pending:true});
     Store.save(); push();
