@@ -264,3 +264,16 @@ test('homepage photos and license notices are shipped inside the Pages artifact'
   assert.match(licenses, /creativecommons\.org\/publicdomain\/zero\/1\.0/);
 });
 
+test('personal tour center ships a real screenshot with no personal or secret data in its documentation', () => {
+  const image = fs.readFileSync(path.join(dist, 'screens', 'tour-project.png'));
+  assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.ok(image.length > 30000, 'The shipped asset must contain an actual application screenshot');
+  assert.equal(image.readUInt32BE(16), 876);
+  assert.equal(image.readUInt32BE(20), 483);
+  const provenance = read('screens/README.md');
+  assert.match(provenance, /vh-around-red-lake/);
+  assert.match(provenance, /Visit Harghita/);
+  assert.match(provenance, /szerveroldali adatírás letiltásával/);
+  assert.doesNotMatch(provenance, /@test\.local|sb_secret_|service_role|Bearer /);
+});
+

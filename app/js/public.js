@@ -84,6 +84,30 @@ function homeRecommendations(kind){
   if(kind === "sunrise") return tours.filter(t=>t.tags.includes("napkelte"));
   return tours.filter(t=>t.h != null && t.h <= 3.5);
 }
+function homeTourCenter(u){
+  const features=[
+    ["🥾","Saját túraprojekt","Dátum, útvonal, időterv és jegyzetek egy túrához rendezve.","uj-tura"],
+    ["🎒","Felkészülés indulásra","Felszerelés, csomaglista, étel, víz és biztonsági teendők.","turaim"],
+    ["👥","Közös túra szervezése","Résztvevők, találkozó, utazás és költségek megtervezése.","turaim"],
+    ["🧭","GPS és GPX","Útvonal betöltése, saját GPS-rögzítés és GPX-export.","utvonalak"],
+    ["📖","Saját túrázókönyv","Túranapló, bakancslista, naptár, célok és statisztikák.","naplo"],
+    ["☁️","Helyi és felhőmentés","Helyi adatkezelés, mentés és betöltés a saját fiókodból.","beallitasok"]
+  ];
+  return `<section class="pub-section home-tour-center" id="home-tour-center" aria-labelledby="home-center-title">
+    <div class="home-center-heading"><div><span class="eyebrow">A saját túraközpontod</span><h2 id="home-center-title">A következő túrád minden részlete.</h2></div>
+      <p>Indulás előtt, útközben és hazaérkezés után — a személyes vezérlőpultodban.</p></div>
+    <div class="home-center-layout"><div class="home-center-copy"><h3>Mit intézhetsz a Túratárssal?</h3>
+      <ul class="home-center-features">${features.map(([icon,title,text,route])=>`<li><a href="${u?"#/"+route:"#/regisztracio"}"><span class="home-center-icon" aria-hidden="true">${icon}</span><div><h4>${title}</h4><p>${text}</p></div><span class="home-center-arrow" aria-hidden="true">↗</span></a></li>`).join("")}</ul>
+      <div class="home-center-actions"><a class="btn btn-primary" data-home-center-main href="${u?"#/vezerlopult":"#/regisztracio"}">${u?"Megnyitom a túraközpontomat":"Létrehozom a saját túraközpontomat"} <span aria-hidden="true">→</span></a>
+        ${u?'<a class="home-text-link" href="#/uj-tura">Új túrát tervezek ↗</a>':'<a class="home-text-link" href="#/belepes">Már van fiókom ↗</a>'}</div>
+      <p class="home-center-note">${u?"A saját túráidat és felkészülésedet a vezérlőpultból éred el.":"A személyes túraközpont használatához hozz létre saját fiókot, vagy jelentkezz be."} A GPS-rögzítéshez helymeghatározási engedély szükséges; a felhőmentéshez internetkapcsolat kell.</p></div>
+    <figure class="home-center-preview"><div class="home-preview-label"><span aria-hidden="true">●</span> Így néz ki egy saját túraprojekt</div>
+      <a href="./screens/tour-project.png" target="_blank" rel="noopener" aria-label="A túraprojekt képernyőképének nagyítása"><img src="./screens/tour-project.png" width="876" height="483" loading="lazy" decoding="async" alt="A Túratárs valódi túraprojekt-felülete: alapadatok, felkészültség, útvonal, időterv és felszerelés. A Gyilkos-tó körül katalógustúra előkészítése látható."></a>
+      <figcaption><b>A terved egy helyen.</b><span>Valódi alkalmazáskép, a Gyilkos-tó körül túra forrásolt alapadataival. Kattints a képre a nagyításhoz.</span></figcaption>
+      <div class="home-center-journey" aria-label="A túra lépései"><span>01 <b>Tervezd meg</b></span><span>02 <b>Készülj fel</b></span><span>03 <b>Őrizd meg</b></span></div>
+    </figure></div>
+  </section>`;
+}
 VIEWS.home = () => {
   const tours=v122PublicTours(), places=v122PublicPlaces();
   const selected=["vh-around-red-lake","vh-balan-piatra-singuratica","vh-harghita-bai-subpadure"].map(id=>tours.find(t=>t.id===id)).filter(Boolean);
@@ -95,7 +119,7 @@ VIEWS.home = () => {
       <h1>Merre kalandozol <br><i>legközelebb?</i></h1>
       <p class="sub">Fedezd fel, tervezd meg és őrizd meg minden túrádat egy helyen — Székelyföld hágóitól a Fogarasokig.</p>
       <p class="hero-proof">Útvonalak, GPX, időterv, felszerelés, társak és napló — egy helyen.</p>
-      <div class="home-hero-actions"><a href="#home-find" class="btn btn-primary">Találj túrát <span aria-hidden="true">↓</span></a><a href="#/tervezes" class="home-text-link">Saját túrát tervezek ↗</a></div>
+      <div class="home-hero-actions"><a href="#home-find" class="btn btn-primary">Találj túrát <span aria-hidden="true">↓</span></a><a href="#/tervezes" class="home-text-link">Saját túrát tervezek ↗</a><a href="#home-tour-center" class="home-text-link">Mit tud a Túratárs? ↓</a></div>
       <div class="home-hero-counts"><span><b>${tours.length}</b> forrásolt túra</span><span><b>${typeof v125KnownRouteCount==="function"?v125KnownRouteCount():0}</b> GPX / KML útvonal</span><span><b>${places.length}</b> felfedezhető hely</span></div>
     </div>
     <figure class="home-hero-photo">${homePhoto("hargita",true)}<figcaption><span>Hargita</span><b>Kakukk-hegy környéke</b><a href="#home-photo-credits">Fotó: Szabi237 · CC BY 3.0</a></figcaption><span class="home-photo-note">Valódi hely. A következő élményed?</span></figure>
@@ -118,6 +142,7 @@ VIEWS.home = () => {
       <a href="#/helyek"><span aria-hidden="true">📍</span> Helyek</a>
       <a href="#/kozossegi"><span aria-hidden="true">🌲</span> Közösség</a>
     </nav>
+    ${homeTourCenter(u)}
     <section class="pub-section">
       <div class="sect-head"><div><span class="eyebrow">Ellenőrzött forrásból</span><h2 class="mb0">Ezekkel érdemes kezdeni</h2></div>
         <a class="sect-more" href="#/felfedezes">Összes túra →</a></div>
@@ -165,16 +190,13 @@ VIEWS.home = () => {
 
     <div data-home-community></div>
 
-    <section class="pub-section home-personal">
-      <div class="home-personal-copy"><span class="eyebrow">A túraötlettől az emlékig</span><h2>Az út a tiéd.<br>A részleteket tartsd egy helyen.</h2><p class="muted">Saját túraterv, GPX, felszereléslista és túranapló. Terepen GPS-rögzítés, internet nélkül is.</p><a class="btn btn-primary" href="${u?"#/turaim":"#/regisztracio"}">${u?"Megnyitom a túráimat":"Létrehozom a túraközpontomat"} →</a></div>
-      <div class="home-steps"><a href="#/tervezes"><span>01</span><div><h3>Találd meg az utad</h3><p>Valódi útvonalak és saját túratervezés.</p></div><b aria-hidden="true">↗</b></a><a href="#/turaim"><span>02</span><div><h3>Készülj fel az indulásra</h3><p>Időterv, GPX és felszerelés a túrád mellett.</p></div><b aria-hidden="true">↗</b></a><a href="#/naplo"><span>03</span><div><h3>Őrizd meg az élményt</h3><p>Saját GPS-felvétel és személyes túranapló.</p></div><b aria-hidden="true">↗</b></a><a class="home-ai-link" href="#/ai">Segítség a tervezéshez: AI Túratervező ↗</a></div>
-    </section>
+    <section class="pub-section home-personal home-center-reminder" aria-label="Túra tervezése"><div><span class="eyebrow">A túraötlettől az emlékig</span><h2>Az út a tiéd.</h2><p class="muted">Fedezd fel, készítsd elő és őrizd meg a saját túráidat.</p></div><div class="home-center-actions"><a class="btn btn-primary" href="${u?"#/turaim":"#/regisztracio"}">${u?"Megnyitom a túráimat":"Létrehozom a túraközpontomat"} →</a><a class="home-text-link" href="#/ai">AI Túratervező ↗</a></div></section>
     <details class="home-photo-credits" id="home-photo-credits"><summary>Fotók és források</summary><p>A fotók a megnevezett helyeket ábrázolják; nem a teljes túra nyomvonalát. A képek méretét a webes megjelenítéshez csökkentettük, a felületen kivágva jelenhetnek meg.</p>${Object.values(HOME_PHOTOS).map(p=>`<p><a href="${p.sourceUrl}" target="_blank" rel="noopener">${esc(p.label)}</a> · ${esc(p.author)} · <a href="${p.licenseUrl}" target="_blank" rel="noopener">${esc(p.license)}</a></p>`).join("")}</details>
   </div>
   ${footer().replace("Képek: Unsplash, Nagyhagymás KKT","Főoldali fotók: Wikimedia Commons · források fent")}`;
 };
 VIEWS.home.after = (root) => {
-  root.querySelectorAll('a[href="#home-find"],a[href="#home-photo-credits"]').forEach(a=>a.onclick=e=>{
+  root.querySelectorAll('a[href="#home-find"],a[href="#home-photo-credits"],a[href="#home-tour-center"]').forEach(a=>a.onclick=e=>{
     e.preventDefault();
     const target=root.querySelector(a.getAttribute("href"));
     if(!target) return;
