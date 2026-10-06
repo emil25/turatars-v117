@@ -1394,6 +1394,9 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
 .v128-place{min-height:48px;border:1px solid var(--line);border-radius:10px;margin:.4rem 0;color:var(--bark);background:var(--paper)}
 .v128-place:hover{background:var(--leaf-soft)}
 .pub-menu{display:none;position:relative;flex-shrink:0}
+.discover-nav{margin-bottom:1rem}
+.discover-back{display:inline-flex;align-items:center;min-height:44px;max-width:100%;color:var(--pine);font-size:.9rem;font-weight:600}
+.discover-back:hover{text-decoration:underline;text-underline-offset:3px}
 .pub-menu summary{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:.35rem;border:1px solid var(--line);border-radius:12px;background:var(--paper);cursor:pointer;list-style:none;font-size:1.1rem}
 .pub-menu summary::-webkit-details-marker{display:none}.pub-menu summary span{font-size:.82rem;font-weight:600}
 .pub-menu-links{position:absolute;right:0;top:calc(100% + 10px);width:260px;max-width:calc(100vw - 32px);padding:.5rem;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-2);z-index:1001}

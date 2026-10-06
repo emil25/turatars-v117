@@ -256,6 +256,7 @@ VIEWS.discover = () => {
   const typeTags = [...new Set(v122PublicTours().flatMap(t=>(t.tags||[]).filter(Boolean)))].sort();
   const routeShapes = [...new Set(v122PublicTours().map(t=>t.routeType||t.shape).filter(Boolean))].sort();
   return `<div class="wrap pub-section tight">
+    <nav class="discover-nav" aria-label="Visszalépés"><a class="discover-back" href="#/">← Vissza a főoldalra</a></nav>
     <div class="sect-head"><div><span class="eyebrow">${v122PublicTours().length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
     <div class="searchbox" style="margin-top:0;grid-template-columns:1.4fr .8fr .8fr .8fr .9fr" id="discfilters">
       <div class="sc-field"><label for="d-q">Keresés</label><input id="d-q" value="${esc(saved.q||"")}" placeholder="Név, tájegység…"></div>

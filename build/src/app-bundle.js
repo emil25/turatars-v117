@@ -1351,6 +1351,7 @@ VIEWS.discover = () => {
   const typeTags = [...new Set(v122PublicTours().flatMap(t=>(t.tags||[]).filter(Boolean)))].sort();
   const routeShapes = [...new Set(v122PublicTours().map(t=>t.routeType||t.shape).filter(Boolean))].sort();
   return `<div class="wrap pub-section tight">
+    <nav class="discover-nav" aria-label="Visszalépés"><a class="discover-back" href="#/">← Vissza a főoldalra</a></nav>
     <div class="sect-head"><div><span class="eyebrow">${v122PublicTours().length} útvonal · élő szűrők</span><h1 style="font-size:2rem" class="mb0">Túrák felfedezése</h1></div></div>
     <div class="searchbox" style="margin-top:0;grid-template-columns:1.4fr .8fr .8fr .8fr .9fr" id="discfilters">
       <div class="sc-field"><label for="d-q">Keresés</label><input id="d-q" value="${esc(saved.q||"")}" placeholder="Név, tájegység…"></div>
@@ -6293,7 +6294,7 @@ function f9HeadHtml(){
   var types=[]; CAT_T().forEach(function(t){(t.tags||[]).forEach(function(x){if(x&&types.indexOf(x)<0)types.push(x);});}); types.sort();
   var shapes=[]; CAT_T().forEach(function(t){var x=t.routeType||t.shape;if(x&&shapes.indexOf(x)<0)shapes.push(x);}); shapes.sort();
   function sel(id,val,opts,all){ return '<select class="input" id="'+id+'"><option value="">'+all+'</option>'+opts.map(function(o){ return '<option value="'+esc9(o)+'"'+(val===o?' selected':'')+'>'+esc9(o)+'</option>'; }).join("")+'</select>'; }
-  return '<section class="wrap f9head"><div class="f9-hero-t"><p class="eyeb">🗺️ TÚRAFELFEDEZŐ</p><h1 class="f9-h1">Mit túrázzak?</h1><p class="f9-sub">Találd meg a következő túrádat Székelyföldön és Erdélyben — egy koppintással saját terv lesz belőle.</p></div>'+
+  return '<section class="wrap f9head"><nav class="discover-nav" aria-label="Visszalépés"><a class="discover-back" href="#/">← Vissza a főoldalra</a></nav><div class="f9-hero-t"><p class="eyeb">🗺️ TÚRAFELFEDEZŐ</p><h1 class="f9-h1">Mit túrázzak?</h1><p class="f9-sub">Találd meg a következő túrádat Székelyföldön és Erdélyben — egy koppintással saját terv lesz belőle.</p></div>'+
    '<div class="f9-tools"><input class="input" id="f9q" placeholder="🔎 Keress túrát, hegyet, útvonalat vagy eseményt…" value="'+esc9(f9.q)+'">'+
    sel("f9reg",f9.region,regs,"📍 Régió: mindegy")+' '+sel("f9diff",f9.diff,["Könnyű","Közepes","Nehéz"],"🥾 Nehézség")+' '+
    '<select class="input" id="f9h" aria-label="Mennyi időd van?"><option value="">⏱ Bármennyi idő</option><option value="3"'+(f9.h==="3"?' selected':'')+'>max 3 óra</option><option value="5"'+(f9.h==="5"?' selected':'')+'>max 5 óra</option><option value="24"'+(f9.h==="24"?' selected':'')+'>egész napos / többnapos</option></select> '+

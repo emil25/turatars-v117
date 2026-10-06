@@ -1,4 +1,6 @@
-html,body{overflow-x:hidden;max-width:100%}
+/* Keep horizontal overflow contained without giving body its own scroll container. */
+html{overflow-x:hidden;max-width:100%}
+body{overflow-x:clip;max-width:100%}
 
 /* ============================================================
    TÚRAVAROS — design tokens, reset, common components
