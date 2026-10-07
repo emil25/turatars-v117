@@ -357,12 +357,16 @@ const Store = (() => {
     const d=myData(), i=d.savedEvents.indexOf(eid);
     if(i>=0){ d.savedEvents.splice(i,1); d.tours=d.tours.filter(t=>t.eventRef!==eid); save(); return; }
     d.savedEvents.push(eid);
-    const ev = EVENTS.find(x=>x.id===eid), base = ev && ev.tour ? tourById(ev.tour) : null;
-    const _notes=(ev&&ev.reg)?("Nevezés: "+(ev.reg||"")+(ev.time?" · "+ev.time:"")):"";
-    const _tr = ev ? newTourFromDraft({ title:ev.name, place: base?base.start.name:ev.place, region: base?base.region:ev.place,
-      date:ev.date, lengthKm:base?base.km:8, ascent:base?base.up:300, durationH:base?base.h:3,
-      difficulty:ev.diff, tags: base?base.tags.slice():["vezetett"], img:ev.img, desc:ev.desc,
-      coords: base?{...base.start}:null, eventRef:ev.id, eventCat:ev.cat, status:"jelentkezve" }) : null;
+    const catalogEvent = window.v122PublicEvents ? window.v122PublicEvents().find(x=>x.id===eid) : null;
+    const ev = catalogEvent || EVENTS.find(x=>x.id===eid), base = ev && ev.tour ?
+      ((window.v122PublicTours&&window.v122PublicTours().find(x=>x.id===ev.tour))||tourById(ev.tour)) : null;
+    const _notes=[(ev&&ev.reg)?("Nevezés: "+ev.reg+(ev.time?" · "+ev.time:"")):"",
+      catalogEvent?"Forrás: "+catalogEvent.sourceUrl:"",catalogEvent&&catalogEvent.gpxUrl?"GPX a szervezőtől: "+catalogEvent.gpxUrl:""].filter(Boolean).join("\n");
+    const _tr = ev ? newTourFromDraft({ title:ev.name, place: base?base.start.name:ev.place, region: base?base.region:(ev.region||ev.place),
+      date:ev.date, lengthKm:base?base.km:(catalogEvent?(ev.km==null?null:ev.km):8),
+      ascent:base?base.up:(catalogEvent?(ev.up==null?null:ev.up):300), durationH:base?base.h:(catalogEvent?(ev.h==null?null:ev.h):3),
+      difficulty:ev.diff||"", tags: base?base.tags.slice():(catalogEvent?["esemeny"]:["vezetett"]), img:ev.img||null, desc:ev.desc,
+      coords: base?{...base.start}:null, eventRef:ev.id, eventCat:ev.cat, status:catalogEvent?"tervezés":"jelentkezve" }) : null;
     if(_tr && _notes && !(String(_tr.notes).indexOf("Nevezés:")>=0)) _tr.notes = (_tr.notes ? _tr.notes + (String.fromCharCode(10)) : "") + _notes;
     save();
   }

@@ -26,11 +26,21 @@ function ecardSmall(e){
   return `<article class="card ecard event-refined"><time class="event-date" datetime="${esc(e.date||"")}"><span>${hav}</span><b>${nap}</b><small>${esc(Y||"")}</small></time>
     <div class="eb"><span class="chip chip-ember">${esc(e.cat)}</span>
       <h3 style="margin:.25rem 0 .1rem"><a href="#/esemenyek/${e.id}">${esc(e.name)}</a></h3>
-      <div class="meta"><span>📍 ${esc(e.place)}</span>${e.time?`<span>🕐 ${esc(e.time)}</span>`:""}${diffChip(e.diff)}</div>
+      <div class="meta">${e.endDate?`<span>📅 ${esc(eventDateLabel(e))}</span>`:""}<span>📍 ${esc(e.place)}</span>${e.time?`<span>🕐 ${esc(e.time)}</span>`:""}${e.diff?diffChip(e.diff):""}</div>
+      ${eventFacts(e)}
       <div class="eorg">${esc(e.org)}</div>${window.v122SourceLine?v122SourceLine(e):""}
       <div class="event-actions"><a class="btn btn-ghost btn-sm" href="#/esemenyek/${esc(e.id)}">Részletek ↗</a><button class="btn btn-soft btn-sm" data-save-event="${e.id}">
         ${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés a túráimhoz"}</button></div>
     </div></article>`;
+}
+function eventDateLabel(e){
+  if(!e.date) return "Hamarosan — a szervező adja meg";
+  return fmtDateFull(e.date)+(e.endDate&&e.endDate!==e.date?" – "+fmtDateFull(e.endDate):", "+dowHU(e.date));
+}
+function eventFacts(e){
+  const facts=[[e.km,"📏 Táv","km"],[e.up,"⬆ Szintemelkedés","m"],[e.timeLimitHours,"⏱ Szintidő","óra"]]
+    .filter(([value])=>value!=null&&Number.isFinite(+value)&&+value>=0);
+  return facts.length?`<div class="meta">${facts.map(([value,label,unit])=>`<span>${label}: <b>${homeNumber(value)} ${unit}</b></span>`).join("")}</div>`:"";
 }
 function handleSaveEvents(root){
   root.querySelectorAll("[data-save-event]").forEach(b=>b.onclick=()=>{
@@ -75,7 +85,7 @@ function homeTourRow(t){
 }
 function homeEventRow(e){
   const parts=e.date.split("-");
-  return `<article class="home-event-row"><time datetime="${esc(e.date)}"><span>${MONTHS_HU[+parts[1]-1].slice(0,3)}.</span><b>${+parts[2]}</b></time><div class="home-event-body"><span class="eyebrow">${esc(e.cat)}</span><h3><a href="#/esemenyek/${esc(e.id)}">${esc(e.name)}</a></h3><p>${esc(e.place)}${e.time?" · "+esc(e.time):""}</p><p class="home-event-org">${esc(e.org)}</p>${v122SourceLine(e)}</div><button class="btn btn-soft btn-sm" data-save-event="${esc(e.id)}">${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés"}</button></article>`;
+  return `<article class="home-event-row"><time datetime="${esc(e.date)}"><span>${MONTHS_HU[+parts[1]-1].slice(0,3)}.</span><b>${+parts[2]}</b></time><div class="home-event-body"><span class="eyebrow">${esc(e.cat)}</span><h3><a href="#/esemenyek/${esc(e.id)}">${esc(e.name)}</a></h3>${e.endDate?`<p>${esc(eventDateLabel(e))}</p>`:""}<p>${esc(e.place)}${e.time?" · "+esc(e.time):""}</p>${eventFacts(e)}<p class="home-event-org">${esc(e.org)}</p>${v122SourceLine(e)}</div><button class="btn btn-soft btn-sm" data-save-event="${esc(e.id)}">${Store.me()&&Store.isEventSaved(e.id)?"✓ A túráim között":"Mentés"}</button></article>`;
 }
 function homeRecommendations(kind){
   const tours = v122PublicTours();
@@ -203,7 +213,7 @@ VIEWS.home.after = (root) => {
     if(target.tagName==="DETAILS") target.open=true;
     target.scrollIntoView({behavior:"smooth",block:"start"});
   });
-  const events = v122PublicEvents().filter(e=>e.date>=Store.todayISO()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  const events = v122PublicEvents().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
   root.querySelector("#home-events").innerHTML = events.length ? events.map(homeEventRow).join("") :
     '<div class="empty home-empty"><p class="mb0">Jelenleg nincs ellenőrzött közelgő esemény.</p><a class="sect-more" href="#/esemenyek">Események megtekintése →</a></div>';
   const showRecommendations = kind => {
@@ -316,7 +326,7 @@ window.bindTourCards = ()=>{};
 let evFilter = "";
 VIEWS.events = () => {
   const cats = [...new Set(v122PublicEvents().map(e=>e.cat))];
-  const list = v122PublicEvents().filter(e=>(!evFilter||e.cat===evFilter) && (!e.date || e.date>=Store.todayISO())).sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
+  const list = v122PublicEvents().filter(e=>(!evFilter||e.cat===evFilter)).sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
   return `<div class="wrap pub-section tight events-page">
     <header class="page-heading"><div><span class="eyebrow">Közös élmények a természetben</span><h1>Események</h1><p>Találd meg a következő közös túrát. Mentsd a saját naptáradba, a részletes programot és a nevezést pedig keresd a szervezőnél.</p></div><a class="btn btn-soft" href="#/szervezoknek">Túrát szervezel? ↗</a></header>
     <div class="filter-row" aria-label="Eseménykategóriák"><button class="f-pill ${!evFilter?"on":""}" aria-pressed="${!evFilter}" data-cat="">Mind</button>
@@ -344,10 +354,11 @@ function eventModal(eid){
   const base = e.tour?(v122PublicTours().find(x=>x.id===e.tour)||tourById(e.tour)):null;
   openModal({ title:esc(e.name),
    body:`<div class="detail-intro"><span class="eyebrow">${esc(e.cat)}</span><p class="muted mb0">Szervező: ${esc(e.org)}</p></div>
-     <div class="meta" style="margin-bottom:1rem"><span>📅 <b>${e.date?fmtDateFull(e.date):"Hamarosan — a szervező adja meg"}</b>${e.date?", "+dowHU(e.date):""}</span>
-     <span>📍 ${esc(e.place)}</span><span>${diffChip(e.diff)}</span></div>
+     <div class="meta" style="margin-bottom:1rem"><span>📅 <b>${esc(eventDateLabel(e))}</b></span>
+     <span>📍 ${esc(e.place)}</span>${e.diff?`<span>${diffChip(e.diff)}</span>`:""}</div>
      ${e.place && /Gyergy/.test(e.place) ? `<a class="tour-src" href="#/hagymas" style="margin-bottom:.4rem">🕹 🕹 A Hagymás hálózat összes útvonala itt →</a>` : ""}
      <p>${esc(e.desc)}</p>
+     ${eventFacts(e)}
      ${e.src?`<a class="tour-src" target="_blank" rel="noopener" href="${esc(e.src)}">🔗 Részletes program (szervező oldala)</a>`:""}
      ${base?`<div class="card" style="padding:1rem;display:flex;gap:1rem;align-items:center;border-radius:14px">
        <div><b>${esc(base.name)}</b><div class="meta"><span>📏 ${base.km} km</span><span>⏱ ${base.h} ó</span><span>⬆ ${base.up} m</span></div></div></div>`:""}
@@ -356,6 +367,7 @@ function eventModal(eid){
       ${(e.reg||e.src)?`<div class="flex wrapcol" style="gap:.5rem;margin-top:.7rem">
         ${e.reg?`<a class="btn btn-ember btn-sm" target="_blank" rel="noopener" href="${esc(e.reg)}">📝 Nevezés / regisztráció</a>`:""}
         ${e.src?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${esc(e.src)}">🔗 Hivatalos oldal / program</a>`:""}
+        ${e.gpxUrl?`<a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="${esc(e.gpxUrl)}">📂 GPX letöltése a szervezőtől</a>`:""}
      </div>`:""}`,
    footer:`<div class="flex" style="justify-content:flex-end;gap:.6rem;flex-wrap:wrap">
      <button class="btn btn-ghost btn-sm" data-close>Bezárás</button>

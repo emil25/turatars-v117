@@ -40,7 +40,7 @@ try {
   const original=await catalog();
   const counts=await page.evaluate(()=>({tours:V122.catalog().tours.length,places:V122.catalog().places.length,
     events:V122.catalog().events.length,routes:v125KnownRoutes().length}));
-  assert.deepEqual(counts,{tours:13,places:3,events:8,routes:37});
+  assert.deepEqual(counts,{tours:13,places:3,events:9,routes:37});
   // The public search and the signed-in search must select the same real hike.
   await search('Gyilkos','Könnyű','3');
   assert.deepEqual(await page.locator('#disc-results h3').allTextContents(),['Gyilkos-tó körül']);

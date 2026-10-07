@@ -52,6 +52,22 @@ var RESTORED_EVENTS=[
   event({id:"e18",name:"Istenszéke túra (Őszi Kelemen)",date:"2026-10-10",place:"Kelemen-havasok",diff:"Közepes",org:"CsEKE – Zsigmond Éva",cat:"Vezetett túra",desc:"A CsEKE 2026-os éves túratervében meghirdetett túra.",src:"https://www.cseke.ro/evesturaterv?page=3",source:"CsEKE éves túraterv",sourceUrl:"https://www.cseke.ro/evesturaterv?page=3",verifiedAt:TODAY,dataStatus:"verified"}),
   event({id:"e19",name:"Honismereti túra (1 nap, busszal)",date:"2026-10-17",place:"Erdővidék",diff:"Könnyű",org:"CsEKE – Solti Imre és Ferencz Lóránd",cat:"Honismereti túra",desc:"A CsEKE éves túratervében szereplő program; a részletes szervezés még folyamatban van.",src:"https://www.cseke.ro/evesturaterv?page=3",source:"CsEKE éves túraterv",sourceUrl:"https://www.cseke.ro/evesturaterv?page=3",reviewedAt:TODAY,dataStatus:"needs_review"})
 ];
+// Newly checked official events are separate from the historical restoration.
+// Only factual metadata and original links: no copied photograph or GPX track.
+var VERIFIED_EVENTS=[{
+  id:"egyesko60-2026",name:"Egyeskő 60 – teljesítménytúra",
+  date:"2026-10-09",endDate:"2026-10-11",
+  time:"Túraindulás: október 10., 05:30–06:00",
+  place:"Csíkmenaság → Egyeskő",region:"Gyimesi- és Csíki-havasok",
+  org:"Egyeskő 60 szervezői",cat:"Teljesítménytúra",
+  km:59,up:2088,timeLimitHours:16,
+  desc:"Kétnapos gyalogtúra Csíkmenaságtól az Egyeskő menedékházig, éjszakai sátortáborral Bodorvészen. A rendezvény a Csíkmenasági Közbirtokosság támogatásával valósul meg. A nevezés határideje 2026. október 7.; a nevezési díj 120 lej, a buszjegy 40 lej. Az aktuális programot és a részvételi feltételeket a szervező oldalán ellenőrizd.",
+  src:"https://egyesko60.ro/",reg:"https://forms.gle/qMf2z1w3mdaeGo8u5",
+  gpxUrl:"https://egyesko60.ro/assets/egyesko60-2026.gpx",
+  source:"Egyeskő 60 hivatalos eseményoldal",sourceUrl:"https://egyesko60.ro/",
+  sourceLicense:SOURCE_LICENSE,attribution:"Egyeskő 60 hivatalos eseményoldal",
+  importedAt:"2026-10-07",verifiedAt:"2026-10-07",dataStatus:"verified",status:"published",demo:false
+}];
 var HU_PLACES=[
   {id:"vh-lacul-sfanta-ana",name:"Szent Anna-tó",sourceUrl:"https://www.visitharghita.com/ro/places/lacul-sfanta-ana",desc:"Hivatalos turisztikai helyadat a Szent Anna-tóról."},
   {id:"vh-lacu-rosu",name:"Gyilkos-tó",place:"Nagy-Hagymás",sourceUrl:"https://www.visitharghita.com/hu/places/gyilkosto",desc:"Hivatalos turisztikai helyadat a Gyilkos-tóról."},
@@ -63,12 +79,13 @@ function ensure(){
   changed=patchById(c.tours,RESTORED_TOURS)||changed;
   changed=patchById(c.places,HU_PLACES)||changed;
   changed=patchById(c.events,RESTORED_EVENTS)||changed;
+  changed=patchById(c.events,VERIFIED_EVENTS)||changed;
   if(changed) Store.save();
 }
 function pendingEvents(){
   return catalog().events.filter(function(e){return e&&!e.demo&&!e.archived&&e.dataStatus==="needs_review"&&String(e.date||"")>=Store.todayISO();}).map(function(e){return Object.assign({},e,{cat:(e.cat?e.cat+" · ":"")+"Ellenőrzés alatt"});});
 }
-window.V124={restoredTours:RESTORED_TOURS,restoredEvents:RESTORED_EVENTS,hungarianTours:HU_TOURS,hungarianPlaces:HU_PLACES,pendingEvents:pendingEvents};
+window.V124={restoredTours:RESTORED_TOURS,restoredEvents:RESTORED_EVENTS,verifiedEvents:VERIFIED_EVENTS,hungarianTours:HU_TOURS,hungarianPlaces:HU_PLACES,pendingEvents:pendingEvents};
 window.v124PendingEvents=pendingEvents;
 ensure();
 })();

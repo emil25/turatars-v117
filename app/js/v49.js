@@ -46,7 +46,7 @@ function card(t){
 }
 function ecard(e){
   try{ var c=ctaFor("e",e); var base=CAT_T().find(function(t){return t.id===e.tour;});
-  var meta='📅 '+nz(e.date,e.time?e.date:null,'dátum nélkül')+(e.time?' '+e.time:'');
+  var meta='📅 '+nz(e.date,e.time?e.date:null,'dátum nélkül')+(e.endDate?' – '+esc9(e.endDate):'')+(e.time?' '+esc9(e.time):'');
   if(base){ meta+=' · 📏 '+base.km+' km · ⛰️ +'+base.up+' m'; } else if(e.km!=null){ meta+=' · 📏 '+e.km+' km'+(e.up!=null?' · ⛰️ +'+e.up+' m':''); }
    return '<article class="f9card card ecard9"><div class="f9-b"><div class="f9-t1"><b>📣 '+esc9(e.name)+'</b>'+(e.dataStatus==="needs_review"?'<span class="chip chip-sand">Ellenőrzés alatt</span>':(e.cat?'<span class="chip chip-sand">'+esc9(e.cat)+'</span>':''))+'</div>'+
     '<p class="small muted mb0">'+meta+(e.place?' · 📍 '+esc9(e.place):'')+(e.diff?' · 🥾 '+esc9(e.diff):'')+(e.org?' · 👥 '+esc9(e.org):'')+'</p>'+
@@ -96,7 +96,7 @@ function evMatch(e){
   try{ var q1=f9.q.toLowerCase().trim();
   if(q1 && (String(e.name)+" "+(e.place||"")+" "+(e.org||"")).toLowerCase().indexOf(q1)<0) return false;
   if(f9.diff && (e.diff||"")!==f9.diff) return false;
-  if(f9.weekend && !nearWeek(e.date)) return false;
+  if(f9.weekend && !nearWeek(e.date) && !nearWeek(e.endDate)) return false;
   return true; }catch(e2){ return false; }
 }
 function geod(a,b){ try{ var R=6371e3,p=Math.PI/180,dLa=(b[0]-a[0])*p,dLo=(b[1]-a[1])*p; var s=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(dLo/2)*Math.sin(dLo/2); return 2*R*Math.asin(Math.min(1,Math.sqrt(s))); }catch(e){ return 999999; } }
@@ -200,7 +200,7 @@ function planFrom(kind,id){
     if(kind==="t"){ var t=CAT_T().find(function(x){return x.id===id;}); if(!t) return;
       n=Store.newTourFromDraft({ title:t.name, place:(t.start?t.start.name:t.region||""), region:t.region||"", date:"", lengthKm:+t.km||0, ascent:+t.up||0, durationH:+t.h||0, difficulty:t.diff||"Közepes", img:t.img||IMG.erdo, desc:t.desc||"", coords:(t.start&&t.start.lat)?{lat:t.start.lat,lng:t.start.lng}:null, notes:"Forrás: Túrafelfedező", tags:(t.tags||[]).slice(0,6).concat(["felfedezett"]) });
     } else { var e=CAT_E().find(function(x){return x.id===id;}); if(!e) return; var base=CAT_T().find(function(t){return t.id===e.tour;});
-      n=Store.newTourFromDraft({ title:e.name, place:e.place||"", region:base?(base.region||""):"", date:e.date||"", timeHint:e.time||"", lengthKm:base?(+base.km||0):0, ascent:base?(+base.up||0):0, durationH:base?(+base.h||0):0, difficulty:e.diff||(base?base.diff:null)||"Közepes", img:e.img||(base?base.img:IMG.erdo), desc:e.desc||"", coords:(base&&base.start&&base.start.lat)?{lat:base.start.lat,lng:base.start.lng}:null, notes:"Forrás: Túraesemény"+(e.src?" · "+e.src:"")+(e.org?" · "+e.org:""), tags:["esemeny"] });
+      n=Store.newTourFromDraft({ title:e.name, place:e.place||"", region:base?(base.region||""):(e.region||""), date:e.date||"", timeHint:e.time||"", lengthKm:base?(+base.km||0):(e.km==null?null:+e.km), ascent:base?(+base.up||0):(e.up==null?null:+e.up), durationH:base?(+base.h||0):(e.h==null?null:+e.h), difficulty:e.diff||(base?base.diff:null)||(e.dataStatus==="verified"?"":"Közepes"), img:e.img||(base?base.img:IMG.erdo), desc:e.desc||"", coords:(base&&base.start&&base.start.lat)?{lat:base.start.lat,lng:base.start.lng}:null, notes:"Forrás: Túraesemény"+(e.src?" · "+e.src:"")+(e.org?" · "+e.org:"")+(e.reg?"\nNevezés: "+e.reg:"")+(e.gpxUrl?"\nGPX a szervezőtől: "+e.gpxUrl:""), tags:["esemeny"] });
       n.eventRef=e.id; n.eventCat=e.cat||""; }
     n.status="tervezés"; n.extRef=ref; Store.save();
     toast("Túraprojekt létrejött a felfedezett adatokkal — 🤖 V43 / 🧠 V48/V44 elérhető a projektben","🗓️");
@@ -237,11 +237,11 @@ function openTourModal(id){
 }
 function openEventModal(id){
   try{ var e=CAT_E().find(function(x){return x.id===id;}); if(!e) return; var c=ctaFor("e",e); var base=CAT_T().find(function(t){return t.id===e.tour;});
-    openModal({title:"📣 "+esc9(e.name), body:'<p class="small muted mt0">📅 '+nz(e.date,'dátum nélkül')+(e.time?(' · 🕐 '+e.time):"")+(e.place?(' · 📍 '+esc9(e.place)):"")+(e.cat?(' · '+esc9(e.cat)):"")+'</p>'+
+    openModal({title:"📣 "+esc9(e.name), body:'<p class="small muted mt0">📅 '+esc9(eventDateLabel(e))+(e.time?(' · 🕐 '+esc9(e.time)):"")+(e.place?(' · 📍 '+esc9(e.place)):"")+(e.cat?(' · '+esc9(e.cat)):"")+'</p>'+
      '<p class="small mb0">'+(base?('📏 '+base.km+' km · ⛰️ +'+base.up+' m · 🕐 '+base.h+' ó · 🥾 '+esc9(base.diff||"—")):(e.km!=null||e.up!=null)?((e.km!=null?'📏 '+e.km+' km':'')+(e.km!=null&&e.up!=null?' · ':'')+(e.up!=null?'⛰️ +'+e.up+' m':'')+(e.h!=null?' · 🕐 '+e.h+' ó':'')+(e.diff?' · 🥾 '+esc9(e.diff):'')):"Táv/szint: nincs adat a katalógusban")+' · 👥 '+nz(e.org,'szervező nélkül')+'</p>'+ (window.v52Extra?window.v52Extra(e):'') +
-     '<p class="small mb0">'+esc9(e.desc||"Rövid leírás nincs a helyi állományban.")+'</p>'+
+     '<p class="small mb0">'+esc9(e.desc||"Rövid leírás nincs a helyi állományban.")+'</p>'+eventFacts(e)+(window.v122SourceLine?v122SourceLine(e):'')+
      '<p class="small mb0">'+(e.people?("Jelentkezett: "+e.people+(e.cap?("/"+e.cap):"")):"")+'</p>'+
-     '<div class="f9cta"><a class="btn btn-soft btn-sm" '+(e.src?('href="'+esc9(e.src)+'" target="_blank" rel="noopener"'):'aria-disabled="true"')+'>🔗 Eredeti oldal</a><button class="btn btn-ghost btn-sm" data-f9share="e:'+e.id+'">📤 Megosztás</button>'+c.heart+'</div>',
+     '<div class="f9cta"><a class="btn btn-soft btn-sm" '+(e.src?('href="'+esc9(e.src)+'" target="_blank" rel="noopener"'):'aria-disabled="true"')+'>🔗 Eredeti oldal</a>'+(e.reg?'<a class="btn btn-ember btn-sm" target="_blank" rel="noopener" href="'+esc9(e.reg)+'">📝 Nevezés</a>':'')+(e.gpxUrl?'<a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="'+esc9(e.gpxUrl)+'">📂 GPX letöltése a szervezőtől</a>':'')+'<button class="btn btn-ghost btn-sm" data-f9share="e:'+e.id+'">📤 Megosztás</button>'+c.heart+'</div>',
      footer:(c.plan?'<div class="f9cta">'+c.plan+'</div>':"")+'' ,
      onOpen:function(m){ f9modalWire(m); }});
   }catch(e2){}

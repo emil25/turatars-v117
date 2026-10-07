@@ -46,7 +46,7 @@ try {
   const counts = await page.evaluate(() => ({ tours: V122.catalog().tours.length, places: V122.catalog().places.length,
     events: V122.catalog().events.length, known: v125KnownRoutes().length,
     demo: V122.catalog().tours.concat(V122.catalog().places,V122.catalog().events).filter(x=>x.demo).length }));
-  assert.deepEqual(counts, {tours:13,places:3,events:8,known:37,demo:0});
+  assert.deepEqual(counts, {tours:13,places:3,events:9,known:37,demo:0});
   assert.match(await page.locator('.hero h1').innerText(), /Merre kalandozol\s+legközelebb\?/);
   assert.equal(await page.locator('.home-shortcuts a').count(), 6);
   assert.equal(await page.locator('.home-content #v125-home-known').count(), 1);

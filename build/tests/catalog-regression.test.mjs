@@ -10,15 +10,16 @@ function storage(initial={}) {
   const values=new Map(Object.entries(initial));
   return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,String(value))};
 }
-function app(search=null) {
+function app(search=null,local=storage()) {
   const handlers={};
   const view={innerHTML:'',addEventListener:(name,handler)=>handlers[name]=handler};
   const context=vm.createContext({
-    localStorage:storage(),sessionStorage:storage(search?{tvq:JSON.stringify(search)}:{}),
+    localStorage:local,sessionStorage:storage(search?{tvq:JSON.stringify(search)}:{}),
     VIEWS:{},NAV:{to:href=>context.openedHref=href},
     document:{getElementById:id=>id==='view'?view:null},
     esc:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
-    diffChip:value=>`<span>${value}</span>`,closeModal:()=>{},console
+    diffChip:value=>`<span>${value}</span>`,fmtDateFull:value=>value,dowHU:()=>'',
+    openModal:options=>context.lastModal=options,closeModal:()=>{},footer:()=>'',console
   });
   context.window=context;
   for(const name of ['data','store','public','dashboard','v49','v122','v123','v124'])
@@ -102,4 +103,78 @@ test('existing project buttons carry its ID and open it without creating another
   handlers.click({target:{closest:()=>({dataset:{f9open:own.id},hasAttribute:()=>false})}});
   assert.equal(c.openedHref,'#/tura/'+own.id);
   assert.equal(JSON.stringify(c.Store.myData().tours),before);
+});
+
+test('Egyeskő 60 adds one source-backed event while preserving all historical records',()=>{
+  const {context:c}=app();
+  const catalog=c.V122.catalog();
+  assert.equal(catalog.tours.length,13);assert.equal(catalog.places.length,3);assert.equal(catalog.events.length,9);
+  for(const original of c.V124.restoredEvents)
+    assert.equal(JSON.stringify(catalog.events.find(e=>e.id===original.id)),JSON.stringify(original));
+  const e=catalog.events.find(e=>e.id==='egyesko60-2026');
+  assert.deepEqual(JSON.parse(JSON.stringify({date:e.date,endDate:e.endDate,km:e.km,up:e.up,timeLimitHours:e.timeLimitHours})),
+    {date:'2026-10-09',endDate:'2026-10-11',km:59,up:2088,timeLimitHours:16});
+  assert.equal(e.sourceUrl,'https://egyesko60.ro/');
+  assert.equal(e.gpxUrl,'https://egyesko60.ro/assets/egyesko60-2026.gpx');
+  assert.equal(e.reg,'https://forms.gle/qMf2z1w3mdaeGo8u5');
+  assert.equal(e.verifiedAt,'2026-10-07');assert.equal(e.demo,false);
+  assert.deepEqual(Array.from(c.V122.validate(e,'event')),[]);
+  for(const field of ['h','diff','img','coords','track','gpx'])
+    assert.equal(e[field],undefined,field+' must not be invented or copied');
+});
+
+test('catalog update and reload deduplicate the event without overwriting personal data',()=>{
+  const {context:c}=app();
+  c.Store.newTourFromDraft({title:'My existing private hike',notes:'Keep my notes'});
+  const personal=JSON.stringify(c.Store.myData());
+  const extra={...c.V124.verifiedEvents[0],id:'another-existing-event',name:'Existing organizer event'};
+  c.V122.catalog().events.push(extra);c.Store.save();
+  vm.runInContext(fs.readFileSync(path.join(root,'app/js/v124.js'),'utf8'),c);
+  assert.equal(c.V122.catalog().events.filter(e=>e.id==='egyesko60-2026').length,1);
+  assert.equal(JSON.stringify(c.V122.catalog().events.find(e=>e.id===extra.id)),JSON.stringify(extra));
+  assert.equal(JSON.stringify(c.Store.myData()),personal);
+  const {context:reloaded}=app(null,c.localStorage);
+  assert.equal(reloaded.V122.catalog().events.filter(e=>e.id==='egyesko60-2026').length,1);
+  assert.equal(JSON.stringify(reloaded.Store.myData()),personal);
+});
+
+test('multi-day events stay public through the last day and expire afterwards',()=>{
+  const {context:c}=app();
+  for(const date of ['2026-10-07','2026-10-09','2026-10-10','2026-10-11']){
+    c.Store.todayISO=()=>date;
+    assert.ok(c.v122PublicEvents().some(e=>e.id==='egyesko60-2026'),date);
+    assert.match(c.VIEWS.events(),/Egyeskő 60/);
+  }
+  assert.ok(!c.v122PublicEvents().some(e=>e.id==='e18'),'Single-day event still expires normally');
+  c.Store.todayISO=()=>'2026-10-12';
+  assert.ok(!c.v122PublicEvents().some(e=>e.id==='egyesko60-2026'));
+  assert.doesNotMatch(c.VIEWS.events(),/Egyeskő 60/);
+  assert.ok(c.V122.catalog().events.some(e=>e.id==='egyesko60-2026'),'Expiry must not delete the source record');
+});
+
+test('event detail links to the original GPX and keeps the time limit distinct from duration',()=>{
+  const {context:c}=app();c.Store.todayISO=()=>'2026-10-07';
+  c.eventModal('egyesko60-2026');
+  const html=c.lastModal.body;
+  assert.match(html,/2026-10-09 – 2026-10-11/);
+  assert.match(html,/Táv: <b>59 km/);assert.match(html,/Szintemelkedés: <b>2\s?088 m/);
+  assert.match(html,/Szintidő: <b>16 óra/);assert.doesNotMatch(html,/Becsült idő/);
+  assert.match(html,/href="https:\/\/egyesko60\.ro\/assets\/egyesko60-2026\.gpx"/);
+  assert.match(html,/href="https:\/\/forms\.gle\/qMf2z1w3mdaeGo8u5"/);
+  assert.match(html,/Forrás \/ Ellenőrizve/);
+  assert.match(html,/GPX letöltése a szervezőtől/);
+});
+
+test('saving the catalog event creates a personal project with only known metrics and no fake track',()=>{
+  const {context:c}=app();c.Store.todayISO=()=>'2026-10-07';
+  const before=c.Store.myData().tours.length;
+  c.Store.toggleEvent('egyesko60-2026');
+  const own=c.Store.myData().tours.find(t=>t.eventRef==='egyesko60-2026');
+  assert.ok(c.Store.isEventSaved('egyesko60-2026'));assert.ok(own);
+  assert.equal(c.Store.myData().tours.length,before+1);
+  assert.equal(own.lengthKm,59);assert.equal(own.ascent,2088);assert.equal(own.durationH,null);
+  assert.equal(own.coords,null);assert.equal(own.gpx,null);
+  assert.match(own.notes,/https:\/\/egyesko60\.ro\/assets\/egyesko60-2026\.gpx/);
+  const {context:reloaded}=app(null,c.localStorage);
+  assert.equal(JSON.stringify(reloaded.Store.myData().tours.find(t=>t.id===own.id)),JSON.stringify(own));
 });

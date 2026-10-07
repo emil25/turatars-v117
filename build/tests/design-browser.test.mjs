@@ -45,7 +45,7 @@ const shot=async name=>{if(shotDir){fs.mkdirSync(shotDir,{recursive:true});await
 try{
   await visit('');const original=await catalog();
   const counts=await page.evaluate(()=>({tours:V122.catalog().tours.length,places:V122.catalog().places.length,events:V122.catalog().events.length,routes:v125KnownRoutes().length}));
-  assert.deepEqual(counts,{tours:13,places:3,events:8,routes:37});
+  assert.deepEqual(counts,{tours:13,places:3,events:9,routes:37});
   for(const width of [1440,390]){
     await page.setViewportSize({width,height:844});
     for(const route of publicRoutes){await visit(route);await layout(route);}

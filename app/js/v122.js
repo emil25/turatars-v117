@@ -34,7 +34,7 @@ function placeReady(p){ return !!(valid(p)&&p.name&&p.place); }
 function publicTours(){ return catalog().tours.filter(tourReady).map(normalizeTour); }
 function publicEvents(){
   var today=Store.todayISO();
-  return catalog().events.filter(function(e){ return eventReady(e) && String(e.date)>=today; }).map(normalizeEvent);
+  return catalog().events.filter(function(e){ return eventReady(e) && String(e.endDate||e.date)>=today; }).map(normalizeEvent);
 }
 function publicPlaces(){ return catalog().places.filter(placeReady); }
 function sourceLine(x){
