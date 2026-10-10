@@ -40,3 +40,7 @@ A V47 láncteszt egy köztes újrabuildeléskor modulbetöltési hibát kapott; 
 Éles publikálás eredményét a commit GitHub Actions futása és az utána elvégzett live böngészős ellenőrzés igazolja.
 
 Az első GitHub-futás (`38052527911`) helyesen blokkolta a deployt: a főoldalteszt az URL-váltás után, a regisztrációs űrlap kirajzolása előtt kérdezte le az elemek számát. A böngészős teszt most megvárja az űrlapot és a keresési eredményeket; az eredeti tartalmi állítások megmaradtak. Ez kizárólag tesztidőzítési javítás, alkalmazáskód-változás nélkül.
+
+A második GitHub-futás (`38052927317`) a katalógusteszt hasonló időzítési hibáját találta: a mentés utáni URL-váltás már megtörtént, de a túraoldal GPS-gombja még nem jelent meg az ellenőrzés pillanatában. A teszt most a ténylegesen látható túraoldalt várja meg; a rekord-, GPS-, megőrzési és mobilállítások változatlanok.
+
+Egy későbbi helyi teljes újrafuttatásban a főoldalteszt minden állítást teljesített és PASS eredményt írt ki, de a böngésző lezárásával együtt átlépte a háromperces csomag-időkorlátot. A teljes futást ezért FAIL-ként kezeljük; az időkorlátot és az ellenőrzéseket nem lazítottuk.

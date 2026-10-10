@@ -18,7 +18,7 @@ const base=process.env.TT_PREVIEW_URL || 'http://127.0.0.1:4175/';
 const errors=[],consoleErrors=[],checks=[];
 page.on('pageerror',e=>errors.push(String(e)));
 page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource|net::ERR_/i.test(m.text()))consoleErrors.push(m.text());});
-const visit=async route=>{await page.goto(base+'#/'+route,{waitUntil:'domcontentloaded'});await page.locator('#view').waitFor();};
+const visit=async route=>{await page.goto(base+'#/'+route,{waitUntil:'domcontentloaded'});await page.locator('#view h1').first().waitFor({state:'visible'});};
 const catalog=()=>page.evaluate(()=>JSON.stringify({catalog:V122.catalog(),routes:v125KnownRoutes()}));
 const resultIds=()=>page.locator('#f9-list .f9card[data-id]').evaluateAll(cards=>cards.map(c=>c.dataset.id));
 const search=async(q,diff,h)=>{
@@ -106,6 +106,7 @@ try {
   await page.locator('#wz-date').fill('2026-12-01');
   await page.locator('#wz-go').click();
   await page.waitForURL(/#\/tura\//,{waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   const picked=await page.evaluate(()=>Store.getTour(location.hash.split('/').pop()));
   assert.equal(picked.title,'Gyilkos-tó körül');
   assert.equal(picked.lengthKm,4.2);
@@ -122,6 +123,7 @@ try {
   assert.ok(await page.locator('.ai-card-rec .v122-source').count()>0);
   await page.locator('[data-aims]').last().click();
   await page.waitForURL(/#\/tura\//,{waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   assert.equal(await page.evaluate(()=>Store.myData().tours.length),3);
   assert.equal(await page.locator('#v120-start').count(),1);
   checks.push('text recommendation and existing Store save');
@@ -129,6 +131,7 @@ try {
   await search('Gyilkos','Könnyű','3');
   await page.locator('[data-f9plan="t:vh-around-red-lake"]').click();
   await page.waitForURL(/#\/tura\//,{waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   const planId=await page.evaluate(()=>Store.myData().tours.find(t=>t.extRef==='f9:t:vh-around-red-lake').id);
   const before=await page.evaluate(()=>JSON.stringify(Store.myData().tours));
   await visit('felfedezes');
@@ -136,6 +139,7 @@ try {
   assert.doesNotMatch(await page.locator('#view').innerText(),/\[object Object\]/);
   await page.locator('[data-f9open]').click();
   await page.waitForURL(new RegExp('#/tura/'+planId+'$'),{waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   assert.equal(await page.locator('#v120-start').count(),1);
   assert.equal(await page.evaluate(()=>JSON.stringify(Store.myData().tours)),before,'Opening a saved plan must not create or alter a record');
   await visit('felfedezes');
@@ -144,6 +148,7 @@ try {
   await page.locator('#modal-root [data-f9open]').click();
   await page.waitForURL(new RegExp('#/tura/'+planId+'$'),{waitUntil:'domcontentloaded'});
   await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   assert.equal(await page.evaluate(()=>JSON.stringify(Store.myData().tours)),before);
   checks.push('saved plan ID, detail button, no duplicates and reload');
 
@@ -152,6 +157,7 @@ try {
   await layout(390);
   await page.locator('[data-f9open]').click();
   await page.waitForURL(new RegExp('#/tura/'+planId+'$'),{waitUntil:'domcontentloaded'});
+  await page.locator('#v120-start').waitFor({state:'visible'});
   await layout(390);
   await visit('vezerlopult');
   await layout(390);
