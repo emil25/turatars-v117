@@ -8,6 +8,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, '..', 'dist');
 const read = (name) => fs.readFileSync(path.join(dist, name), 'utf8');
 
+test('production ships a reversible Atlas presentation without a second data store', () => {
+  const files=fs.readdirSync(path.join(dist,'assets'));
+  const js=read('assets/'+files.find(n=>/^index-.*\.js$/.test(n)));
+  const css=read('assets/'+files.find(n=>/^index-.*\.css$/.test(n)));
+  assert.match(js,/turatars_appearance_v1/);assert.match(js,/window\.TTDesign/);
+  assert.match(css,/\[data-design=.?atlas/);
+  const appearance=fs.readFileSync(path.resolve(here,'../../app/js/appearance.js'),'utf8');
+  assert.doesNotMatch(appearance,/Store\.(save|importData|updateTour|newTour)|\.auth\.|fetch\(/);
+});
+
 test('production output contains the complete V130 application shell', () => {
   assert.ok(fs.existsSync(path.join(dist, 'index.html')), 'dist/index.html is missing');
   assert.ok(fs.existsSync(path.join(dist, 'manifest.webmanifest')), 'PWA manifest is missing');

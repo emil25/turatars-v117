@@ -41,6 +41,11 @@
 - A UI csak azonos UID és egyező aktuális tartalom esetén írja, hogy „Felhőbe mentve”. Módosítás után új mentésre vár; offline/helyi trezor nem jelent cloud sikert.
 - Ez csak mentési állapotjelzés; a jogosultságot és verziókonfliktust továbbra is a meglévő Supabase adapter/RLS kezeli.
 
+## `turatars_appearance_v1` — csak megjelenési beállítás
+- `atlas` vagy `classic`, kizárólag a megjelenésválasztó írja. Nincs benne túra, session vagy felhőadat.
+- `?design=atlas` / `?design=classic` felülbírálja az eszköz beállítását; önmagában a link megnyitása nem ment választást.
+- Hiányzó/hibás/tárolás nélkül: az eredeti megjelenés. Bármikor törölhető adatvesztés nélkül.
+
 ## SW cache `turatears-vNN`
 - Shell: `/`, `index.html`, `manifest.webmanifest`; font-first fetch fallback.
 - Törölhető (frissítésnél öntisztuló). 

@@ -56,6 +56,17 @@ try {
   assert.match(await page.locator('#v130-distance').textContent(), /0[,.]\d+ km/);
   assert.equal(await page.locator('#v130-summary').getAttribute('hidden'), '');
 
+  // Switching appearance must not remount the live view or restart its GPS watch.
+  await page.evaluate(()=>{window.__appearanceLiveRoot=document.querySelector('#v120-root');window.__appearanceGpsWatch=window.__geoSuccess;});
+  for(const design of ['classic','atlas']){
+    await page.locator('[data-appearance-toggle]').click();
+    await page.locator('[data-appearance="'+design+'"]').click();
+    assert.equal(await page.evaluate(()=>document.querySelector('#v120-root')===window.__appearanceLiveRoot),true);
+    assert.equal(await page.evaluate(()=>window.__geoSuccess===window.__appearanceGpsWatch),true);
+    assert.match(await page.locator('#v130-status').textContent(),/FOLYAMATBAN/);
+    assert.ok(Number(await page.locator('#v130-points').textContent())>=2);
+  }
+
   await page.locator('#v120-pause').click();
   await page.waitForTimeout(300);
   assert.match(await page.locator('#v130-status').textContent(), /SZÜNETELTETVE/);

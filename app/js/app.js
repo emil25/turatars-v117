@@ -83,6 +83,7 @@ const App = {
 
     renderHeader();
     renderMobileNav();
+    if(window.TTDesign) window.TTDesign.refresh();
     if (DASHY.includes(location.hash.replace(/^#\/?/, "").split("/")[0]) || location.hash.startsWith("#/tura/") || location.hash.startsWith("#/tura-live/")) document.body.classList.add("in-dash");
     if (!location.hash.startsWith("#/tura/") && !location.hash.startsWith("#/tura-live/")) window.scrollTo(0, 0);
 
