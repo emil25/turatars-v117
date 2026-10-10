@@ -29,7 +29,7 @@ const P = []; const ok = (n, c, d) => { P.push([!!c, n, d === undefined ? '' : S
     await p.reload({ waitUntil: 'domcontentloaded' });
   }
   await p.locator('[data-modal] #v4_now').waitFor({ state: 'visible', timeout: 10000 });
-  ok('D meglévő local adat felismerve → offer modal', await S(() => { const m = document.querySelector('[data-modal]'); return !!m && /Mentsük el az adataidat a fiókodba/.test(m.innerText) && !!m.querySelector('#v4_now'); }));
+  ok('D meglévő local adat felismerve → offer modal', await S(() => { const m = document.querySelector('[data-modal]'); return !!m && /Mentsük el (az adataidat|a túráidat) a fiókodba/.test(m.innerText) && !!m.querySelector('#v4_now'); }));
   await S(() => { const m = document.querySelector('[data-modal]'); const x = m && m.querySelector('#v4_later'); x && x.click(); }); await sl(400);
   /* E: fiók + migráció */
   await to('#/profil'); await sl(700);

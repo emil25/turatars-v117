@@ -334,7 +334,9 @@ const Store = (() => {
       localStorage.setItem(KEY, JSON.stringify(next)); db = next; return {ok:true};
     }catch(e){ return {err:"Nem sikerült beolvasni a fájlt."}; }
   }
-  function eraseMyData(){ const u=me(); if(!u) return; db.data[u.id]=blankUserData(); save(); }
+  function eraseMyData(){ const u=me(); if(!u) return {err:"Előbb jelentkezz be."};
+    const next=JSON.parse(exportData());next.data[u.id]=blankUserData();
+    return importData(JSON.stringify(next)); }
   function journalKmTotal(){ const d=myData(); if(!d) return 0; return Math.round(d.journal.reduce((a,j)=>a+(+j.km||0),0)); }
     function setWidgetOrder(arr){ myData().widgets=arr.slice(); save(); }
   function setTheme(mode){ db.theme=mode; save(); applyTheme(); }

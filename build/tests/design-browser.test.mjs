@@ -49,7 +49,7 @@ const layout=async route=>{
   assert.deepEqual(result.outside,[],`${route}: content outside viewport`);
   assert.deepEqual(result.short,[],`${route}: controls smaller than 44px`);
 };
-const publicRoutes=['','felfedezes','esemenyek','helyek','szervezoknek','tervezes','kozossegi','belepes','regisztracio'];
+const publicRoutes=['','felfedezes','esemenyek','helyek','szervezoknek','tervezes','kozossegi','belepes','regisztracio','hasznalat'];
 const privateRoutes=['vezerlopult','turaim','uj-tura','naptar','bakancslista','felszereles','csapatok','naplo','statisztikak','ai','terkep','ertesitesek','beallitasok','profil','utvonalak','terepi','sablonok','szervezo','tarsak','inbox','hagymas','forrasok','szatt','csapat'];
 let shotDir=process.env.TT_SCREENSHOT_DIR;
 const shot=async name=>{if(shotDir){fs.mkdirSync(shotDir,{recursive:true});await page.screenshot({path:path.join(shotDir,name+'.png'),fullPage:true});}};

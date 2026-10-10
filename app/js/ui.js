@@ -32,16 +32,28 @@ function toast(msg, ico){
 
 /* ---------- MODAL ---------- */
 function openModal({title, body, footer, onOpen}){
+  const opener=document.activeElement;
   closeModal();
   const back=document.createElement("div"); back.className="modal-back"; back.dataset.modal="1";
-  back.innerHTML=`<div class="modal" role="dialog" aria-modal="true">
-    <div class="modal-h"><h3>${title}</h3><button class="icon-btn" aria-label="Bezárás" data-close>✕</button></div>
+  back.__opener=opener;
+  back.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <div class="modal-h"><h3 id="modal-title">${title}</h3><button type="button" class="icon-btn" aria-label="Bezárás" data-close>✕</button></div>
     <div class="modal-b">${body}</div>${footer?`<div class="modal-b" style="padding-top:0">${footer}</div>`:""}</div>`;
   back.addEventListener("click", e=>{ if(e.target===back || e.target.closest("[data-close]")) closeModal(); });
   document.getElementById("modal-root").appendChild(back);
+  const focusable=()=>[...back.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(e=>!e.disabled&&e.getClientRects().length);
+  back.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){e.preventDefault();e.stopPropagation();closeModal();return;}
+    if(e.key!=="Tab")return;
+    const list=focusable(),first=list[0],last=list[list.length-1];
+    if(!first){e.preventDefault();back.querySelector('.modal').focus();return;}
+    if(e.shiftKey&&(document.activeElement===first||!list.includes(document.activeElement))){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&(document.activeElement===last||!list.includes(document.activeElement))){e.preventDefault();first.focus();}
+  });
   onOpen && onOpen(back);
+  if(back.isConnected){const target=focusable().find(e=>e.matches('input:not([type="file"]),textarea,select'))||back.querySelector('[data-close]');(target||back.querySelector('.modal')).focus({preventScroll:true});}
 }
-function closeModal(){ document.querySelectorAll("[data-modal]").forEach(m=>m.remove()); }
+function closeModal(){ document.querySelectorAll("[data-modal]").forEach(m=>{const opener=m.__opener;m.remove();if(opener&&opener.isConnected)opener.focus({preventScroll:true});}); }
 function confirmDlg(txt, yesLabel, onYes){
   openModal({ title:"Biztos vagy benne?",
     body:`<p class="muted mt0">${esc(txt)}</p>`,

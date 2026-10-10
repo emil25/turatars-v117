@@ -299,8 +299,8 @@ function acctModal(prefillEmail, intent){ var em=prefillEmail||((Store.me()||{})
   openModal({ title: intent==="restore"? "☁️ Fiók a visszaállításhoz" : "☁️ Fiók létrehozása és mentés", body:
     '<div class="e2form"><label class="f">E-mail *</label><input class="input" id="v4_e" type="email" value="'+esc4(em)+'">'+
     '<label class="f">Jelszó (min. 8 char) *</label><input class="input" id="v4_p" type="password">'+
-    (isRemote()? '<p class="small muted">💾 A mentés a szerverre megy: '+esc4(remoteBase())+"</p>" :
-     '<p class="small muted">🔒 Ezen az eszközön elkülönített trezorba mentünk (PBKDF2). Valódi szerver-csatlakozás után ugyanígy a felhőbe — az UI ugyanaz marad.</p>')+
+    (isRemote()? '<p class="small muted">A mentés a saját felhőfiókodba kerül. A helyi példány is megmarad.</p>' :
+     '<p class="small muted">Ezen az eszközön elkülönített helyi trezorba mentünk. Ez nem másik eszközön elérhető felhőmentés.</p>')+
     '<p class="small muted">E-mail + jelszó bejelentkezés. Google bejelentkezés jelenleg nem elérhető.</p>'+
     '<p id="v4_err" class="e2-err" style="display:none"></p></div>',
    footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="v4_go">'+(intent==="restore"?"🔓 Belépés és visszaállítás":"☁️ Fiók és mentés most")+"</button>",
@@ -357,8 +357,8 @@ function maybeOffer(){ try{ if(v54Busy()) return; var u=Store.me(); if(!u) retur
   var d=(function(){ try{ var dd=JSON.parse(localStorage.getItem("turavaros_v1")); return dd&&dd.data&&dd.data[u.id]; }catch(e){ return null; } })();
   if(!d) return; if(!( (d.tours||[]).length || (d.journal||[]).length || (d.routes||[]).length || (d.wishlist||[]).length )) return void 0;
   sets.offers=sets.offers||{}; sets.offers[normEmail(u.email)]=Date.now(); setSettings(sets);
-  _v54Shown=1; openModal({ title:"☁️ Fiók és adatbiztonság", body:'<p class="muted mt0" style="font-weight:600">☁️ Mentsük el az adataidat a fiókodba?</p><p class="small muted" style="margin:.2rem 0">Eddig csak ezen a böngészőn tároltuk — e-mail + jelszó (PBKDF2) védett tárolóba mentjük; szerver csatlakozása után ugyanígy a felhőbe.</p>'+
-    "<p class=\"small\">🥾 "+((d.tours||[]).length)+" projekt · 🗺️ "+((d.routes||[]).length)+" útvonal · 📖 "+((d.journal||[]).length)+" élmény — helyben maradnak, nem törlődnek semmi caso-ban sem.</p>",
+  _v54Shown=1; openModal({ title:"☁️ Fiók és adatbiztonság", body:'<p class="muted mt0" style="font-weight:600">Mentsük el a túráidat a fiókodba?</p><p class="small muted" style="margin:.2rem 0">'+(isRemote()?"A saját felhőfiókodba készíthetsz mentést; a helyi példány is megmarad.":"Most ezen az eszközön, elkülönített helyi trezorba tudsz menteni. Ez még nem felhőmentés.")+'</p>'+
+    "<p class=\"small\">🥾 "+((d.tours||[]).length)+" projekt · 🗺️ "+((d.routes||[]).length)+" útvonal · 📖 "+((d.journal||[]).length)+" élmény. A mentés nem törli a helyi adatokat.</p>",
     footer:'<button class="btn btn-ghost" id="v4_later">Most kihagyom</button> <button class="btn btn-primary" id="v4_now">☁️ Mentés a fiókba</button>',
     onOpen:function(m){ m.querySelector("#v4_now").onclick=function(){ closeModal(); acctModal(u.email,"save"); }; m.querySelector("#v4_later").onclick=function(){ closeModal(); }; } });
 }catch(e){} }
@@ -383,7 +383,7 @@ function c54Inner(){ var s=sess; var remote=isRemote();
       '<button class="btn btn-ghost btn-sm" id="c54-out">🚪 Fiók kilépés</button>'+
       '<button class="btn btn-ghost btn-sm" id="c54-back">↩️ Előző helyi állapot visszaállítása</button>'+
     "</div>"+
-    '<p class="small muted">E-mail + jelszó belépés aktív. A Google bejelentkezés jelenleg nem elérhető.</p>'; }
+    '<p class="small muted">A profil mentése és a teljes túraállomány mentése külön művelet. <a href="#/hasznalat">Mit és hogyan ment az alkalmazás?</a></p>'; }
 function renderBlock(){ try{ var root=document.getElementById("c54sec"); if(!root) return; root.innerHTML=c54Inner(); wireBlock();refreshCloudStatus(document); }catch(e){} }
 function wireBlock(){ var $=function(id){ return document.getElementById(id); };
   var b=$("c54-link"); if(b) b.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };

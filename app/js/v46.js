@@ -215,7 +215,7 @@ VIEWS.inbox = function(){ var n=ibAll().filter(function(x){return ibStatus(x)===
     '<div class="ib26-filters">'+[""  ,"link","event","photo","note","tour","place"].map(function(k){
       return '<button class="f-pill'+(ibCat===k?" on":"")+'" data-cat="'+k+'">'+(k?IB_T[k][0]+" "+IB_T[k][1]:"Mind")+"</button>"; }).join("")+"</div>"+
     '<div id="ib26-list"></div>'+
-    '<p class="small muted center" style="margin:1.2rem 0 1rem;opacity:.8">Az adataid csak ebben a böngészőben tárolódnak — nem hagyják el a készüléket.</p>'+
+    '<p class="small muted center" style="margin:1.2rem 0 1rem">Ez a saját ötlettárad, nem üzenetküldő. A mentett linkek és jegyzetek helyben tárolódnak; a fiókba mentéssel a saját felhőmentésedbe is bekerülnek. <a href="#/beallitasok">Mentések kezelése</a></p>'+
     "</div>"); };
 VIEWS.inbox.after = function(root){ ibRepaint();
   var nb=root.querySelector("#ib26-new"); if(nb) nb.onclick=function(){ ibComposer("link"); };
@@ -229,6 +229,7 @@ VIEWS.inbox.after = function(root){ ibRepaint();
     var idg=b.getAttribute("data-ib2gpx"); if(idg){ try{ window.openGPXImport({inboxId:idg, tripId:(ibGet(idg)||{}).linkedTourId||null}); }catch(e){ toast("A GPX Modul nem érhető el","🗺️"); } } }); };
 VIEWS.inbox.after = (function(orig){ return function(root){ orig&&orig(root);   var lst=root.querySelector("#ib26-list");
   if(lst) lst.addEventListener("click", function(ev0){ var b=ev0.target.closest("[data-ib2w],[data-ib2t],[data-ib2e],[data-ib2r],[data-ib2d],[data-ib2gpx]"); if(!b) return;
+    ev0.stopPropagation(); // The parent delegate handles composer actions; list actions run once here.
     var idw=b.getAttribute("data-ib2w"), idt=b.getAttribute("data-ib2t"), ide=b.getAttribute("data-ib2e"), idr=b.getAttribute("data-ib2r"), idd=b.getAttribute("data-ib2d");
     if(idw) ibWish(idw); if(idt) ibTrip(idt); if(ide){ var x=ibGet(ide); if(x) ibComposer(x.type,x); } if(idr) ibMark(idr); if(idd) ibDel(idd);
     var idg=b.getAttribute("data-ib2gpx"); if(idg){ try{ window.openGPXImport({inboxId:idg, tripId:(ibGet(idg)||{}).linkedTourId||null}); }catch(e){ toast("A GPX Modul nem érhető el","🗺️"); } } });

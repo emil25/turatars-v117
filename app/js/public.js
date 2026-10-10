@@ -255,7 +255,7 @@ function footer(){ return `<footer class="pub-foot"><div class="wrap">
   <div><div class="fbrand">Túratárs</div>
     <p class="small" style="max-width:34ch;color:#bcd6c2">A túrázók személyes digitális központja. Tervezés · szervezés · teljesítés · dokumentálás — egy helyen, magyarul.</p></div>
   <div><h4>Felfedezés</h4><a href="#/felfedezes">Túrák</a><a href="#/esemenyek">Események</a><a href="#/helyek">Helyek</a></div>
-  <div><h4>Fiók</h4><a href="#/regisztracio">Regisztráció</a><a href="#/belepes">Bejelentkezés</a><a href="#/vezerlopult">Vezérlőpult</a></div>
+  <div><h4>Fiók</h4><a href="#/regisztracio">Regisztráció</a><a href="#/belepes">Bejelentkezés</a><a href="#/vezerlopult">Vezérlőpult</a><a href="#/hasznalat">Használati tudnivalók</a></div>
   <div><h4>Közösség</h4><a href="#/csapatok">Túracsoportok</a><a href="#/ai">AI Túratervező</a><a href="#/terkep">Túratérkép</a></div>
   <div class="fine"><span>© 2026 Túratárs · turatars.ro · Képek: Unsplash, Nagyhagymás KKT · Eseményforrások: CsEKE, SzATT, visitharghita.ro</span><span>Készült: 🌲 a Bakban és a Székelyföldön</span></div>
 </div></footer>`; }
@@ -408,11 +408,11 @@ VIEWS.szervezoknek = () => {
     <section class="organizer-public-hero">
       <div class="organizer-intro"><span class="eyebrow">Szervezőknek</span>
       <h1>Te hozod az ötletet.<br>Induljatok együtt.</h1>
-      <p>Szervezz túrát a Túratársban. A program, az útvonal és a jelentkezők egy helyen, a saját túrázó fiókod mellett.</p>
+      <p>Készíts túraprogramot, útvonalat és saját résztvevőlistát a túrázó fiókod mellett.</p>
       <div class="organizer-cta">
         <a class="btn btn-primary" href="${u?"#/szervezo":"#/regisztracio"}">${u?"Szervezői központ megnyitása":"Szervezőként csatlakozom"} →</a>
         ${u?"":`<a class="btn btn-ghost" href="#/belepes">Már van fiókom</a>`}
-      </div><p class="small muted">A saját túráid és a helyi mentéseid megmaradnak.</p></div>
+      </div><p class="small muted">A szervezői eseménykezelés jelenleg saját helyi nyilvántartás; még nem fogad más eszközről online jelentkezéseket. <a href="#/hasznalat">Használati tudnivalók</a></p></div>
       <aside class="organizer-steps" aria-label="A szervezés lépései"><span class="eyebrow">Az ötlettől az indulásig</span>
         <ol><li><span>01</span><div><h3>Mutatkozz be</h3><p>Hozd létre a szervezői profilodat.</p></div></li><li><span>02</span><div><h3>Rakd össze a programot</h3><p>Dátum, helyszín, leírás és GPX, ha van.</p></div></li><li><span>03</span><div><h3>Készülj a csapattal</h3><p>Kövesd a jelentkezőket és a férőhelyeket.</p></div></li></ol>
       </aside>
@@ -476,6 +476,16 @@ VIEWS.tourDetail = (id) => { tourModal(id); NAV.to(history.state&&location.hash.
 /* ================= AUTH ================= */
 function cloudAuthEnabled(){ try{ return !!(window.__V54&&window.__V54.api&&window.__V54.api.cloudAuthEnabled&&window.__V54.api.cloudAuthEnabled()); }catch(e){ return false; } }
 function cloudAuthError(e){ try{ return window.__V54.api.errorText(e); }catch(x){ return "A művelet most nem sikerült. A helyi adataid érintetlenek."; } }
+VIEWS.usage = () => `<div class="wrap usage-page">
+  <header class="page-heading"><div><span class="eyebrow">Túratárs · használati tudnivalók</span><h1>A túrád, lépésről lépésre</h1><p>Tervezés, felkészülés, GPS-rögzítés és napló egy helyen.</p></div><a class="btn btn-soft" href="#/">← Főoldal</a></header>
+  <div class="grid g2">
+    <section class="card panel"><h2>1. Tervezd meg</h2><p>Válassz forrásolt túrát vagy készíts saját tervet. Adj hozzá dátumot, felszerelést, jegyzeteket és meglévő GPX-útvonalat.</p><a class="btn btn-soft" href="#/felfedezes">Túrák felfedezése</a></section>
+    <section class="card panel"><h2>2. Indulj el</h2><p>A GPS-rögzítéshez engedélyezd a helymeghatározást. Internet nélkül is készülhet helyi felvétel. A böngésző háttérbe küldése vagy a telefon lezárása megszakíthatja a GPS-frissítést; ellenőrizd a rögzítést.</p></section>
+    <section class="card panel"><h2>3. Őrizd meg</h2><p>A saját túráid először ezen a böngészőn mentődnek. A böngészőadatok törlése vagy privát böngészés miatt a helyi példány elveszhet. A felhőmentést a Beállításokban vagy a túratervedben külön indíthatod.</p><p>Másik eszközön belépés után töltsd be a fiókod mentését. Eltérő mentésnél a rendszer megáll; nem írja felül csendben az adatokat.</p><a class="btn btn-soft" href="#/beallitasok">Fiók és mentések</a></section>
+    <section class="card panel"><h2>4. Oszd meg tudatosan</h2><p>A saját GPS-felvételed alapból privát. A Közösségi túrákba csak külön közzététellel kerülhet; a GPX megosztásáról is te döntesz.</p><p>A jelenlegi csapatlista és társmeghívó a helyi szervezést segíti. Még nem közös, több felhasználó között szinkronizált csapat vagy chat. Az Inbox a saját link- és jegyzettárad.</p><a class="btn btn-soft" href="#/kozossegi">Közösségi túrák</a></section>
+  </div>
+  <section class="card panel usage-safety"><h2>Indulás előtt</h2><p>Az útvonal és a GPS segédeszköz: ellenőrizd az időjárást, a járhatóságot és a szükséges felszerelést. Offline a külső térkép és az új útvonaltervezés nem feltétlenül érhető el; a betöltött GPX és a helyi GPS-rögzítés ettől független.</p><p class="muted mb0">Ez a jelenlegi működést ismertető tájékoztató, nem szerződéses feltétel vagy teljes adatkezelési tájékoztató.</p></section>
+  ${footer()}</div>`;
 VIEWS.login = () => `
 <div class="auth-shell" style="min-height:70vh">
   <form class="card auth-card" id="login-form" novalidate>
@@ -484,18 +494,21 @@ VIEWS.login = () => `
     <label class="f" for="li-e">E-mail-cím</label><input class="input" id="li-e" type="email" autocomplete="email" placeholder="pelda@mail.hu" required>
     <div style="height:.9rem"></div>
     <label class="f" for="li-p">Jelszó</label>
-    <div class="pw-row"><input class="input" id="li-p" type="password" autocomplete="current-password"><button type="button" class="pw-eye" data-t="li-p" aria-label="Jelszó mutatása">👁</button></div>
+    <div class="pw-row"><input class="input" id="li-p" type="password" autocomplete="current-password" required><button type="button" class="pw-eye" data-t="li-p" aria-label="Jelszó mutatása">👁</button></div>
     <p class="field-err hidden" id="li-err" role="alert"></p>
-    <button class="btn btn-primary btn-lg btn-block" style="margin-top:.6rem">Bejelentkezés</button>
+    <button type="submit" class="btn btn-primary btn-lg btn-block" style="margin-top:.6rem">Bejelentkezés</button>
+    <p class="small muted"><a href="#/hasznalat">Hogyan működik a Túratárs és a mentés?</a></p>
     <p class="auth-switch">Nincs még fiókod? <a href="#/regisztracio">Regisztrálj egyet — ingyenes</a></p>
   </form></div>`;
 VIEWS.login.after = root => {
   const f=root.querySelector("#login-form");
   root.querySelectorAll(".pw-eye").forEach(b => b.onclick = () => { const t=root.querySelector("#"+b.dataset.t); t.type = t.type==="password"?"text":"password"; b.textContent = t.type==="password"?"👁":"🙈"; });
   f.onsubmit = async e => { e.preventDefault();
+    if(f.dataset.busy)return;
     const err=root.querySelector("#li-err"); err.classList.add("hidden");
     const email=root.querySelector("#li-e").value.trim().toLowerCase(), password=root.querySelector("#li-p").value;
-    const submit=f.querySelector("button[type=submit]"); if(submit) submit.disabled=true;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!password){err.textContent="Adj meg érvényes e-mail-címet és jelszót.";err.classList.remove("hidden");root.querySelector(!password?'#li-p':'#li-e').focus();return;}
+    const submit=f.querySelector("button[type=submit]"); f.dataset.busy="1";f.setAttribute("aria-busy","true");if(submit){submit.disabled=true;submit.textContent="Belépés folyamatban…";}
     try{
       if(cloudAuthEnabled()){
         const r=await window.__V54.api.authLogin(email,password);
@@ -509,7 +522,7 @@ VIEWS.login.after = root => {
       toast(`Szia újra, ${u.name.split(" ")[0]}! 👋`,"🥾");
       NAV.to(u.onboarded ? "#/vezerlopult" : "#/onboarding");
     }catch(e){ err.textContent=cloudAuthEnabled()?cloudAuthError(e):"Hibás e-mail vagy jelszó."; err.classList.remove("hidden"); }
-    finally{ if(submit) submit.disabled=false; }
+    finally{ delete f.dataset.busy;f.removeAttribute("aria-busy");if(submit){submit.disabled=false;submit.textContent="Bejelentkezés";} }
   };
 };
 
@@ -517,7 +530,7 @@ VIEWS.register = () => `
 <div class="auth-shell" style="min-height:70vh">
   <form class="card auth-card" id="reg-form" novalidate>
     <h1 class="mb0" style="font-size:1.7rem">Készítsd el a túraközpontodat</h1>
-    <p class="muted">${cloudAuthEnabled()?"Ingyenes — a fiókod Supabase Auth-tal védett, a helyi túraadatok pedig offline is megmaradnak.":"Ingyenes — az adataid csak a saját böngésződben tárolódnak."}</p>
+    <p class="muted">${cloudAuthEnabled()?"Ingyenes — saját fiókkal és felhőmentéssel. A helyi túraadatok offline is használhatók.":"Ingyenes — az adataid ezen a böngészőn tárolódnak; felhőkapcsolat most nincs."}</p>
     <label class="f" for="rg-n">Neved</label><input class="input" id="rg-n" autocomplete="name" placeholder="Kovács Anna">
     <div style="height:.7rem"></div>
     <label class="f" for="rg-c">Honnan szoktál elindulni?</label><input class="input" id="rg-c" placeholder="Pl. Csíkszereda, Gyergyószentmiklós, Kolozsvár…">
@@ -530,9 +543,9 @@ VIEWS.register = () => `
     <div style="height:.5rem"></div>
     <label class="f" for="rg-p2">Jelszó újra</label>
     <div class="pw-row"><input class="input" id="rg-p2" type="password" autocomplete="new-password"><button type="button" class="pw-eye" data-t="rg-p2" aria-label="Jelszó mutatása">👁</button></div>
-    <label class="chk-row"><input type="checkbox" id="rg-t"><span>Elfogadom a <a href="#/rolunk">szolgáltatás feltételeit</a>.</span></label>
+    <label class="chk-row"><input type="checkbox" id="rg-t"><span>Megértettem a <a href="#/hasznalat" target="_blank" rel="noopener">használati és adattárolási tudnivalókat</a>.</span></label>
     <ul class="form-err hidden" id="rg-err" role="alert"></ul>
-    <button class="btn btn-primary btn-lg btn-block" style="margin-top:.8rem">✅ Fiók létrehozása</button>
+    <button type="submit" class="btn btn-primary btn-lg btn-block" style="margin-top:.8rem">✅ Fiók létrehozása</button>
     <p class="auth-switch">Már van fiókod? <a href="#/belepes">Bejelentkezés</a></p>
   </form></div>`;
 VIEWS.register.after = root => {
@@ -543,6 +556,7 @@ VIEWS.register.after = root => {
     let sc = (v.length>=8?1:0)+(v.length>=12?1:0)+(/[a-z]/.test(v)&&/[A-Z]/.test(v)?1:0)+((/\d/.test(v)&&/[^A-Za-z0-9]/.test(v))?2:(/\d/.test(v)?1:0));
     sc=Math.min(4,sc); meter.className="pw-meter m"+sc; meter.querySelectorAll("i").forEach((el,i)=>el.classList.toggle("on",i<sc)); });
   root.querySelector("#reg-form").onsubmit = async e => { e.preventDefault();
+    const form=root.querySelector('#reg-form');if(form.dataset.busy)return;
     const errs=[];
     if(val("rg-n").trim().length<2) errs.push("Add meg a neved (legalább 2 karakter).");
     const EM = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
@@ -550,11 +564,11 @@ VIEWS.register.after = root => {
     if(val("rg-p").length<8) errs.push("A jelszónak legalább 8 karakter hosszúnak kell lennie.");
     else if(!/[a-zA-Z]/.test(val("rg-p")) || !/[0-9]/.test(val("rg-p"))) errs.push("A jelszóban legyen betű és szám is.");
     if(val("rg-p2")!==val("rg-p")) errs.push("A két jelszó nem egyezik meg.");
-    if(!root.querySelector("#rg-t").checked) errs.push("Fogadd el a szolgáltatás feltételeit.");
+    if(!root.querySelector("#rg-t").checked) errs.push("Olvasd el és jelöld be a használati tudnivalókat.");
     const ul=root.querySelector("#rg-err");
     if(errs.length){ ul.innerHTML=errs.map(x=>`<li>${x}</li>`).join(""); ul.classList.remove("hidden"); return; }
     const name=val("rg-n").trim(), email=val("rg-e").trim().toLowerCase(), password=val("rg-p"), city=val("rg-c").trim();
-    const submit=root.querySelector("button[type=submit]"); if(submit) submit.disabled=true;
+    const submit=form.querySelector("button[type=submit]");form.dataset.busy="1";form.setAttribute("aria-busy","true");if(submit){submit.disabled=true;submit.textContent="Fiók létrehozása…";}
     try{
       if(cloudAuthEnabled()){
         const r=await window.__V54.api.authSignup(email,password,name,city);
@@ -568,18 +582,18 @@ VIEWS.register.after = root => {
       toast(`Üdv a túraközpontban, ${u.name.split(" ")[0]}! 👋`,"🎒");
       NAV.to("#/onboarding");
     }catch(e){ ul.innerHTML=`<li>${esc(cloudAuthEnabled()?cloudAuthError(e):"A regisztráció nem sikerült.")}</li>`; ul.classList.remove("hidden"); }
-    finally{ if(submit) submit.disabled=false; }
+    finally{delete form.dataset.busy;form.removeAttribute("aria-busy");if(submit){submit.disabled=false;submit.textContent="✅ Fiók létrehozása";} }
   };
 };
 /* --- Onboarding kérdéssor (restore) --- */
 let obAnswer = {};
 const OB_STEPS = [
-  {k:"from", t:"Honnan szoktál elindulni?", sub:"Közeledtünk a környék túráit és eseményeit.", input:true},
-  {k:"style", t:"Milyen túrákon jársz szívesen?", multi:true, sub:"Csomaglistát, időtervet és ételvízt ehhez igazítjuk.",
+  {k:"from", t:"Honnan szoktál elindulni?", sub:"Add meg a települést, ahonnan általában útnak indulsz.", input:true},
+  {k:"style", t:"Milyen túrákon jársz szívesen?", multi:true, sub:"Jelöld meg a kedvelt túratípusokat.",
    opts:[{v:"Könnyű, családi", i:"🧺"},{v:"Egynapos hegyi", i:"🥾"},{v:"Többnapos, sátorozós", i:"⛺"},{v:"Téli / gerinc", i:"❄️"}]},
-  {k:"pace", t:"Mennyi idéd van jellemzően egy túrára?", sub:"Az időterv és a tempó ettől függ.",
+  {k:"pace", t:"Mennyi időd van jellemzően egy túrára?", sub:"Válaszd ki, mennyi időt szánsz általában egy túrára.",
    opts:[{v:"2–4 óra", i:"🌗"},{v:"Egy teljes nap", i:"🌞"},{v:"Hétvége", i:"🏕️"}]},
-  {k:"company", t:"Kivel túrázol jellemzően?", sub:"A résztvevők és az utazás così ez alapján.",
+  {k:"company", t:"Kivel túrázol jellemzően?", sub:"Válaszd ki a rád leginkább jellemző lehetőséget.",
    opts:[{v:"Egyedül", i:"🚶"},{v:"Kettő/párban", i:"👫"},{v:"Családdal", i:"👨‍👩‍👧"},{v:"Túracsoporttal", i:"👥"}]}
 ];
 /* onboarding állapot */ let obStep = 0;

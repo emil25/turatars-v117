@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test tests/build-output.test.mjs tests/catalog-regression.test.mjs tests/supabase-adapter.test.mjs tests/tour-center.test.mjs",
+    "test": "npm run build && node --test tests/build-output.test.mjs tests/catalog-regression.test.mjs tests/supabase-adapter.test.mjs tests/tour-center.test.mjs tests/usability.test.mjs",
     "test:browser": "node tests/run-browser-tests.mjs"
   },
   "dependencies": {

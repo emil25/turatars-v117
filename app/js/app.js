@@ -12,13 +12,13 @@ const App = {
     const arg = seg[1];
     const ROUTES = {
       "": "home", felfedezes: "discover", esemenyek: "events", helyek: "places",
-      turak: "tourDetail", belepes: "login", regisztracio: "register", onboarding: "onboarding",
+      turak: "tourDetail", belepes: "login", regisztracio: "register", hasznalat: "usage", onboarding: "onboarding",
       vezerlopult: "dash", turaim: "tours", "uj-tura": "newTour", tura: "workspace", "tura-live": "liveTour", naptar: "calendar",
       bakancslista: "wishlist", felszereles: "equipment", csapatok: "teams", naplo: "journal",
       statisztikak: "stats", hagymas: "hagymas", tervezes: "planner", kozossegi: "communityTours", biztonsag: "security", csapat: "csapatstat", szatt: "szatt", ai: "ai", inbox: "inbox", terkep: "mymap", ertesitesek: "notifs", beallitasok: "settings", profil: "profile",
       utvonalak: "routes", turamod: "tourmode", terepi: "terepi", sablonok: "templates", osztott: "share", szervezo: "szervezo", szervezoknek: "szervezoknek", tarsak: "tarsak", meghivo: "meghivo", forrasok: "v122Admin"
     };
-    const DASHY = ["security","csapatstat","dash", "tours", "newTour", "workspace", "liveTour", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo", "v122Admin"];
+    const DASHY = ["security","csapatstat","dash", "inbox", "tours", "newTour", "workspace", "liveTour", "calendar", "wishlist", "equipment", "teams", "routes", "journal", "stats", "ai", "mymap", "notifs", "settings", "profile", "tourmode", "terepi", "templates", "szervezo", "tarsak", "meghivo", "v122Admin"];
     let key = ROUTES[route] || "404";
 
     if (DASHY.includes(key) && !Store.me()) {
@@ -94,7 +94,7 @@ const App = {
         setTimeout(() => openModal({
           title: "Lejárt egy túraterved 🥾",
           body: `<p class="mt0">A(z) <b>${esc(over.title)}</b> terve ${fmtDateFull(over.date)}-ra szólt — mi történt?
-            Ha megvolt, naplózd fel pár sorban; ha elmaradt, tervezd újra egy nieuwe dátumra.</p>`,
+            Ha megvolt, naplózd fel pár sorban; ha elmaradt, tervezd újra egy új dátumra.</p>`,
           footer: `<div class="flex" style="gap:.5rem;justify-content:flex-end;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" data-close>Később</button>
             <button class="btn btn-soft btn-sm" id="pm-move">Újratervezem</button>

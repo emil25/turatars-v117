@@ -128,8 +128,9 @@ VIEWS.teams = () => {
   const nextShared = t => { const names=new Set(t.members.map(m=>m.name));
     return Store.upcoming().find(x=>x.participants.some(p=>names.has(p.name)) && x.participants.length>=2); };
   return dash("#/csapatok")(`
-    <div class="dash-top"><div><h1>Túracsapatok 👥</h1><div class="hello">Barátok, közös túrák, autók — egyszerűen.</div></div>
+    <div class="dash-top"><div><h1>Túracsapatok 👥</h1><div class="hello">Saját csapatlisták a túráid előkészítéséhez.</div></div>
       <button class="btn btn-primary" id="tm-new">➕ Csapat létrehozása</button></div>
+    <p class="usage-note">A csapat és tagjai a saját listádban szerepelnek. Ez még nem közös, több felhasználó által szinkronizált csapat. <a href="#/hasznalat">Használati tudnivalók</a></p>
     <div class="grid g2">
       ${d.teams.map(t=>{ const nt = nextShared(t); return `
       <div class="card panel">
@@ -147,7 +148,7 @@ VIEWS.teams = () => {
     </div>
     <h2 style="font-size:1.15rem;margin-top:2rem">👥 Csatlakozás hívókóddal</h2>
     <div class="card panel" style="padding:1rem">
-      <p class="muted small mt0" style="margin-bottom:.5rem">Kaptál kódot a túratársadtól? Írd be — ha a csapat ezen a gépen szerepel, a te listádba kerülsz. A többeszközös szinkron szerveres háttérrel jön.</p>
+      <p class="muted small mt0" style="margin-bottom:.5rem">A kód csak a saját, ezen az eszközön elérhető csapatlistádban keres. Más felhasználó csapatához ezen keresztül még nem lehet csatlakozni.</p>
       <div class="flex" style="gap:.6rem;flex-wrap:wrap"><input class="input" id="jc-in" placeholder="Pl. A1B2" style="width:150px;text-transform:uppercase"><button class="btn btn-primary btn-sm" id="jc-go">Csatlakozom</button>
       <a class="btn btn-ghost btn-sm" href="#/uj-tura">➕ Új túra a csapattal</a></div></div>
 `);
@@ -172,7 +173,7 @@ VIEWS.teams.after = root => {
   root.querySelectorAll("[data-invite]").forEach(b=>b.onclick=()=>{ const t=Store.teamById(b.dataset.invite);
     if(!t.inviteCode){ t.inviteCode=Math.random().toString(36).slice(2,6).toUpperCase(); Store.save(); }
     const msg="Gyere a(z) "+t.name+" túracsapatba a Túratársban! Csatlakozó kód: "+t.inviteCode+" — "+location.href.split("#")[0];
-    openModal({title:"📨 Meghívás — "+esc(t.name), body:`<p class="small muted mt0">Küldd el ezt a szöveget (Messenger, SMS, mail). A kódot a meghívott a „Csatlakozás hívókóddal” mezőbe írja be.</p>
+    openModal({title:"📨 Meghívás — "+esc(t.name), body:`<p class="small muted mt0">A szöveget elküldheted egyeztetéshez. A kód más felhasználó eszközén még nem hoz létre közös csapattagságot; a neveket a saját listádban tartod nyilván.</p>
       <div class="code-line"><b id="inv-code">${t.inviteCode}</b><button class="btn btn-soft btn-sm" id="inv-copy">Kód másolása</button></div>
       <label class="f" for="inv-msg" style="margin-top:.7rem">Meghívó szöveg</label><textarea class="input" id="inv-msg" rows="3" style="font-size:.85rem">${esc(msg)}</textarea>
       <label class="f" for="inv-name" style="margin-top:.7rem">Vagy vedd fel neved szerint a csapat listába:</label>
@@ -425,11 +426,12 @@ VIEWS.settings = () => {
       <div class="flex between" style="padding:.4rem 0"><div>Időjárás-ellenőrzés a kezdőoldalon <div class="small muted">A következő túrád helyszínére 14 napos előrejelzéssel.</div></div>
         <label class="toggle"><input type="checkbox" ${ (u.prefs&&u.prefs.weather!==false) ? "checked":"" }><i></i></label></div>
       <div class="flex between" style="padding:.4rem 0;border-top:1px solid var(--line)">
-        <div><small>Minden adat csak a saját böngésződben (localStorage) tárolódik — ezért az app offline is működik.</small></div>
+        <div><small>A túraadatoknak ezen a böngészőn helyi példánya van. A felhőmentést külön indíthatod a Fiók és szinkronizálás résznél. A böngészőadatok törlése a helyi példányt eltávolíthatja.</small></div>
       </div>
     </div>
     <div class="card panel">
       <h3>🔐 Jelszó és fiók</h3>
+      <p class="small muted">Ez a régi helyi fiók jelszavát kezeli. Felhőfiókkal belépve itt nem változtatjuk meg a bejelentkezési jelszót.</p>
       <div class="pw-row"><input class="input" id="st-old" type="password" placeholder="Jelenlegi jelszó" autocomplete="current-password"><button type="button" class="pw-eye" data-t="st-old" aria-label="Mutat">👁</button></div>
       <div style="height:.5rem"></div>
       <div class="pw-row"><input class="input" id="st-new" type="password" placeholder="Új jelszó (min. 8, betű + szám)" autocomplete="new-password"><button type="button" class="pw-eye" data-t="st-new" aria-label="Mutat">👁</button></div>
@@ -445,28 +447,29 @@ VIEWS.settings = () => {
       <div style="border-top:1px solid var(--line);margin-top:1rem"></div>
       <h3><span class="warn-ic">⚠️</span> Veszélyes zóna</h3>
       <div class="flex wrapcol" style="gap:.6rem">
-        <button class="btn btn-danger btn-sm" id="st-reset">🧹 Saját adataim törlése</button>
+        <button class="btn btn-danger btn-sm" id="st-reset">🧹 Saját helyi adataim törlése</button>
         <button class="btn btn-ghost btn-sm" id="st-logout">🚪 Kijelentkezés</button></div>
     </div></div>`);
 };
 VIEWS.settings.after = root => {
   root.querySelectorAll(".pw-eye").forEach(b => b.onclick = () => { const t=root.querySelector("#"+b.dataset.t); t.type = t.type==="password"?"text":"password"; b.textContent = t.type==="password"?"👁":"🙈"; });
   root.querySelector("#st-pass").onclick = () => { const err=root.querySelector("#st-pw-err"); err.classList.add("hidden");
+    if(cloudAuthEnabled()){err.textContent="A felhőfiók jelszavának módosítása ezen a felületen még nem érhető el. A jelszavadat és a helyi adataidat nem változtattuk meg.";err.classList.remove("hidden");return;}
     const gv=i=>root.querySelector("#"+i).value;
     if(gv("st-new")!==gv("st-new2")){ err.textContent="Az új jelszó megerősítése nem egyezik."; err.classList.remove("hidden"); return; }
     const r=Store.changePassword(gv("st-old"), gv("st-new"));
     if(r.err){ err.textContent=r.err; err.classList.remove("hidden"); return; }
     ["st-old","st-new","st-new2"].forEach(i=>root.querySelector("#"+i).value="");
-    toast("A jelszó módosulhat ✔","🔐"); };
+    toast("A helyi fiók jelszava módosítva","🔐"); };
   root.querySelector("#st-save").onclick=()=>{ Store.updateProfile({name:root.querySelector("#st-n").value.trim()||Store.me().name, city:root.querySelector("#st-c").value.trim()}); var cloudSave=window.__V54&&window.__V54.api&&window.__V54.api.saveProfileFromLocal; if(cloudSave) Promise.resolve(cloudSave()).then(()=>toast("Adatok mentve a fiókba","✅")).catch(()=>toast("Adatok helyben mentve; a felhőmentés nem sikerült","⚠️")).then(()=>render()); else { toast("Adatok mentve","✅"); render(); } };
   root.querySelector("#st-gkm").addEventListener("change",e=>{ Store.myData().goals.km=Math.max(10,+e.target.value||300); Store.save(); });
   root.querySelectorAll("[data-th]").forEach(b=>{const cur=(Store.getTheme&&Store.getTheme())||"light"; b.classList.toggle("on", b.dataset.th===cur);
       b.onclick=()=>{ Store.setTheme(b.dataset.th); location.reload(); };});
     root.querySelector("#st-ob").onclick=()=>{ OB_STEPS && (obStep=0, obAnswer={}); Store.updateProfile({onboarded:false}); NAV.to("#/onboarding"); };
-  root.querySelector("#st-reset").onclick=()=>{ confirmDlg("Az összes túrád, naplód, listád törlődik. Ez nem visszavonható.","Törölj mindent",()=>{
-    const id=Store.me().id; const db=JSON.parse(localStorage.getItem("turavaros_v1")); delete db.data[id];
-    db.data[id]={tours:[],wishlist:[],savedEvents:[],equipment:[],journal:[],teams:[],goals:{km:300,tours:12,summits:3},notifDismiss:[],aiChat:[]};
-    localStorage.setItem("turavaros_v1",JSON.stringify(db)); toast("Adatok törölve","🧹"); render(); }); };
+  root.querySelector("#st-reset").onclick=()=>{ confirmDlg("Csak a jelenlegi profil saját helyi túrái, útvonalai, naplója és listái törlődnek ezen az eszközön. A felhőmentést, a fiókot és más profil adatait ez nem törli. Előtte mentsd el az adataidat. A törlés nem vonható vissza.","Helyi adatok törlése",()=>{
+    const result=Store.eraseMyData();
+    if(!result||!result.ok){toast("A törlés nem sikerült; a helyi adataid megmaradtak.","⚠️");return;}
+    toast("A saját helyi adatok törölve; a felhőmentés változatlan.","🧹");render(); }); };
   root.querySelector("#st-logout").onclick=()=>{ Store.logout(); toast("Kijelentkeztél — várunk a terepen!","👋"); NAV.to("#/"); };
 };
 

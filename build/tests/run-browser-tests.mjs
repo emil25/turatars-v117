@@ -34,6 +34,6 @@ try{
     assert.ok(ready,'Preview did not start');
   }
   for(const file of ['home-browser.test.mjs','navigation-browser.test.mjs','catalog-browser.test.mjs',
-    'design-browser.test.mjs','event-browser.test.mjs','tour-center-browser.test.mjs','v130-browser.test.mjs'])await run(file);
-  console.log('BROWSER RELEASE GATE: PASS (7 suites; desktop + mobile + GPS)');
+    'design-browser.test.mjs','event-browser.test.mjs','tour-center-browser.test.mjs','usability-browser.test.mjs','v130-browser.test.mjs'])await run(file);
+  console.log('BROWSER RELEASE GATE: PASS (8 suites; desktop + mobile + GPS)');
 }finally{if(preview)preview.kill();}

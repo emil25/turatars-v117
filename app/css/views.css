@@ -1468,3 +1468,10 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
 .tour-center-prep{margin:0 0 18px}.tour-center-prep summary{cursor:pointer;min-height:44px;padding:.65rem}
 @media(min-width:768px){.tour-center-focus{padding:16px}.tour-center-tasks ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:1.25rem}}
 @media(max-width:600px){.tour-center-heading,.tour-center-current{flex-direction:column;gap:.45rem}.tour-center-heading .chip{max-width:100%}.tour-center-actions .btn{flex:1 1 100%}.tour-center-journey>a,.tour-center-journey>span{flex:1 1 40%;min-width:0;overflow-wrap:anywhere}}
+/* Usage information shares the existing outdoor page tokens. */
+.usage-page{padding-top:2rem;padding-bottom:2rem}
+.usage-page .panel h2{font-size:1.3rem}
+.usage-page .panel p{line-height:1.65}
+.usage-safety{margin-top:1rem}
+.usage-note{padding:.9rem 1rem;border:1px solid var(--line);border-radius:16px;background:var(--cream);line-height:1.6}
+.usage-page a,.usage-note a{overflow-wrap:anywhere}
