@@ -38,3 +38,5 @@ A V47 láncteszt egy köztes újrabuildeléskor modulbetöltési hibát kapott; 
 - Az npm audit két meglévő, közvetett fejlesztői/build függőségben jelez magas súlyosságú problémát (`nanoid`, `source-map-js`). Ezeket külön függőségfrissítéssel és regresszióval kell kezelni. Ez a módosítás nem frissítette őket; a Playwright hozzáadása nem ezeket hozta be.
 
 Éles publikálás eredményét a commit GitHub Actions futása és az utána elvégzett live böngészős ellenőrzés igazolja.
+
+Az első GitHub-futás (`38052527911`) helyesen blokkolta a deployt: a főoldalteszt az URL-váltás után, a regisztrációs űrlap kirajzolása előtt kérdezte le az elemek számát. A böngészős teszt most megvárja az űrlapot és a keresési eredményeket; az eredeti tartalmi állítások megmaradtak. Ez kizárólag tesztidőzítési javítás, alkalmazáskód-változás nélkül.

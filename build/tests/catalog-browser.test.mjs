@@ -28,6 +28,7 @@ const search=async(q,diff,h)=>{
   await page.locator('#q-id').selectOption(h);
   await page.locator('#q-go').click();
   await page.waitForURL(/#\/felfedezes/,{waitUntil:'domcontentloaded'});
+  await page.locator('#disc-results,#f9q').first().waitFor({state:'visible'});
 };
 const layout=async width=>{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth)<=width,'No horizontal overflow at '+width);

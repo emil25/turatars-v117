@@ -93,6 +93,7 @@ try {
   assert.equal(await page.evaluate(()=>location.hash),'#/','Feature showcase anchor must not leave the homepage or invoke the router');
   await page.locator('[data-home-center-main]').click();
   await page.waitForURL(/#\/regisztracio/);
+  await page.locator('#view input[type="email"]').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#view input[type="email"]').count()>0,'Visitors must reach the real registration form');
   await page.goto(base+'#/',{waitUntil:'networkidle'});
   await page.locator('.home-hero-actions a[href="#home-find"]').click();
@@ -126,11 +127,13 @@ try {
 
   await page.locator('[data-home-region="Csomád-hegység"]').click();
   await page.waitForURL(/#\/felfedezes/);
+  await page.locator('#disc-results .tcard').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#disc-results .tcard').count()>0);
   assert.ok((await page.locator('#disc-results .region').allTextContents()).every(s=>s.includes('Csomád-hegység')));
   await page.goto(base+'#/',{waitUntil:'networkidle'});
   await page.locator('[data-home-place-search="Gyilkos-tó"]').click();
   await page.waitForURL(/#\/felfedezes/);
+  await page.locator('#disc-results .tcard').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#disc-results .tcard').count()>0);
   assert.ok((await page.locator('#disc-results h3').allTextContents()).every(s=>s.includes('Gyilkos-tó')));
   await page.goto(base+'#/',{waitUntil:'networkidle'});
@@ -150,9 +153,11 @@ try {
   await page.locator('#q-hova').fill('Gyilkos');
   await page.locator('#q-hova').press('Enter');
   await page.waitForURL(/#\/felfedezes/);
+  await page.locator('#disc-results .tcard').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#disc-results .tcard').count() > 0);
   for(const title of await page.locator('#disc-results h3').allTextContents()) assert.match(title,/Gyilkos/i);
   await page.locator('#disc-results h3 a').first().click();
+  await page.locator('#modal-root [data-modal]').waitFor({state:'visible'});
   assert.ok(await page.locator('#modal-root [data-modal]').count() === 1);
   await page.locator('#modal-root [data-close]').first().click();
   await page.goto(base+'#/',{waitUntil:'networkidle'});
@@ -179,6 +184,7 @@ try {
     '#/uj-tura','#/turaim','#/turaim','#/utvonalak','#/naplo','#/beallitasok']);
   await page.locator('[data-home-center-main]').click();
   await page.waitForURL(/#\/vezerlopult/);
+  await page.locator('#tour-center-focus').waitFor({state:'visible'});
   assert.ok(await page.locator('#view h1').count()>0,'Signed-in hikers reach their actual dashboard');
   await page.goto(base+'#/',{waitUntil:'networkidle'});
   assert.equal(await catalog(),originalCatalog);
