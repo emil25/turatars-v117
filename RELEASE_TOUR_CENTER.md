@@ -43,4 +43,6 @@ Az első GitHub-futás (`38052527911`) helyesen blokkolta a deployt: a főoldalt
 
 A második GitHub-futás (`38052927317`) a katalógusteszt hasonló időzítési hibáját találta: a mentés utáni URL-váltás már megtörtént, de a túraoldal GPS-gombja még nem jelent meg az ellenőrzés pillanatában. A teszt most a ténylegesen látható túraoldalt várja meg; a rekord-, GPS-, megőrzési és mobilállítások változatlanok.
 
+A harmadik GitHub-futás (`38053676118`) főoldal-, navigáció- és katalógustesztje már sikeres volt; a design-teszt az eseményablak megjelenése előtt ellenőrizte a mentésgombot. A design-teszt most a tényleges oldalcsere, illetve a megnyitott űrlap vagy ablak vezérlőinek megjelenésére vár. A kizárólag h1-re váró köztes helyi próbát a régi h2-es oldalak miatt nem tekintettük sikeresnek; az új várakozás az oldal tényleges új tartalmát ellenőrzi, nem írja át a régi oldalak címsorait.
+
 Egy későbbi helyi teljes újrafuttatásban a főoldalteszt minden állítást teljesített és PASS eredményt írt ki, de a böngésző lezárásával együtt átlépte a háromperces csomag-időkorlátot. A teljes futást ezért FAIL-ként kezeljük; az időkorlátot és az ellenőrzéseket nem lazítottuk.

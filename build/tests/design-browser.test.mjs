@@ -17,7 +17,18 @@ const base=process.env.TT_PREVIEW_URL||'http://127.0.0.1:4175/';
 const errors=[],consoleErrors=[];
 page.on('pageerror',e=>errors.push(String(e)));
 page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource|net::ERR_/i.test(m.text()))consoleErrors.push(m.text());});
-const visit=async route=>{await page.goto(base+'#/'+route,{waitUntil:'domcontentloaded'});await page.locator('#view').waitFor();};
+const visit=async route=>{
+  const target=base+'#/'+route;
+  const previous=page.url().split('#')[0]===target.split('#')[0]&&page.url()!==target
+    ? await page.locator('#view').innerHTML():null;
+  await page.goto(target,{waitUntil:'domcontentloaded'});
+  // Hash navigation changes the URL before App.render replaces the view.
+  // Some legacy pages have h2 rather than h1; wait for the actual new content.
+  await page.waitForFunction(previous=>{
+    const view=document.getElementById('view');
+    return view&&view.innerText.trim().length>20&&(previous===null||view.innerHTML!==previous);
+  },previous);
+};
 const catalog=()=>page.evaluate(()=>JSON.stringify({catalog:V122.catalog(),routes:v125KnownRoutes()}));
 const layout=async route=>{
   const result=await page.evaluate(()=>{
@@ -61,7 +72,7 @@ try{
   await page.locator('.event-sources summary').click();
   assert.equal(await page.locator('.event-sources[open] .org-band a').count(),6,'All original organizer/source links remain');
   await page.locator('.event-sources summary').click();
-  if(future){await page.locator('.event-actions a').first().click();assert.equal(await page.locator('#ev-save').count(),1);await layout('event detail');await page.locator('[data-close]').first().click();}
+  if(future){await page.locator('.event-actions a').first().click();await page.locator('#ev-save').waitFor({state:'visible'});assert.equal(await page.locator('#ev-save').count(),1);await layout('event detail');await page.locator('[data-close]').first().click();}
   await visit('helyek');
   assert.deepEqual(await page.locator('.place-card h3').allTextContents(),['Szent Anna-tó','Gyilkos-tó','Hargitafürdő']);
   const photos=await page.locator('.place-photo img').evaluateAll(imgs=>imgs.map(i=>i.getAttribute('src')));
@@ -96,11 +107,13 @@ try{
   await page.reload({waitUntil:'domcontentloaded'});
   assert.match(await page.locator('[data-tour-id="'+id+'"]').innerText(),/Design regression edited/);
   await page.locator('[data-del="'+id+'"]').click();
+  await page.locator('#cfm-yes').waitFor({state:'visible'});
   assert.equal(await page.locator('#cfm-yes').count(),1,'Deletion requires confirmation');
   await page.locator('[data-close]').first().click();
   assert.ok(await page.evaluate(id=>!!Store.getTour(id),id),'Cancelling deletion preserves the tour');
-  await visit('tura/'+id);assert.equal(await page.locator('#v120-start').count(),1,'GPS start preserved');
+  await visit('tura/'+id);await page.locator('#v120-start').waitFor({state:'visible'});assert.equal(await page.locator('#v120-start').count(),1,'GPS start preserved');
   await visit('szervezo');await page.locator('#e2-reg').click();
+  await page.locator('#e2o_save').waitFor({state:'visible'});
   assert.equal(await page.locator('#e2o_save').count(),1,'Organizer profile form remains available');await layout('organizer form');
   await page.locator('[data-close]').first().click();
   await visit('felfedezes');
