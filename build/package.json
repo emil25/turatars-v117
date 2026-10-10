@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test tests/build-output.test.mjs tests/catalog-regression.test.mjs"
+    "test": "npm run build && node --test tests/build-output.test.mjs tests/catalog-regression.test.mjs tests/supabase-adapter.test.mjs tests/tour-center.test.mjs",
+    "test:browser": "node tests/run-browser-tests.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -22,6 +23,7 @@
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "5.2.0",
+    "playwright": "1.63.0",
     "typescript": "5.8.3",
     "vite": "7.3.6"
   },

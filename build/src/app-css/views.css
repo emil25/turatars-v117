@@ -1447,3 +1447,24 @@ body.dark .ck-top{background:#1c231d;border-color:#333c33}
   .v120-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(prefers-reduced-motion:reduce){.card,.btn,.input{transition:none}}
+
+/* The tour center continues the existing design, with one clear next action. */
+.tour-center-focus{margin-bottom:18px;border-top:3px solid var(--leaf)}
+.tour-center-heading,.tour-center-current{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.tour-center-heading>div,.tour-center-current>div{min-width:0}
+.tour-center-heading h2{font-size:clamp(1.4rem,3vw,2rem);margin:.25rem 0}
+.tour-center-heading p{max-width:65ch;margin-bottom:.5rem}
+.tour-center-heading .chip{white-space:normal;flex-shrink:0;max-width:20rem}
+.tour-center-current{padding:.65rem 0;border-top:1px solid var(--line)}
+.tour-center-current h3{margin:0;overflow-wrap:anywhere}.tour-center-current p{margin:.35rem 0 0}
+.tour-center-journey{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
+.tour-center-journey>a,.tour-center-journey>span{display:flex;gap:.45rem;align-items:center;min-height:44px;padding:.55rem .75rem;border:1px solid var(--line);border-radius:12px;background:var(--paper);font-size:.86rem;font-weight:650}
+.tour-center-journey a:hover,.tour-center-journey [aria-current="step"]{border-color:var(--leaf);background:var(--sage);color:var(--pine)}
+.tour-center-journey span span,.tour-center-journey a span,.tour-center-journey>span b{font-size:.72rem;color:var(--ink-soft)}
+.tour-center-tasks ul{list-style:none;padding:0;margin:.35rem 0 .9rem}
+.tour-center-tasks a{display:flex;justify-content:space-between;align-items:center;gap:.5rem;min-height:44px;padding:.55rem 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.tour-center-actions{display:flex;gap:.6rem;flex-wrap:wrap}.tour-center-actions .btn{min-height:48px;white-space:normal}
+.tour-center-save-note{margin:.5rem 0 0}.tour-center-save-note a{display:inline-flex;min-height:44px;align-items:center}
+.tour-center-prep{margin:0 0 18px}.tour-center-prep summary{cursor:pointer;min-height:44px;padding:.65rem}
+@media(min-width:768px){.tour-center-focus{padding:16px}.tour-center-tasks ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:1.25rem}}
+@media(max-width:600px){.tour-center-heading,.tour-center-current{flex-direction:column;gap:.45rem}.tour-center-heading .chip{max-width:100%}.tour-center-actions .btn{flex:1 1 100%}.tour-center-journey>a,.tour-center-journey>span{flex:1 1 40%;min-width:0;overflow-wrap:anywhere}}

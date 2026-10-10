@@ -40,7 +40,7 @@ jobs:
         working-directory: build
         run: npm run typecheck
 
-      - name: Run build-output tests
+      - name: Run unit, adapter and build-output tests
         working-directory: build
         run: npm test
 
@@ -58,6 +58,24 @@ jobs:
           grep -q 'cloudAuthEnabled' "$bundle"
           grep -q 'authSignup' "$bundle"
           grep -q 'authLogin' "$bundle"
+
+      - name: Install browser for release checks
+        working-directory: build
+        run: npx playwright install --with-deps chromium
+
+      - name: Check desktop, mobile, navigation and GPS before deploy
+        working-directory: build
+        env:
+          TT_SCREENSHOT_DIR: ${{ runner.temp }}/tour-center-screens
+        run: npm run test:browser
+
+      - name: Save browser check screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v130-browser-checks
+          path: ${{ runner.temp }}/tour-center-screens
+          if-no-files-found: ignore
 
       - uses: actions/configure-pages@v5
         with:

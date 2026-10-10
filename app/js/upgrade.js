@@ -524,6 +524,8 @@ VIEWS.dash = function(){
   if(unlogged){ W.hub += `<div class="card panel" style="margin:-8px 0 18px;border-color:#f2d3b3;background:var(--ember-soft)">
     <div class="flex between wrapcol"><div>🥾 <b>Hogy sikerült a(z utóbbi) túrád?</b> <span class="muted small">— ${esc(lastDone.title)}</span></div>
     <button class="btn btn-ember btn-sm" id="hw-log">📖 Élmény hozzáadása</button></div></div>`; }
+  // Keep the existing departure checklist available; focus the overview on one tour.
+  W.hub = tourCenterPanel() + (next&&dd>=0&&dd<=3?`<details class="tour-center-prep"><summary>Indulás előtti részletes ellenőrzés</summary>${prepHub(next)}</details>`:"");
   // TILES
   const m = (function(){ const mm=Store.todayISO().slice(0,7); const js=d.journal.filter(j=>(j.date||"").startsWith(mm)); return {km:Math.round(js.reduce((a,j)=>a+(+j.km||0),0)), tours:js.length}; })();
   W.tiles = `<div class="grid g4 smm2" style="margin-bottom:18px">
@@ -617,13 +619,14 @@ VIEWS.dash = function(){
   return dash("#/vezerlopult")(`
     <div class="dash-top">
       <div><div class="hello">${new Date().getHours()<10?"Jó reggelt":new Date().getHours()<18?"Kellemes napot":"Kellemes estet"} · ${fmtDateFull(Store.todayISO())} · ${u.city?esc(u.city):"jó kirándulást"}</div>
-      <h1>Szia, ${esc((u.name||"útitárs").split(" ")[0])}! Merre kalandozunk legközelebb? 🥾</h1></div>
+      <h1>Szia, ${esc((u.name||"útitárs").split(" ")[0])}! 🥾</h1></div>
       <div class="flex" style="gap:.5rem;flex-wrap:wrap"><a class="btn btn-ember" href="#/uj-tura">➕ Új túra tervezése</a>
         <button class="btn btn-ghost btn-sm" id="dw-edit">${dwOn?"✓ Kész":"⠿ Widgetek átrendezése"}</button></div></div>
     <div id="widgets">${widgets}</div>`);
 };
 let dwOn=false;
 VIEWS.dash.after = root=>{
+  wireTourCenter(root);
   const t=Store.upcoming()[0];
   root.querySelectorAll("[data-ptask]").forEach(c=>c.onchange=()=>{ if(t){ const x=c.dataset.ptask; t.notes = c.checked? (t.notes? t.notes+" | ":"")+x+" ✓" : (t.notes||"").replace(x+" ✓","").trim(); Store.save(); } });
   const hw=root.querySelector("#hw-log"); if(hw) hw.onclick=()=>{ const lastDone=Store.myData().tours.filter(x=>x.status==="teljesítve").sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||""))[0]; if(lastDone) finishWizard(lastDone); };

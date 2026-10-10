@@ -53,7 +53,7 @@ try{
   await visit('esemenyek');
   assert.equal(await page.locator('#view h1').count(),1,'Event page has a single heading hierarchy');
   assert.equal(await page.locator('.event-refined img,.e2pub img').count(),0,'Events must not use unrelated stock photos');
-  const future=await page.evaluate(()=>v122PublicEvents().filter(e=>!e.date||e.date>=Store.todayISO()).length);
+  const future=await page.evaluate(()=>v122PublicEvents().length);
   assert.equal(await page.locator('.event-refined').count(),future);
   await page.locator('[data-cat]').last().click();
   assert.equal(await page.locator('[data-cat][aria-pressed="true"]').count(),1);

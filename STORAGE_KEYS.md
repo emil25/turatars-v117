@@ -34,6 +34,13 @@
 - Nem Store-adat és nem service-role kulcs. Kijelentkezéskor a Supabase kliens törli.
 - A meglévő V54/Store kulcsokat nem helyettesíti és nem nevezi át.
 
+## `turatars_v54_settings_v1` — meglévő eszközbeállítások és mentési igazolás
+- A meglévő `offers`/`linked` mezők változatlanok. Nincs új tároló vagy második adatmodell.
+- `cloudReceipt: {uid, digest, version, at}` kizárólag sikeresen visszaigazolt távoli snapshot-mentés után kerül ide.
+- `digest`: SHA-256 a meglévő snapshot tartalmáról, a generált `ts` nélkül. Nem tartalmazza a snapshotot, kulcsot vagy tokent.
+- A UI csak azonos UID és egyező aktuális tartalom esetén írja, hogy „Felhőbe mentve”. Módosítás után új mentésre vár; offline/helyi trezor nem jelent cloud sikert.
+- Ez csak mentési állapotjelzés; a jogosultságot és verziókonfliktust továbbra is a meglévő Supabase adapter/RLS kezeli.
+
 ## SW cache `turatears-vNN`
 - Shell: `/`, `index.html`, `manifest.webmanifest`; font-first fetch fallback.
 - Törölhető (frissítésnél öntisztuló). 

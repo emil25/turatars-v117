@@ -127,6 +127,47 @@ function st(){ return sess; }
  function sset_(){ try{ localStorage.setItem("turatars_v54_state", JSON.stringify({token:sess.token,uid:sess.uid,email:sess.email,provider:sess.provider,remoteVersion:sess.remoteVersion,pending:!!sess.pending})); }catch(e){} }
 function sget_(){ try{ return JSON.parse(localStorage.getItem("turatars_v54_state")||"null"); }catch(e){ return null; } }
 function clearSess(){ sess.token=sess.uid=sess.email=sess.provider=null; sess.remoteVersion=null; sess.pending=false; sess.status="signed-out"; try{ localStorage.removeItem("turatars_v54_state"); }catch(e){} }
+// A receipt of the *confirmed* existing snapshot, kept in the existing device settings.
+// Exclude only the generated timestamp; any change to the user's data invalidates it.
+function snapshotDigest(snap){
+  if(!snap||!self.crypto||!self.crypto.subtle) return Promise.resolve(null);
+  var content=Object.assign({},snap);delete content.ts;
+  return Promise.resolve(sha256hex(JSON.stringify(content))).then(function(digest){return /^[a-f0-9]{64}$/.test(digest||"")?digest:null;}).catch(function(){return null;});
+}
+function saveSnapshot(snap){
+  if(!sess.token) return Promise.reject({error:"signed_out"});
+  if(!snap) return Promise.reject({error:"invalid_snapshot"});
+  var A=getActive(), uid=sess.uid, token=sess.token, expected=sess.remoteVersion;
+  return snapshotDigest(snap).then(function(digest){
+    if(sess.uid!==uid||sess.token!==token)throw {error:"signed_out"};
+    return Promise.resolve(A.save(token,snap,expected)).then(function(result){
+      if(!result||result.error||result.ok===false) throw result||{error:"cloud_error"};
+      if(A.name==="supabase-snapshot"&&(result.version==null||!Number.isSafeInteger(Number(result.version))||Number(result.version)<0)) throw {error:"cloud_error"};
+      // An in-flight save must not change another session after logout/account switching.
+      if(sess.token===token&&sess.uid===uid){
+        if(result.version!=null&&Number.isSafeInteger(Number(result.version)))sess.remoteVersion=Number(result.version);
+        sess.status="saved";sess.lastAt=result.at||Date.now();sess.err=null;sset_();
+        if(A.name!=="local-vault"&&uid&&digest){var sets=settings();sets.cloudReceipt={uid:uid,digest:digest,version:sess.remoteVersion,at:sess.lastAt};setSettings(sets);}
+      }
+      return result;
+    });
+  });
+}
+function cloudStatus(){
+  if(navigator.onLine===false)return Promise.resolve({state:"offline",label:"📱 Offline – helyben mentve"});
+  if(!sess.token||!isRemote())return Promise.resolve({state:"local",label:"📱 Helyben mentve – nincs felhőkapcsolat"});
+  if(sess.status==="saving")return Promise.resolve({state:"saving",label:"☁️ Felhőmentés folyamatban…"});
+  var receipt=settings().cloudReceipt,uid=sess.uid;
+  return snapshotDigest(buildSnapshot(curLocalEmail())).then(function(digest){
+    if(receipt&&receipt.uid===uid&&digest&&digest===receipt.digest)return {state:"synced",label:"☁️ Felhőbe mentve"};
+    return {state:"pending",label:"📱 Helyben mentve – felhőmentésre vár"};
+  }).catch(function(){return {state:"local",label:"📱 Helyben mentve – a felhőállapot nem ellenőrizhető"};});
+}
+function refreshCloudStatus(root){
+  var labels=(root||document).querySelectorAll("[data-sync-status]");
+  return cloudStatus().then(function(status){labels.forEach(function(el){el.textContent=status.label;el.dataset.syncState=status.state;el.classList.toggle("chip-green",status.state==="synced");el.classList.toggle("chip-sand",status.state!=="synced");});return status;});
+}
+window.refreshCloudStatus=refreshCloudStatus;
 function loadCloudProfile(){
   var A=getActive();
   if(A.name!=="supabase-snapshot"||typeof A.profile!=="function"||!sess.token) return Promise.resolve(null);
@@ -167,7 +208,7 @@ function authLogin(email,password){
   });
 }
 window.__V54={ build:buildSnapshot, vault:{ get:vault }, api:{ signup:function(e,p,n){ return getActive().signup(e,p,n); }, login:function(e,p){ return getActive().login(e,p); }, authSignup:authSignup, authLogin:authLogin,
-    cloudAuthEnabled:function(){ return !!SupabaseAdapter; }, errorText:mapErr, loadProfile:function(){ return loadCloudProfile(); }, saveProfileFromLocal:function(){ return saveCloudProfile(); }, save:function(snap){ if(!sess.token) return Promise.reject({error:"signed_out"}); return getActive().save(sess.token, snap, sess.remoteVersion); }, load:function(){ if(!sess.token) return Promise.reject({error:"signed_out"}); return getActive().load(sess.token); },
+    cloudAuthEnabled:function(){ return !!SupabaseAdapter; }, errorText:mapErr, loadProfile:function(){ return loadCloudProfile(); }, saveProfileFromLocal:function(){ return saveCloudProfile(); }, save:saveSnapshot, syncStatus:cloudStatus, load:function(){ if(!sess.token) return Promise.reject({error:"signed_out"}); return getActive().load(sess.token); },
     communityList:function(){ if(!SupabaseAdapter||typeof SupabaseAdapter.communityList!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communityList(); },
     communityUpsert:function(tour){ if(!SupabaseAdapter||typeof SupabaseAdapter.communityUpsert!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communityUpsert(tour); },
     communitySetVisibility:function(id,visibility,gpxPublic){ if(!SupabaseAdapter||typeof SupabaseAdapter.communitySetVisibility!=="function") return Promise.reject({error:"community_cloud_unavailable"}); return SupabaseAdapter.communitySetVisibility(id,visibility,gpxPublic); },
@@ -289,18 +330,16 @@ function doSave(silentOk){ var em=curLocalEmail(); if(!em){ toast("Előbb jelent
   sess.status="saving"; renderBlock();
   var snap=buildSnapshot(em);
   if(!snap){ sess.status="error"; sess.err="nincs local user ezzel az emaillel"; renderBlock(); return Promise.resolve(false); }
-  var A=getActive();
+    var A=getActive(), saveUid=sess.uid, saveToken=sess.token;
   if(A.name==="supabase-snapshot" && !Number.isSafeInteger(sess.remoteVersion)){
-    return Promise.resolve(A.load(sess.token)).then(function(remote){ if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); return doSave(silentOk); }
+      return Promise.resolve(A.load(saveToken)).then(function(remote){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); return doSave(silentOk); }
       if(remote&&!remote.error){ sess.remoteVersion=Number(remote.version); sset_(); sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false; }
-      throw (remote||{error:"cloud_error"}); }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; });
+        throw (remote||{error:"cloud_error"}); }).catch(function(e){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; });
   }
-  return Promise.resolve(A.save(sess.token, snap, sess.remoteVersion)).then(function(r){ if(r&&r.error){ throw {error:r.error}; }
-    if(r&&Number.isSafeInteger(Number(r.version))) sess.remoteVersion=Number(r.version);
-    sess.status="saved"; sess.lastAt=(r&&r.at)||Date.now(); sess.err=null; sset_();
+  return saveSnapshot(snap).then(function(r){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; if(r&&r.error){ throw {error:r.error}; }
     var sets=settings(); sets.linked=sets.linked||{}; sets.linked[sess.email]=1; setSettings(sets);
     renderBlock(); toast(silentOk? "☁️ Adatok a fiókba mentve (példány: "+((r&&r.size)?Math.round(r.size/1024)+" KB":"kész")+")":"☁️ Szinkronizálva","☁️"); return true; })
-   .catch(function(e){ var err=(e&&e.error)||(e&&e.message)||""; if(/TypeError|toLowerCase|undefined/.test(err)){ err="internal"; } sess.status="error"; sess.err=err?mapErr(e):'ismeretlen'; renderBlock(); toast(sess.err,"⚠️"); return false; }); }
+     .catch(function(e){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; var err=(e&&e.error)||(e&&e.message)||""; if(/TypeError|toLowerCase|undefined/.test(err)){ err="internal"; } sess.status="error"; sess.err=err?mapErr(e):'ismeretlen'; renderBlock(); toast(sess.err,"⚠️"); return false; }); }
  function doLoad(auto,preloaded){ var A=getActive();
   return Promise.resolve(preloaded||A.load(sess.token)).then(function(snap){ if(!snap||snap.error==="empty"){ if(snap&&Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_(); toast("A fiódban még nincs mentés","☁️"); if(auto) return; return null; }
      if(snap.error){ if(!auto) toast(mapErr(snap),"⚠️"); return null; }
@@ -328,13 +367,13 @@ function c54Inner(){ var s=sess; var remote=isRemote();
   var linked=!!s.email; var u=Store.me()||{};
   var stat = !linked? '<span class="chip chip-sand">☁️ Nincs fiók összekötve</span>'
     : s.status==="pending"? '<span class="chip chip-amber">✉️ E-mail megerősítésre vár</span>'
-    : (s.status==="saved"||s.status==="restored")? '<span class="chip chip-green">☁️ Szinkronizálva · '+esc4(fmtT(s.lastAt||s.restoredTs||Date.now()))+"</span>"
+    : (s.status==="saved"||s.status==="restored")? '<span class="chip chip-sand">'+(remote?"☁️ Fiók csatlakoztatva":"📱 Helyi trezor csatlakoztatva")+"</span>"
     : s.status==="saving"? '<span class="chip chip-amber">☁️ Mentés folyamatban…</span>'
     : s.status==="error"? '<span class="chip chip-rose">☁️ Hiba: '+esc4(String(s.err||"") )+"</span>"
     : '<span class="chip chip-sand">☁️Fiók: '+esc4(s.email)+ (navigator.onLine===false?" — offline":"")+"</span>";
-  var line = remote? "💾 Cél: szerver ("+esc4(remoteBase())+")" : "🔒 Cél: ehhez az eszközhöz rendelt titkosított trezor";
+  var line = remote? "A felhőmentés a saját fiókodban tárolja az adatokat. A visszaállítás előtt helyi biztonsági mentés készül." : "A mentés ezen az eszközön, a helyi trezorban tárolódik; ez nem többeszközös felhőmentés.";
   return '<h2>☁️ Fiók és szinkronizálás</h2>'+
-    '<div class="c54row">'+stat+"<span class='chip chip-sand'>🧍 "+esc4(u.name||"Túrázó")+(u.email?" · "+esc4(u.email):"")+"</span>"+(!navigator.onLine? "<span class='chip chip-amber'>Offline – a módosítások helyben mentve.</span>":"")+ (u.pass&&false?"":"")+"</div>"+
+    '<div class="c54row"><span class="chip chip-sand" data-sync-status role="status">📱 Helyben mentve</span>'+stat+"<span class='chip chip-sand'>🧍 "+esc4(u.name||"Túrázó")+(u.email?" · "+esc4(u.email):"")+"</span>"+(!navigator.onLine? "<span class='chip chip-amber'>Offline – a módosítások helyben mentve.</span>":"")+ (u.pass&&false?"":"")+"</div>"+
     '<p class="small muted mb0">'+line+"</p>"+
     '<div class="c54btns">'+ (!linked? '<button class="btn btn-primary btn-sm" id="c54-link">🔗 Fiók létrehozása mentéshez</button>'
       : (s.linkedEmail&&s.linkedEmail!==normEmail(u.email))? '<button class="btn btn-soft btn-sm" id="c54-rel">🔁 Újrakereseli a jelenlegi userhez</button>'
@@ -342,13 +381,13 @@ function c54Inner(){ var s=sess; var remote=isRemote();
       (linked&&normEmail(u.email)!==sess.email? "":'')+
       (linked? '<button class="btn btn-soft btn-sm" id="c54-load">📥 Visszaállítás a fiókból</button>':'')+
       '<button class="btn btn-ghost btn-sm" id="c54-out">🚪 Fiók kilépés</button>'+
-      '<button class="btn btn-ghost btn-sm" id="c54-back">↩️ Előző helyi állapot vissza&lt;fordítás&gt;</button>'+
+      '<button class="btn btn-ghost btn-sm" id="c54-back">↩️ Előző helyi állapot visszaállítása</button>'+
     "</div>"+
     '<p class="small muted">E-mail + jelszó belépés aktív. A Google bejelentkezés jelenleg nem elérhető.</p>'; }
-function renderBlock(){ try{ var root=document.getElementById("c54sec"); if(!root) return; root.innerHTML=c54Inner(); wireBlock(); }catch(e){} }
+function renderBlock(){ try{ var root=document.getElementById("c54sec"); if(!root) return; root.innerHTML=c54Inner(); wireBlock();refreshCloudStatus(document); }catch(e){} }
 function wireBlock(){ var $=function(id){ return document.getElementById(id); };
   var b=$("c54-link"); if(b) b.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
-  var sv=$("c54-save"); if(sv) sv.onclick=function(){ if(!isRemote()&&navigator.onLine===false){ toast("Offline — a szinkronizálás later, a helyi mentés él.","📡"); } doSave(false); };
+  var sv=$("c54-save"); if(sv) sv.onclick=function(){ if(!isRemote()&&navigator.onLine===false){ toast("Offline vagy – a helyi mentés megmarad. Felhőbe internetkapcsolattal menthetsz.","📡"); } doSave(false); };
   var ld=$("c54-load"); if(ld) ld.onclick=function(){ if(!confirmRestore()) return; doLoad(false); };
   var ro=$("c54-rel"); if(ro) ro.onclick=function(){ acctModal((Store.me()||{}).email,"save"); };
   var out=$("c54-out"); if(out) out.onclick=function(){ window.__V54.api.logoutNow(); toast("Kijelentkeztél a fiókból — a helyi app tovább működik","☁️"); try{ App.render(); }catch(e){} };
@@ -384,5 +423,7 @@ setTimeout(function(){ try{ maybeOffer(); }catch(e){} }, 1700);
 window.__V54.api.restoreApply=applySnapshot;
 window.__V54.api.preSave=function(){ return preSave(); };
 window.__V54.api.rollback=rollback;
+window.addEventListener("online",function(){refreshCloudStatus(document);});
+window.addEventListener("offline",function(){refreshCloudStatus(document);});
 window.__V54.uid=function(){ return sess.uid; };
 })();

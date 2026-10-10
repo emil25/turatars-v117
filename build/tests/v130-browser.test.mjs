@@ -41,7 +41,8 @@ await page.addInitScript(() => {
 });
 
 try {
-  await page.goto(process.env.TT_PREVIEW_URL || 'http://127.0.0.1:4175/#/tura/t-v130-test', { waitUntil: 'networkidle' });
+  const preview=process.env.TT_PREVIEW_URL||'http://127.0.0.1:4175/';
+  await page.goto(preview.includes('#/')?preview:preview+'#/tura/t-v130-test', { waitUntil: 'networkidle' });
   if (await page.locator('#modal-root [data-modal]').count()) {
     const close = page.locator('#modal-root [data-close]').first();
     if (await close.count()) await close.click({ force: true });

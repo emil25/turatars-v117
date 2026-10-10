@@ -47,6 +47,44 @@ function dash(active){
 }
 
 /* ---------- ÁTTEKINTÉS ---------- */
+// A single focus from the current user's existing tours; never create records here.
+function tourCenterFocus(){
+  const d=Store.myData(), tours=d&&d.tours||[];
+  const active=tours.find(t=>t.liveTrack&&["running","paused"].includes(t.liveTrack.status));
+  if(active) return {tour:active,stage:"active"};
+  const planned=tours.filter(t=>["tervezés","jelentkezve","ötlet","bakancs"].includes(t.status));
+  const next=Store.upcoming()[0]||planned.find(t=>!t.date)||planned.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")))[0];
+  if(next) return {tour:next,stage:"plan"};
+  const completed=tours.filter(t=>t.status==="teljesítve").sort((a,b)=>String(b.doneAt||b.date||"").localeCompare(String(a.doneAt||a.date||"")));
+  const unlogged=completed.find(t=>!(d.journal||[]).some(j=>j.tourId===t.id));
+  return {tour:unlogged||completed[0]||null,stage:unlogged?"journal":completed.length?"done":"empty"};
+}
+function tourCenterTasks(t){
+  if(!t) return [];
+  const labels={date:"Állítsd be a túra dátumát",place:"Add meg az indulási helyszínt",route:"Adj hozzá útvonalat vagy GPX-et",time:"Ellenőrizd az időtervet",pack:"Ellenőrizd a bepakolt felszerelést",gear:"Add meg a felszerelés súlyát",food:"Ellenőrizd az étel- és vízkészletet",people:"Egyeztesd a résztvevők visszaigazolását",travel:"Egyeztesd az utazást és találkozót",weather:"Ellenőrizd az időjárást",notes:"Írd össze a fontos tudnivalókat"};
+  const rows=Store.readiness(t).missing.map(x=>({label:labels[x.k]||x.label,tab:x.goto||"attekintes"}));
+  if(Array.isArray(t.packList)&&t.packList.some(x=>!x.checked)) rows.unshift({label:"Csomaglista: "+t.packList.filter(x=>!x.checked).length+" elem vár ellenőrzésre",tab:"attekintes"});
+  return rows.slice(0,4);
+}
+function tourCenterPanel(){
+  const focus=tourCenterFocus(), t=focus.tour, stage=focus.stage, tasks=stage==="plan"?tourCenterTasks(t):[];
+  const title={empty:"Melyik lesz a következő túrád?",plan:"Folytasd a túrád előkészítését",active:"A túrád folyamatban van",journal:"Őrizd meg a túrád élményét",done:"Jöhet a következő kaland"}[stage];
+  const hints={empty:"Válassz egy valódi útvonalat, vagy kezdd el a saját tervedet.",plan:"A terved, csomaglistád és társaid egy helyen.",active:"A meglévő GPS-rögzítésedet innen folytathatod.",journal:"A túra befejeződött. Írd le a saját élményedet a naplóba.",done:"A befejezett túrád és naplód megmarad. Tervezhetsz új túrát is."}[stage];
+  const href=t?"#/tura/"+encodeURIComponent(t.id):"#/turaim";
+  return `<section class="card panel tour-center-focus" id="tour-center-focus" aria-labelledby="tour-center-heading" data-stage="${stage}">
+    <div class="tour-center-heading"><div><span class="eyebrow">A SAJÁT TÚRAKÖZPONTOD</span><h2 id="tour-center-heading">${title}</h2><p class="muted">${hints}</p></div><span class="chip chip-sand" data-sync-status role="status">📱 Helyben mentve</span></div>
+    ${t?`<div class="tour-center-current"><div><h3><a href="${href}">${esc(t.title)}</a></h3><p class="small muted">${esc(t.place||t.region||"Helyszín még nincs megadva")} · ${t.date?fmtDateFull(t.date):"Dátum még nincs megadva"}</p></div>${statusChip(t.status)}</div>`:""}
+    <nav class="tour-center-journey" aria-label="A túrád lépései">${[["Tervezés","attekintes"],["Felkészülés","felszereles"],["GPS-túra",null],["Napló","naplo"]].map(([label,tab],i)=>t?`<a href="${i===2&&stage==="active"?"#/tura-live/"+encodeURIComponent(t.id):href}" ${tab?`data-center-tab="${tab}" data-center-tour="${esc(t.id)}"`:i===2&&stage==="plan"?`data-center-gps="${esc(t.id)}"`:""}><span>0${i+1}</span>${label}</a>`:`<span><b>0${i+1}</b>${label}</span>`).join("")}</nav>
+    ${tasks.length?`<div class="tour-center-tasks"><b class="small">A következő teendők</b><ul>${tasks.map(x=>`<li><a href="${href}" data-center-tour="${esc(t.id)}" data-center-tab="${esc(x.tab)}">${esc(x.label)} <span aria-hidden="true">→</span></a></li>`).join("")}</ul></div>`:""}
+    <div class="tour-center-actions"><a class="btn btn-soft" href="#/uj-tura">＋ Túra tervezése</a>${t?`<a class="btn btn-primary" href="${href}" data-center-tour="${esc(t.id)}" data-center-tab="${stage==="journal"?"naplo":"attekintes"}">${stage==="journal"?"Napló írása":stage==="done"?"Túra megnyitása":"Terv folytatása"}</a>`:'<a class="btn btn-primary" href="#/felfedezes">Túrák felfedezése</a>'}${t&&stage==="plan"?`<button class="btn btn-ember" data-center-gps="${esc(t.id)}">▶ Túra indítása</button>`:t&&stage==="active"?`<a class="btn btn-ember" href="#/tura-live/${encodeURIComponent(t.id)}">▶ GPS-túra folytatása</a>`:""}</div>
+    <p class="small muted tour-center-save-note">A helyi mentés és a felhőmentés külön állapot. <a href="#/beallitasok">Mentés és biztonsági visszaállítás →</a></p>
+  </section>`;
+}
+function wireTourCenter(root){
+  root.querySelectorAll("[data-center-tab]").forEach(a=>a.onclick=e=>{e.preventDefault();const t=Store.getTour(a.dataset.centerTour);if(!t)return;const href="#/tura/"+t.id,same=location.hash===href;wsTab=a.dataset.centerTab;NAV.to(href);if(same)render();});
+  root.querySelectorAll("[data-center-gps]").forEach(b=>b.onclick=e=>{e.preventDefault();if(Store.getTour(b.dataset.centerGps)&&typeof window.v120Begin==="function")window.v120Begin(b.dataset.centerGps);});
+  if(typeof window.refreshCloudStatus==="function")window.refreshCloudStatus(root);
+}
 VIEWS.dash = () => {
   const u = Store.me(), d = Store.myData(), st = Store.stats();
   const next = Store.upcoming()[0];

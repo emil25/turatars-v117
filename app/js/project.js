@@ -385,7 +385,7 @@ VIEWS.dash.after = (root) => {
         <div class="df-b"><h3>&#220;res a túraközpontod — töltsük meg</h3>
         <p class="muted small" style="margin:.1rem 0 .2rem">Három lépés, és a tervezés, csomagolás, naptár, élménykönyv egy helyen fut.</p>
         <div class="df-steps">
-          <a href="#/felfedezes"><b>1 · Válassz célt</b><span>32 útvonal · Székelyföld és Erdély</span></a>
+          <a href="#/felfedezes"><b>1 · Válassz célt</b><span>${v122PublicTours().length} forrásolt túra · Székelyföld és Erdély</span></a>
           <a href="#/uj-tura"><b>2 · Tervezd meg</b><span>induló sablonok · 5 perc</span></a>
           <a href="#/inbox"><b>3 · Mentd az ötleteidet</b><span>FB esemény, link, fotó</span></a>
         </div></div></div></section>`);
