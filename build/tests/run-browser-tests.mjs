@@ -34,6 +34,6 @@ try{
     assert.ok(ready,'Preview did not start');
   }
   for(const file of ['home-browser.test.mjs','navigation-browser.test.mjs','catalog-browser.test.mjs',
-    'design-browser.test.mjs','event-browser.test.mjs','tour-center-browser.test.mjs','usability-browser.test.mjs','v130-browser.test.mjs','appearance-browser.test.mjs','cloud-save-safety-browser.test.mjs','offline-startup-browser.test.mjs'])await run(file);
-  console.log('BROWSER RELEASE GATE: PASS (11 suites; classic + Atlas + desktop + mobile + GPS + cloud safety + offline startup)');
+    'design-browser.test.mjs','event-browser.test.mjs','tour-center-browser.test.mjs','usability-browser.test.mjs','v130-browser.test.mjs','v130.3-gps-launch-browser.test.mjs','appearance-browser.test.mjs','cloud-save-safety-browser.test.mjs','offline-startup-browser.test.mjs'])await run(file);
+  console.log('BROWSER RELEASE GATE: PASS (12 suites; classic + Atlas + desktop + mobile + GPS launch + cloud safety + offline startup)');
 }finally{if(preview)preview.kill();}

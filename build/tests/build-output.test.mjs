@@ -70,6 +70,8 @@ test('production bundle includes the V120 live GPS tour mode', () => {
   const bundle = fs.readFileSync(path.join(dist, 'assets', jsName), 'utf8');
   assert.match(bundle, /navigator\.geolocation/);
   assert.match(bundle, /v120Begin/);
+  assert.match(bundle, /window\.v120Begin\s*=\s*v120Begin/);
+  assert.match(bundle, /begin\s*:\s*v120Begin/);
   assert.match(bundle, /v120Accept/);
   assert.match(bundle, /v120-pause/);
   assert.match(bundle, /v120-finish/);

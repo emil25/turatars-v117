@@ -84,7 +84,7 @@ function v130Wire(root,id){
 /* A V120/V121 handler marad az egyetlen GPS-motor; itt csak a valós
    sebességből vezetjük le a túra mód legnagyobb sebességét. */
 var baseHandle=window.v120HandlePosition;
-if(typeof baseHandle==="function")window.v120HandlePosition=function(id,pos){baseHandle(id,pos);var t=v130Tour(id),l=v130Live(t);if(!l)return;l.maxSpeedKmh=Math.max(+l.maxSpeedKmh||0,+l.speedKmh||0);try{Store.save();}catch(e){}var root=document.getElementById("v120-root");if(root)v130Summary(root,t);};
+if(typeof baseHandle==="function")window.v120HandlePosition=function(id,pos){baseHandle(id,pos);var t=v130Tour(id),l=v130Live(t);if(!l)return;l.maxSpeedKmh=Math.max(+l.maxSpeedKmh||0,+l.speedKmh||0);try{Store.save();if(window.__V121&&typeof window.__V121.backup==="function")window.__V121.backup(t);}catch(e){}var root=document.getElementById("v120-root");if(root)v130Summary(root,t);};
 
 var baseFinish=window.v120Finish;
 if(typeof baseFinish==="function")window.v120Finish=function(id){baseFinish(id);var t=v130Tour(id),l=v130Live(t);if(!t||!l)return;t.status="teljesítve";t.projectStatus="TELJESÍTVE";t.doneAt=t.doneAt||new Date(l.finishedAt||Date.now()).toISOString().slice(0,10);t.v130CompletedAt=l.finishedAt||Date.now();try{Store.save();}catch(e){}if(typeof render==="function")render();};

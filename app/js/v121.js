@@ -66,6 +66,8 @@ function v121OffRoute(t,point){
 if(typeof v120HandlePosition==="function"){
   const baseHandle=v120HandlePosition;
   v120HandlePosition=function(id,pos){ baseHandle(id,pos); const t=v121Tour(id),live=v121Live(t); if(live&&live.points&&live.points.length) v121OffRoute(t,live.points[live.points.length-1]); };
+  /* Publish the composed V120+V121 handler before V130 wraps the same public entry point. */
+  window.v120HandlePosition=v120HandlePosition;
 }
 
 function v121ExportLive(t){

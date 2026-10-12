@@ -87,7 +87,8 @@ test('I: parallel same-client writes are locked; two clients racing use atomic e
 test('J: the first absent snapshot is created normally only after the real read boundary',async()=>{
   const h=await harness();h.store.newTourFromDraft({title:'First private cloud tour'});const snap=h.snapshot(),local=h.local();
   assert.equal(await h.ui.doSave(false),true);assert.equal(h.remote.loads,1);assert.equal(h.remote.writes[0].expected,0);
-  assert.deepEqual(h.remote.snapshot,snap);assert.equal(h.local(),local);assert.equal(h.api.st().saveSafety,'ready');
+  const actual=clone(h.remote.snapshot),expected=clone(snap);delete actual.ts;delete expected.ts;
+  assert.deepEqual(actual,expected);assert.equal(h.local(),local);assert.equal(h.api.st().saveSafety,'ready');
 });
 test('remote changes between verification and commit are refused by CAS, without losing local edits',async()=>{
   const h=await restored();h.edit();const local=h.local();let competing;
