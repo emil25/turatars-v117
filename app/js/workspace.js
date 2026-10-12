@@ -458,15 +458,18 @@ function finishFlow(t, forceLog){
   if(t.status==="teljesítve" && (forceLog||Store.myData().journal.some(j=>j.tourId===t.id))){ journalModal(t); return; }
   if(t.status!=="teljesítve"){
     openModal({ title:`${esc(t.title)}` , body:`<div class="hcard" style="min-height:120px">${imgTag(t.img||IMG.erdo,"")}<div class="hb"><b style="font-size:1.05rem">Teljesítetted ezt a túrát?</b><div class="meta"><span>${t.date?fmtDateFull(t.date):""} · ${t.lengthKm||"?"} km · ⬆ ${t.ascent||"?"} m</span></div></div></div>
-      <p class="muted small">Ha igen: értékelés + jegyzet + képek — és a többi (dátum, hely, táv, idő) automatikusan a naplódra kerül.</p>
+      <p class="muted small">Ha igen: értékelés + jegyzet + képek. A dátum és hely a túrához kapcsolódik; a tényleges táv és idő GPS-felvételből vagy az általad megadott adatokból kerül a naplóba.</p>
       <div class="flex" style="gap:.6rem;justify-content:flex-end;margin-top:1rem"><button class="btn btn-ghost btn-sm" data-close>Még nem</button>
       <button class="btn btn-ember btn-lg" id="ff-yes">✓ Teljesítettem</button></div>`,
       onOpen(r){ r.querySelector("#ff-yes").onclick=()=>{ closeModal(); journalModal(t, true); }; }});
   } else journalModal(t);
 }
 function journalModal(t, markDone){
+  const j=Store.myData().journal.find(x=>x.tourId===t.id)||{};
+  const gps=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const km=gps?gps.distanceKm:j.km, up=gps?gps.elevationGainM:j.up, hours=gps?gps.elapsedHours:j.h;
   openModal({ title:`📖 Túranapló — ${esc(t.title)}`,
-    body:`<p class="muted mt0 small">${fmtDateFull(t.date||t.doneAt)} · ${esc(t.region||t.place||"")} · ${t.lengthKm} km · ⬆ ${t.ascent} m · ⏱ ${t.durationH} ó</p>
+    body:`<p class="muted mt0 small">${fmtDateFull(j.date||t.doneAt||t.date)} · ${esc(t.region||t.place||"")} · ${km==null?"—":Number(km).toFixed(2)} km · ⬆ ${up==null?"—":up} m · ⏱ ${hours==null?"—":Number(hours).toFixed(2)} ó</p>
       <label class="f">Értékelés</label><div id="jm-stars" style="font-size:2rem;display:flex;gap:.15rem">${[1,2,3,4,5].map(i=>`<button data-s="${i}" style="background:none;border:0;cursor:pointer;color:#cfcabb" aria-label="${i} csillag">★</button>`).join("")}</div>
       <label class="f" style="margin-top:.5rem">Saját jegyzet</label><textarea class="input" id="jm-note" rows="3" placeholder="Pl. Gyönyörű idő volt. A felső szakasz sáros volt, de megérte."></textarea>
       <label class="f" style="margin-top:.7rem">📸 Képek</label><input type="file" id="jm-ph" accept="image/*" multiple class="input" style="padding:.55em">`,

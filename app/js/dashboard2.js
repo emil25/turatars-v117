@@ -202,14 +202,14 @@ VIEWS.journal = () => {
           <div class="flex between wrapcol"><b>${esc(j.title)}</b><span class="small muted">${fmtDateFull(j.date)}</span></div>
           <span class="stars">${"★".repeat(j.rating||0)}${"☆".repeat(5-(j.rating||0))}</span>
           <p class="small" style="margin:.3rem 0 .2rem;color:var(--bark-soft)">"${esc(j.note||"")}"</p>
-          <div class="meta" style="font-size:.8rem"><span>📍 ${esc(j.place||"—")}</span><span>📏 ${j.km==null||j.km===""?"—":esc(String(j.km))+" "} km</span><span>⬆ ${j.up==null||j.up===""||isNaN(+j.up)?"—":j.up} m</span><span>⏱ ${j.h==null||j.h===""||isNaN(+j.h)?"—":j.h} ó</span></div>
+          <div class="meta" style="font-size:.8rem"><span>📍 ${esc(j.place||"—")}</span><span>📏 ${j.km==null||j.km===""?"—":esc(String(j.km))+" "} km</span><span>⬆ ${j.up==null||j.up===""||isNaN(+j.up)?"—":j.up} m</span><span>⏱ Eltelt idő: ${j.h==null||j.h===""||isNaN(+j.h)?"—":j.h} ó</span>${j.metricSource==="gps"&&j.activeHours!=null?`<span>🚶 Mozgásban: ${Number(j.activeHours).toFixed(2)} ó</span>`:""}${j.metricSource==="gps"&&j.averageSpeedKmh!=null?`<span>⚡ Átlag: ${Number(j.averageSpeedKmh).toFixed(1)} km/h (aktív idő)</span>`:""}</div>
           <div class="flex" style="margin-top:.6rem">
             <button class="btn btn-ghost btn-sm" data-jedit="${j.id}">✎ Jegyzet szerkesztése</button>
             ${j.tourId?`<a class="btn btn-soft btn-sm" href="#/tura/${j.tourId}">📁 Munkaterület</a>`:""}
             <a class="btn btn-soft btn-sm" href="?img=/photo/${j.id}">🖼 Képek megnyitása</a>
           </div></div>
       </article>`).join("")
-    : `<div class="empty"><span class="em-ico">📖</span><h3>A naplód még üres</h3><p>Ha teljesítesz egy túrát, ide felkerül az értékeléseddel, képeiddel és a saját szavaiddal. A többi — dátum, táv, szint — automatikusan rendeződik.</p>
+    : `<div class="empty"><span class="em-ico">📖</span><h3>A naplód még üres</h3><p>Ha teljesítesz egy túrát, ide kerül az értékelésed, a képeid és a saját szavaid. A tényleges távot, időt és szintet GPS-felvételből vagy az általad megadott adatokból mutatjuk.</p>
       <a class="btn btn-primary" href="#/turaim">Túráim</a></div>`}`);
 };
 VIEWS.journal.after = root => {

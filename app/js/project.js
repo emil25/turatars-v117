@@ -659,9 +659,11 @@ window.memBtn = function(t){ const j=Store.myData().journal.find(x=>x.tourId===t
   return `<button class="btn btn-ember btn-sm" data-openmem="${t.id}">📖 Élmény hozzáadása</button>`; };
 function openMemoryEditor(t, fresh){
   const d=Store.myData(), j=d.journal.find(x=>x.tourId===t.id)||{}; const parts=encodeURIComponent;
+  const gps=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const metricKm=gps?gps.distanceKm:j.km, metricUp=gps?gps.elevationGainM:j.up, metricHours=gps?gps.elapsedHours:j.h;
   const ppl=(t.participants||[]).map(p=>p.name).join(", ")||""; 
   openModal({ title:"📖 Élmény — "+esc(t.title), body:`
-    <p class="small muted mt0" style="margin:0 0 .5rem">${esc(t.region||t.place||"")} · ${t.date?fmtDateFull(t.date):""} · 📏 ${t.lengthKm||"?"} km · ⬆ ${t.ascent||"?"} m${t.durationH?" · ⏱ "+t.durationH+" ó":""}${ppl?" · 👥 "+esc(ppl):""}${t.gpx||t.coords?" · 🧭 útvonal rögzítve":""}</p>
+    <p class="small muted mt0" style="margin:0 0 .5rem">${esc(t.region||t.place||"")} · ${fmtDateFull(j.date||t.doneAt||t.date)} · 📏 ${metricKm==null?"—":Number(metricKm).toFixed(2)} km · ⬆ ${metricUp==null?"—":metricUp} m · ⏱ ${metricHours==null?"—":Number(metricHours).toFixed(2)+" ó"}${ppl?" · 👥 "+esc(ppl):""}${t.gpx||t.coords?" · 🧭 útvonal rögzítve":""}</p>
     <label class="f" for="mm-title">Cím</label><input class="input" id="mm-title" value="${esc(j.title||t.title)}">
     <label class="f" style="margin-top:.6rem" for="mm-story">Mesélj a túráról — nem kötelező</label><textarea class="input" id="mm-story" rows="4" placeholder="Mi volt a legjobb? ${fresh?"":"A korábbi szöveg megmarad."}">${esc(j.note||"")}</textarea>
     <label class="f" style="margin-top:.7rem">⭐ Értékeld a túrát</label>
@@ -678,9 +680,7 @@ function openMemoryEditor(t, fresh){
       r.querySelector("#mm-save").onclick=()=>{ const files=[...(r.querySelector("#mm-ph").files||[])]; const old=(j.photos||[]).filter(p=>p&&(p.indexOf("data:")===0||(p.length<200&&p!==t.img)));
         const finalize=(extra)=>{ const photos=[...new Set([...(j.photos&&j.photos.length>1?j.photos:(old.length?old:[])), ...extra])].slice(0,9);
           Store.completeTour(t.id, { rating, note:r.querySelector("#mm-story").value, lesson:r.querySelector("#mm-lesson").value,
-            fav:r.querySelector("#mm-fav").value, title:r.querySelector("#mm-title").value.trim()||t.title, photos,
-            km:+(r.querySelector("#mm-km")||{}).value||0 }); const jj=Store.myData().journal.find(x=>x.tourId===t.id);
-          jj.km=+j.km||+t.lengthKm||0; Store.save(); closeModal();
+            fav:r.querySelector("#mm-fav").value, title:r.querySelector("#mm-title").value.trim()||t.title, photos }); closeModal();
           openModal({ title:"📖 Élmény mentve", body:`<p class="muted mt0">A(z) <b>${esc(t.title)}</b> élménye az Élménykönyvedben van — a túra véglegesítve.</p>
             <div class="flex" style="gap:.5rem;justify-content:flex-end"><button class="btn btn-ghost" data-close>Kész</button><a class="btn btn-primary" href="#/naplo" data-close-onclick> Megnézem az élményt</a></div>`,
             footer:`<button class="btn btn-primary btn-block" id="mm-view">📖 Megnézem az élményt</button>`,

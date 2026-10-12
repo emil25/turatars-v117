@@ -332,15 +332,17 @@ VIEWS.templates.after = root => {
 /* ---------- 16) TÚRA UTÁNI 5-LÉPÉSES FOLYAMAT ---------- */
 function finishWizard(t){
   const d=Store.myData(), ex=d.journal.find(j=>j.tourId===t.id);
+  const recorded=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const reusableMetrics=!!(ex&&(t.status==="teljesítve"||ex.metricSource==="gps"||ex.metricSource==="manual"));
   const steps=[
     ()=>`<div class="center"><p class="muted mt0">🥾 <b>${esc(t.title)}</b> — ${t.date?fmtDateFull(t.date):""}</p>
       <h2 style="font-size:1.35rem">Milyen volt?</h2>
       <div class="mood-row">${[["😫","Nagyon nehéz"],["🙂","Jó"],["😍","Fantasztikus"]].map(m=>`<button class="mood-pick ${wizF.mood===m[0]?"sel":""}" data-mood="${m[0]}">${m[0]}<small>${m[1]}</small></button>`).join("")}</div>
       <p class="small muted">Csillagokban is: ${[1,2,3,4,5].map(i=>`<button class="star-btn ${i<=wizF.rating?"on":""}" data-star="${i}">★</button>`).join("")}</p></div>`,
-    ()=>`<h2 style="font-size:1.35rem">Táv és idő — amit a tervből átvettem</h2>
+    ()=>`<h2 style="font-size:1.35rem">Tényleges táv és idő</h2>
       <div class="grid g2"><div><label class="f">Megtett táv (km)</label><input class="input" id="fw-km" type="number" step=".1" value="${wizF.km}"></div>
       <div><label class="f">Tényleges idő (óra)</label><input class="input" id="fw-h" type="number" step=".5" value="${wizF.h}"></div></div>
-      <p class="small muted">A szint és a hely automatikusan jön a túratervből. Felülírhatod a terv adatait, ha másképp alakult.</p>`,
+      <p class="small muted">GPS-felvételnél a rögzített eredmény az irányadó. GPS nélkül add meg a tényleges adatokat; a terv értékei nem kerülnek be automatikusan a naplóba.</p>`,
     ()=>`<h2 style="font-size:1.35rem">Fotók hozzáadása</h2>
       <input type="file" accept="image/*" multiple id="fw-ph" class="input" style="padding:.6em">
       <p class="small muted">A korábban feltöltött ${t.photos.length} túrakép itt marad. Max ~8 kép az memóriabarát.</p>
@@ -353,7 +355,7 @@ function finishWizard(t){
       <label class="f" style="margin-top:.7rem">🔒 Ki lássa az élményt az Élménykönyvben?</label>
       <div class="seg">${["privát","csak túratársak","nyilvános"].map(p=>`<label class="seg-opt ${wizF.privacy===p?"on":""}"><input type="radio" name="fwpr" value="${p}" ${wizF.privacy===p?"checked":""}> ${p==="privát"?"🔒":p==="csak túratársak"?"👥":"🌍"} ${p}</label>`).join("")}</div>
       <p class="small muted">Az élmény a te naplód — a megosztás itt opció, nem alapértelmezés.</p>`];
-  let wizF = { mood: ex&&ex.mood||"", rating: ex&&ex.rating||0, km: +t.lengthKm||0, h: +t.durationH||0,
+  let wizF = { mood: ex&&ex.mood||"", rating: ex&&ex.rating||0, km: recorded?recorded.distanceKm:(reusableMetrics&&ex.km!=null?ex.km:""), h: recorded&&recorded.elapsedHours!=null?recorded.elapsedHours:(reusableMetrics&&ex.h!=null?ex.h:""),
     photos: (t.photos||[]).slice(0,8), note: ex&&ex.note||"", lesson: ex&&ex.lesson||"", privacy: ex&&ex.privacy||"privát", step:0 };
   const total=steps.length;
   function paint(back){
@@ -363,7 +365,7 @@ function finishWizard(t){
       footer:`<div class="flex between">${wizF.step>0?`<button class="btn btn-ghost btn-sm" id="fw-prev">← Vissza</button>`:"<span></span>"}
         <button class="btn ${wizF.step===total-1?"btn-ember":"btn-primary"}" id="fw-next">${wizF.step===total-1?"✓ Kész — megőrzöm":"Tovább →"}</button></div>`,
       onOpen(r){
-        const collect=()=>{ const km=r.querySelector("#fw-km"); if(km) wizF.km=+km.value; const h=r.querySelector("#fw-h"); if(h) wizF.h=+h.value;
+        const collect=()=>{ const km=r.querySelector("#fw-km"); if(km) wizF.km=km.value.trim()===""?null:Number(km.value); const h=r.querySelector("#fw-h"); if(h) wizF.h=h.value.trim()===""?null:Number(h.value);
           const note=r.querySelector("#fw-note"); if(note) wizF.note=note.value; const l=r.querySelector("#fw-lesson"); if(l) wizF.lesson=l.value;
           const pr=r.querySelector("input[name=fwpr]:checked"); if(pr) wizF.privacy=pr.value; };
         r.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{ collect(); wizF.mood=b.dataset.mood; paint(); });
@@ -728,7 +730,7 @@ function goalNewModal(){
           ${j.fav?`<p class="small" style="margin:.25rem 0;color:var(--ember)">❤️ ${esc(j.fav)}</p>`:""}
           <p class="small" style="margin:.3rem 0"><span class="chip chip-sand" style="background:#FBF4DE;color:#8a6d12;font-style:italic">💡 ${esc(j.lesson||"")||"Mit tanultál? Írd meg a ✎ gombbal."}</span></p>
           ${j.audio?`<audio controls src="${j.audio}" style="width:100%;height:36px;margin:.3rem 0"></audio>`:""}
-          <div class="meta" style="font-size:.78rem"><span>📏 ${j.km||"?"} km</span><span>⬆ ${j.up||"?"} m</span><span>⏱ ${j.h||"?"} ó</span></div>
+          <div class="meta" style="font-size:.78rem"><span>📏 ${j.km==null?"—":Number(j.km).toFixed(2)} km</span><span>⬆ ${j.up==null?"—":j.up} m</span><span>⏱ Eltelt: ${j.h==null?"—":Number(j.h).toFixed(2)} ó</span>${j.metricSource==="gps"&&j.activeHours!=null?`<span>🚶 Mozgásban: ${Number(j.activeHours).toFixed(2)} ó</span>`:""}${j.metricSource==="gps"&&j.averageSpeedKmh!=null?`<span>⚡ Átlag: ${Number(j.averageSpeedKmh).toFixed(1)} km/h (aktív idő)</span>`:""}</div>
           <div class="flex wrapcol" style="gap:.5rem;margin-top:.6rem">
             <button class="btn btn-soft btn-sm" data-jedit="${j.id}">✎ Történet és tanulság</button>
             ${j.tourId?`<a class="btn btn-ghost btn-sm" href="#/tura/${j.tourId}">📁 Munkaterület</a>`:""}

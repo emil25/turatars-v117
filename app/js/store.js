@@ -187,16 +187,34 @@ const Store = (() => {
   function completeTour(id, rating, note, photos){
     const o = (rating && typeof rating==="object") ? rating : {rating, note, photos};
     const d=myData(), t=getTour(id); if(!t) return;
-    t.status="teljesítve"; t.doneAt = o.doneAt || t.date || todayISO();
-    const core = { tourId:id, title:(o.title||t.title||"").slice(0,88), place:t.region||t.place, date:t.doneAt,
-      km:+(o.km!=null?o.km:t.lengthKm)||0, up:+t.ascent||0, h:+(o.h!=null?o.h:t.durationH)||0,
-      rating:+o.rating||0, note:o.note||"", photos:(o.photos&&o.photos.length?o.photos:[t.img]).slice(0,9),
-      ...(o.fav!==undefined?{fav:o.fav}:{}), ...(o.lesson?{lesson:o.lesson}:{}), updatedAt:new Date().toISOString() };
     const jx = d.journal.find(j=>j.tourId===id);
-    if(jx) Object.assign(jx, core);
-    else d.journal.push(Object.assign({ id:uid("j"), mood:o.mood||"", lesson:o.lesson||"",
-      audio:o.audio||null, privacy:o.privacy||"privát" }, core));
-    save();
+    const live=t.liveTrack, wasCompleted=t.status==="teljesítve"||(live&&live.status==="finished"), gps=live&&live.status==="finished"&&live.summary&&live.summary.version===1&&live.summary.source==="gps"?live.summary:null;
+    const keepExistingMetrics=!!jx&&(wasCompleted||jx.metricSource==="gps"||jx.metricSource==="manual");
+    const has=(key)=>Object.prototype.hasOwnProperty.call(o,key);
+    const metric=(value)=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value))&&Number(value)>=0?Number(value):null;
+    const doneAt=o.doneAt||(gps&&gps.finishedAt?new Date(gps.finishedAt).toISOString().slice(0,10):null)||(wasCompleted&&(t.doneAt||jx&&jx.date))||todayISO();
+    t.status="teljesítve"; t.doneAt=doneAt;
+    const km=gps?metric(gps.distanceKm):(has("km")?metric(o.km):(keepExistingMetrics?metric(jx.km):null));
+    const up=gps?metric(gps.elevationGainM):(has("up")?metric(o.up):(keepExistingMetrics?metric(jx.up):null));
+    const h=gps?metric(gps.elapsedHours):(has("h")?metric(o.h):(keepExistingMetrics?metric(jx.h):null));
+    const core={tourId:id,title:(o.title||jx&&jx.title||t.title||"").slice(0,88),place:t.region||t.place,date:doneAt,
+      km,up,h,rating:has("rating")&&metric(o.rating)!=null?metric(o.rating):jx&&+jx.rating||0,
+      note:has("note")?String(o.note||""):jx&&jx.note||"",
+      photos:(has("photos")&&o.photos&&o.photos.length?o.photos:jx&&jx.photos&&jx.photos.length?jx.photos:[t.img].filter(Boolean)).slice(0,9),
+      updatedAt:new Date().toISOString()};
+    if(gps){core.metricSource="gps";core.actualSummaryVersion=gps.version;core.activeHours=metric(gps.activeHours);core.averageSpeedKmh=metric(gps.averageActiveKmh);}
+    else {
+      if(jx&&jx.metricSource)core.metricSource=jx.metricSource;
+      else if((has("km")&&km!=null)||(has("h")&&h!=null)||(has("up")&&up!=null))core.metricSource="manual";
+      if(jx&&jx.activeHours!=null)core.activeHours=jx.activeHours;
+      if(jx&&jx.averageSpeedKmh!=null)core.averageSpeedKmh=jx.averageSpeedKmh;
+      if(jx&&jx.actualSummaryVersion!=null)core.actualSummaryVersion=jx.actualSummaryVersion;
+    }
+    if(has("fav"))core.fav=o.fav;else if(jx&&jx.fav!==undefined)core.fav=jx.fav;
+    if(has("lesson"))core.lesson=o.lesson||"";else if(jx&&jx.lesson!==undefined)core.lesson=jx.lesson;
+    if(jx)Object.assign(jx,core);
+    else d.journal.push(Object.assign({id:uid("j"),mood:o.mood||"",lesson:o.lesson||"",audio:o.audio||null,privacy:o.privacy||"privát"},core));
+    save(); return d.journal.find(j=>j.tourId===id);
   }
   function updateJournal(id, patch){ const my=myData(); const j=my.journal.find(x=>x.id===id); if(j) Object.assign(j,patch); save(); return j; }
   function rmJournal(id){ const my=myData(); my.journal=my.journal.filter(x=>x.id!==id); save(); }
@@ -337,7 +355,22 @@ const Store = (() => {
   function eraseMyData(){ const u=me(); if(!u) return {err:"Előbb jelentkezz be."};
     const next=JSON.parse(exportData());next.data[u.id]=blankUserData();
     return importData(JSON.stringify(next)); }
-  function journalKmTotal(){ const d=myData(); if(!d) return 0; return Math.round(d.journal.reduce((a,j)=>a+(+j.km||0),0)); }
+  function journalForStats(d){
+    const rows=[],positions=new Map();
+    (d&&d.journal||[]).forEach((j,index)=>{
+      if(!j)return;
+      const t=j.tourId!=null&&(d.tours||[]).find(x=>String(x.id)===String(j.tourId));
+      if(t&&["tervezés","ötlet","bakancs","közelgő","jelentkezve","folyamatban"].includes(t.status)&&!(t.liveTrack&&t.liveTrack.status==="finished"))return;
+      if(j.tourId==null){rows.push(j);return;}
+      const key="tour:"+String(j.tourId),at=positions.get(key);
+      if(at==null){positions.set(key,rows.length);rows.push(j);return;}
+      const old=rows[at],rank=x=>x.metricSource==="gps"?2:x.metricSource==="manual"?1:0;
+      const newer=x=>Date.parse(x.updatedAt||x.date||"")||0;
+      if(rank(j)>rank(old)||(rank(j)===rank(old)&&newer(j)>=newer(old)))rows[at]=j;
+    });
+    return rows;
+  }
+  function journalKmTotal(){ const d=myData(); if(!d) return 0; return Math.round(journalForStats(d).reduce((a,j)=>a+(+j.km||0),0)); }
     function setWidgetOrder(arr){ myData().widgets=arr.slice(); save(); }
   function setTheme(mode){ db.theme=mode; save(); applyTheme(); }
   function getTheme(){ return db.theme||"light"; }
@@ -390,7 +423,7 @@ const Store = (() => {
   /* ---------- STATISZTIKÁK ---------- */
   function stats(){
     const d = myData(); if(!d) return null;
-    const done = d.journal;
+    const done = journalForStats(d);
     const byM={}; done.forEach(j=>{ const m=(j.date||"").slice(0,7); byM[m]=byM[m]||{km:0,tours:0,up:0};
       byM[m].km+=+j.km||0; byM[m].up+=+j.up||0; byM[m].tours++; });
     const regions={}; done.forEach(j=>{ regions[j.place]=(regions[j.place]||0)+1; });

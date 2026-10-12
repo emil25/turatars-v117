@@ -598,16 +598,34 @@ const Store = (() => {
   function completeTour(id, rating, note, photos){
     const o = (rating && typeof rating==="object") ? rating : {rating, note, photos};
     const d=myData(), t=getTour(id); if(!t) return;
-    t.status="teljesítve"; t.doneAt = o.doneAt || t.date || todayISO();
-    const core = { tourId:id, title:(o.title||t.title||"").slice(0,88), place:t.region||t.place, date:t.doneAt,
-      km:+(o.km!=null?o.km:t.lengthKm)||0, up:+t.ascent||0, h:+(o.h!=null?o.h:t.durationH)||0,
-      rating:+o.rating||0, note:o.note||"", photos:(o.photos&&o.photos.length?o.photos:[t.img]).slice(0,9),
-      ...(o.fav!==undefined?{fav:o.fav}:{}), ...(o.lesson?{lesson:o.lesson}:{}), updatedAt:new Date().toISOString() };
     const jx = d.journal.find(j=>j.tourId===id);
-    if(jx) Object.assign(jx, core);
-    else d.journal.push(Object.assign({ id:uid("j"), mood:o.mood||"", lesson:o.lesson||"",
-      audio:o.audio||null, privacy:o.privacy||"privát" }, core));
-    save();
+    const live=t.liveTrack, wasCompleted=t.status==="teljesítve"||(live&&live.status==="finished"), gps=live&&live.status==="finished"&&live.summary&&live.summary.version===1&&live.summary.source==="gps"?live.summary:null;
+    const keepExistingMetrics=!!jx&&(wasCompleted||jx.metricSource==="gps"||jx.metricSource==="manual");
+    const has=(key)=>Object.prototype.hasOwnProperty.call(o,key);
+    const metric=(value)=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value))&&Number(value)>=0?Number(value):null;
+    const doneAt=o.doneAt||(gps&&gps.finishedAt?new Date(gps.finishedAt).toISOString().slice(0,10):null)||(wasCompleted&&(t.doneAt||jx&&jx.date))||todayISO();
+    t.status="teljesítve"; t.doneAt=doneAt;
+    const km=gps?metric(gps.distanceKm):(has("km")?metric(o.km):(keepExistingMetrics?metric(jx.km):null));
+    const up=gps?metric(gps.elevationGainM):(has("up")?metric(o.up):(keepExistingMetrics?metric(jx.up):null));
+    const h=gps?metric(gps.elapsedHours):(has("h")?metric(o.h):(keepExistingMetrics?metric(jx.h):null));
+    const core={tourId:id,title:(o.title||jx&&jx.title||t.title||"").slice(0,88),place:t.region||t.place,date:doneAt,
+      km,up,h,rating:has("rating")&&metric(o.rating)!=null?metric(o.rating):jx&&+jx.rating||0,
+      note:has("note")?String(o.note||""):jx&&jx.note||"",
+      photos:(has("photos")&&o.photos&&o.photos.length?o.photos:jx&&jx.photos&&jx.photos.length?jx.photos:[t.img].filter(Boolean)).slice(0,9),
+      updatedAt:new Date().toISOString()};
+    if(gps){core.metricSource="gps";core.actualSummaryVersion=gps.version;core.activeHours=metric(gps.activeHours);core.averageSpeedKmh=metric(gps.averageActiveKmh);}
+    else {
+      if(jx&&jx.metricSource)core.metricSource=jx.metricSource;
+      else if((has("km")&&km!=null)||(has("h")&&h!=null)||(has("up")&&up!=null))core.metricSource="manual";
+      if(jx&&jx.activeHours!=null)core.activeHours=jx.activeHours;
+      if(jx&&jx.averageSpeedKmh!=null)core.averageSpeedKmh=jx.averageSpeedKmh;
+      if(jx&&jx.actualSummaryVersion!=null)core.actualSummaryVersion=jx.actualSummaryVersion;
+    }
+    if(has("fav"))core.fav=o.fav;else if(jx&&jx.fav!==undefined)core.fav=jx.fav;
+    if(has("lesson"))core.lesson=o.lesson||"";else if(jx&&jx.lesson!==undefined)core.lesson=jx.lesson;
+    if(jx)Object.assign(jx,core);
+    else d.journal.push(Object.assign({id:uid("j"),mood:o.mood||"",lesson:o.lesson||"",audio:o.audio||null,privacy:o.privacy||"privát"},core));
+    save(); return d.journal.find(j=>j.tourId===id);
   }
   function updateJournal(id, patch){ const my=myData(); const j=my.journal.find(x=>x.id===id); if(j) Object.assign(j,patch); save(); return j; }
   function rmJournal(id){ const my=myData(); my.journal=my.journal.filter(x=>x.id!==id); save(); }
@@ -748,7 +766,22 @@ const Store = (() => {
   function eraseMyData(){ const u=me(); if(!u) return {err:"Előbb jelentkezz be."};
     const next=JSON.parse(exportData());next.data[u.id]=blankUserData();
     return importData(JSON.stringify(next)); }
-  function journalKmTotal(){ const d=myData(); if(!d) return 0; return Math.round(d.journal.reduce((a,j)=>a+(+j.km||0),0)); }
+  function journalForStats(d){
+    const rows=[],positions=new Map();
+    (d&&d.journal||[]).forEach((j,index)=>{
+      if(!j)return;
+      const t=j.tourId!=null&&(d.tours||[]).find(x=>String(x.id)===String(j.tourId));
+      if(t&&["tervezés","ötlet","bakancs","közelgő","jelentkezve","folyamatban"].includes(t.status)&&!(t.liveTrack&&t.liveTrack.status==="finished"))return;
+      if(j.tourId==null){rows.push(j);return;}
+      const key="tour:"+String(j.tourId),at=positions.get(key);
+      if(at==null){positions.set(key,rows.length);rows.push(j);return;}
+      const old=rows[at],rank=x=>x.metricSource==="gps"?2:x.metricSource==="manual"?1:0;
+      const newer=x=>Date.parse(x.updatedAt||x.date||"")||0;
+      if(rank(j)>rank(old)||(rank(j)===rank(old)&&newer(j)>=newer(old)))rows[at]=j;
+    });
+    return rows;
+  }
+  function journalKmTotal(){ const d=myData(); if(!d) return 0; return Math.round(journalForStats(d).reduce((a,j)=>a+(+j.km||0),0)); }
     function setWidgetOrder(arr){ myData().widgets=arr.slice(); save(); }
   function setTheme(mode){ db.theme=mode; save(); applyTheme(); }
   function getTheme(){ return db.theme||"light"; }
@@ -801,7 +834,7 @@ const Store = (() => {
   /* ---------- STATISZTIKÁK ---------- */
   function stats(){
     const d = myData(); if(!d) return null;
-    const done = d.journal;
+    const done = journalForStats(d);
     const byM={}; done.forEach(j=>{ const m=(j.date||"").slice(0,7); byM[m]=byM[m]||{km:0,tours:0,up:0};
       byM[m].km+=+j.km||0; byM[m].up+=+j.up||0; byM[m].tours++; });
     const regions={}; done.forEach(j=>{ regions[j.place]=(regions[j.place]||0)+1; });
@@ -2435,14 +2468,14 @@ VIEWS.journal = () => {
           <div class="flex between wrapcol"><b>${esc(j.title)}</b><span class="small muted">${fmtDateFull(j.date)}</span></div>
           <span class="stars">${"★".repeat(j.rating||0)}${"☆".repeat(5-(j.rating||0))}</span>
           <p class="small" style="margin:.3rem 0 .2rem;color:var(--bark-soft)">"${esc(j.note||"")}"</p>
-          <div class="meta" style="font-size:.8rem"><span>📍 ${esc(j.place||"—")}</span><span>📏 ${j.km==null||j.km===""?"—":esc(String(j.km))+" "} km</span><span>⬆ ${j.up==null||j.up===""||isNaN(+j.up)?"—":j.up} m</span><span>⏱ ${j.h==null||j.h===""||isNaN(+j.h)?"—":j.h} ó</span></div>
+          <div class="meta" style="font-size:.8rem"><span>📍 ${esc(j.place||"—")}</span><span>📏 ${j.km==null||j.km===""?"—":esc(String(j.km))+" "} km</span><span>⬆ ${j.up==null||j.up===""||isNaN(+j.up)?"—":j.up} m</span><span>⏱ Eltelt idő: ${j.h==null||j.h===""||isNaN(+j.h)?"—":j.h} ó</span>${j.metricSource==="gps"&&j.activeHours!=null?`<span>🚶 Mozgásban: ${Number(j.activeHours).toFixed(2)} ó</span>`:""}${j.metricSource==="gps"&&j.averageSpeedKmh!=null?`<span>⚡ Átlag: ${Number(j.averageSpeedKmh).toFixed(1)} km/h (aktív idő)</span>`:""}</div>
           <div class="flex" style="margin-top:.6rem">
             <button class="btn btn-ghost btn-sm" data-jedit="${j.id}">✎ Jegyzet szerkesztése</button>
             ${j.tourId?`<a class="btn btn-soft btn-sm" href="#/tura/${j.tourId}">📁 Munkaterület</a>`:""}
             <a class="btn btn-soft btn-sm" href="?img=/photo/${j.id}">🖼 Képek megnyitása</a>
           </div></div>
       </article>`).join("")
-    : `<div class="empty"><span class="em-ico">📖</span><h3>A naplód még üres</h3><p>Ha teljesítesz egy túrát, ide felkerül az értékeléseddel, képeiddel és a saját szavaiddal. A többi — dátum, táv, szint — automatikusan rendeződik.</p>
+    : `<div class="empty"><span class="em-ico">📖</span><h3>A naplód még üres</h3><p>Ha teljesítesz egy túrát, ide kerül az értékelésed, a képeid és a saját szavaid. A tényleges távot, időt és szintet GPS-felvételből vagy az általad megadott adatokból mutatjuk.</p>
       <a class="btn btn-primary" href="#/turaim">Túráim</a></div>`}`);
 };
 VIEWS.journal.after = root => {
@@ -3208,15 +3241,18 @@ function finishFlow(t, forceLog){
   if(t.status==="teljesítve" && (forceLog||Store.myData().journal.some(j=>j.tourId===t.id))){ journalModal(t); return; }
   if(t.status!=="teljesítve"){
     openModal({ title:`${esc(t.title)}` , body:`<div class="hcard" style="min-height:120px">${imgTag(t.img||IMG.erdo,"")}<div class="hb"><b style="font-size:1.05rem">Teljesítetted ezt a túrát?</b><div class="meta"><span>${t.date?fmtDateFull(t.date):""} · ${t.lengthKm||"?"} km · ⬆ ${t.ascent||"?"} m</span></div></div></div>
-      <p class="muted small">Ha igen: értékelés + jegyzet + képek — és a többi (dátum, hely, táv, idő) automatikusan a naplódra kerül.</p>
+      <p class="muted small">Ha igen: értékelés + jegyzet + képek. A dátum és hely a túrához kapcsolódik; a tényleges táv és idő GPS-felvételből vagy az általad megadott adatokból kerül a naplóba.</p>
       <div class="flex" style="gap:.6rem;justify-content:flex-end;margin-top:1rem"><button class="btn btn-ghost btn-sm" data-close>Még nem</button>
       <button class="btn btn-ember btn-lg" id="ff-yes">✓ Teljesítettem</button></div>`,
       onOpen(r){ r.querySelector("#ff-yes").onclick=()=>{ closeModal(); journalModal(t, true); }; }});
   } else journalModal(t);
 }
 function journalModal(t, markDone){
+  const j=Store.myData().journal.find(x=>x.tourId===t.id)||{};
+  const gps=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const km=gps?gps.distanceKm:j.km, up=gps?gps.elevationGainM:j.up, hours=gps?gps.elapsedHours:j.h;
   openModal({ title:`📖 Túranapló — ${esc(t.title)}`,
-    body:`<p class="muted mt0 small">${fmtDateFull(t.date||t.doneAt)} · ${esc(t.region||t.place||"")} · ${t.lengthKm} km · ⬆ ${t.ascent} m · ⏱ ${t.durationH} ó</p>
+    body:`<p class="muted mt0 small">${fmtDateFull(j.date||t.doneAt||t.date)} · ${esc(t.region||t.place||"")} · ${km==null?"—":Number(km).toFixed(2)} km · ⬆ ${up==null?"—":up} m · ⏱ ${hours==null?"—":Number(hours).toFixed(2)} ó</p>
       <label class="f">Értékelés</label><div id="jm-stars" style="font-size:2rem;display:flex;gap:.15rem">${[1,2,3,4,5].map(i=>`<button data-s="${i}" style="background:none;border:0;cursor:pointer;color:#cfcabb" aria-label="${i} csillag">★</button>`).join("")}</div>
       <label class="f" style="margin-top:.5rem">Saját jegyzet</label><textarea class="input" id="jm-note" rows="3" placeholder="Pl. Gyönyörű idő volt. A felső szakasz sáros volt, de megérte."></textarea>
       <label class="f" style="margin-top:.7rem">📸 Képek</label><input type="file" id="jm-ph" accept="image/*" multiple class="input" style="padding:.55em">`,
@@ -3574,15 +3610,17 @@ VIEWS.templates.after = root => {
 /* ---------- 16) TÚRA UTÁNI 5-LÉPÉSES FOLYAMAT ---------- */
 function finishWizard(t){
   const d=Store.myData(), ex=d.journal.find(j=>j.tourId===t.id);
+  const recorded=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const reusableMetrics=!!(ex&&(t.status==="teljesítve"||ex.metricSource==="gps"||ex.metricSource==="manual"));
   const steps=[
     ()=>`<div class="center"><p class="muted mt0">🥾 <b>${esc(t.title)}</b> — ${t.date?fmtDateFull(t.date):""}</p>
       <h2 style="font-size:1.35rem">Milyen volt?</h2>
       <div class="mood-row">${[["😫","Nagyon nehéz"],["🙂","Jó"],["😍","Fantasztikus"]].map(m=>`<button class="mood-pick ${wizF.mood===m[0]?"sel":""}" data-mood="${m[0]}">${m[0]}<small>${m[1]}</small></button>`).join("")}</div>
       <p class="small muted">Csillagokban is: ${[1,2,3,4,5].map(i=>`<button class="star-btn ${i<=wizF.rating?"on":""}" data-star="${i}">★</button>`).join("")}</p></div>`,
-    ()=>`<h2 style="font-size:1.35rem">Táv és idő — amit a tervből átvettem</h2>
+    ()=>`<h2 style="font-size:1.35rem">Tényleges táv és idő</h2>
       <div class="grid g2"><div><label class="f">Megtett táv (km)</label><input class="input" id="fw-km" type="number" step=".1" value="${wizF.km}"></div>
       <div><label class="f">Tényleges idő (óra)</label><input class="input" id="fw-h" type="number" step=".5" value="${wizF.h}"></div></div>
-      <p class="small muted">A szint és a hely automatikusan jön a túratervből. Felülírhatod a terv adatait, ha másképp alakult.</p>`,
+      <p class="small muted">GPS-felvételnél a rögzített eredmény az irányadó. GPS nélkül add meg a tényleges adatokat; a terv értékei nem kerülnek be automatikusan a naplóba.</p>`,
     ()=>`<h2 style="font-size:1.35rem">Fotók hozzáadása</h2>
       <input type="file" accept="image/*" multiple id="fw-ph" class="input" style="padding:.6em">
       <p class="small muted">A korábban feltöltött ${t.photos.length} túrakép itt marad. Max ~8 kép az memóriabarát.</p>
@@ -3595,7 +3633,7 @@ function finishWizard(t){
       <label class="f" style="margin-top:.7rem">🔒 Ki lássa az élményt az Élménykönyvben?</label>
       <div class="seg">${["privát","csak túratársak","nyilvános"].map(p=>`<label class="seg-opt ${wizF.privacy===p?"on":""}"><input type="radio" name="fwpr" value="${p}" ${wizF.privacy===p?"checked":""}> ${p==="privát"?"🔒":p==="csak túratársak"?"👥":"🌍"} ${p}</label>`).join("")}</div>
       <p class="small muted">Az élmény a te naplód — a megosztás itt opció, nem alapértelmezés.</p>`];
-  let wizF = { mood: ex&&ex.mood||"", rating: ex&&ex.rating||0, km: +t.lengthKm||0, h: +t.durationH||0,
+  let wizF = { mood: ex&&ex.mood||"", rating: ex&&ex.rating||0, km: recorded?recorded.distanceKm:(reusableMetrics&&ex.km!=null?ex.km:""), h: recorded&&recorded.elapsedHours!=null?recorded.elapsedHours:(reusableMetrics&&ex.h!=null?ex.h:""),
     photos: (t.photos||[]).slice(0,8), note: ex&&ex.note||"", lesson: ex&&ex.lesson||"", privacy: ex&&ex.privacy||"privát", step:0 };
   const total=steps.length;
   function paint(back){
@@ -3605,7 +3643,7 @@ function finishWizard(t){
       footer:`<div class="flex between">${wizF.step>0?`<button class="btn btn-ghost btn-sm" id="fw-prev">← Vissza</button>`:"<span></span>"}
         <button class="btn ${wizF.step===total-1?"btn-ember":"btn-primary"}" id="fw-next">${wizF.step===total-1?"✓ Kész — megőrzöm":"Tovább →"}</button></div>`,
       onOpen(r){
-        const collect=()=>{ const km=r.querySelector("#fw-km"); if(km) wizF.km=+km.value; const h=r.querySelector("#fw-h"); if(h) wizF.h=+h.value;
+        const collect=()=>{ const km=r.querySelector("#fw-km"); if(km) wizF.km=km.value.trim()===""?null:Number(km.value); const h=r.querySelector("#fw-h"); if(h) wizF.h=h.value.trim()===""?null:Number(h.value);
           const note=r.querySelector("#fw-note"); if(note) wizF.note=note.value; const l=r.querySelector("#fw-lesson"); if(l) wizF.lesson=l.value;
           const pr=r.querySelector("input[name=fwpr]:checked"); if(pr) wizF.privacy=pr.value; };
         r.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{ collect(); wizF.mood=b.dataset.mood; paint(); });
@@ -3970,7 +4008,7 @@ function goalNewModal(){
           ${j.fav?`<p class="small" style="margin:.25rem 0;color:var(--ember)">❤️ ${esc(j.fav)}</p>`:""}
           <p class="small" style="margin:.3rem 0"><span class="chip chip-sand" style="background:#FBF4DE;color:#8a6d12;font-style:italic">💡 ${esc(j.lesson||"")||"Mit tanultál? Írd meg a ✎ gombbal."}</span></p>
           ${j.audio?`<audio controls src="${j.audio}" style="width:100%;height:36px;margin:.3rem 0"></audio>`:""}
-          <div class="meta" style="font-size:.78rem"><span>📏 ${j.km||"?"} km</span><span>⬆ ${j.up||"?"} m</span><span>⏱ ${j.h||"?"} ó</span></div>
+          <div class="meta" style="font-size:.78rem"><span>📏 ${j.km==null?"—":Number(j.km).toFixed(2)} km</span><span>⬆ ${j.up==null?"—":j.up} m</span><span>⏱ Eltelt: ${j.h==null?"—":Number(j.h).toFixed(2)} ó</span>${j.metricSource==="gps"&&j.activeHours!=null?`<span>🚶 Mozgásban: ${Number(j.activeHours).toFixed(2)} ó</span>`:""}${j.metricSource==="gps"&&j.averageSpeedKmh!=null?`<span>⚡ Átlag: ${Number(j.averageSpeedKmh).toFixed(1)} km/h (aktív idő)</span>`:""}</div>
           <div class="flex wrapcol" style="gap:.5rem;margin-top:.6rem">
             <button class="btn btn-soft btn-sm" data-jedit="${j.id}">✎ Történet és tanulság</button>
             ${j.tourId?`<a class="btn btn-ghost btn-sm" href="#/tura/${j.tourId}">📁 Munkaterület</a>`:""}
@@ -4976,9 +5014,11 @@ window.memBtn = function(t){ const j=Store.myData().journal.find(x=>x.tourId===t
   return `<button class="btn btn-ember btn-sm" data-openmem="${t.id}">📖 Élmény hozzáadása</button>`; };
 function openMemoryEditor(t, fresh){
   const d=Store.myData(), j=d.journal.find(x=>x.tourId===t.id)||{}; const parts=encodeURIComponent;
+  const gps=t.liveTrack&&t.liveTrack.status==="finished"&&t.liveTrack.summary&&t.liveTrack.summary.source==="gps"?t.liveTrack.summary:null;
+  const metricKm=gps?gps.distanceKm:j.km, metricUp=gps?gps.elevationGainM:j.up, metricHours=gps?gps.elapsedHours:j.h;
   const ppl=(t.participants||[]).map(p=>p.name).join(", ")||""; 
   openModal({ title:"📖 Élmény — "+esc(t.title), body:`
-    <p class="small muted mt0" style="margin:0 0 .5rem">${esc(t.region||t.place||"")} · ${t.date?fmtDateFull(t.date):""} · 📏 ${t.lengthKm||"?"} km · ⬆ ${t.ascent||"?"} m${t.durationH?" · ⏱ "+t.durationH+" ó":""}${ppl?" · 👥 "+esc(ppl):""}${t.gpx||t.coords?" · 🧭 útvonal rögzítve":""}</p>
+    <p class="small muted mt0" style="margin:0 0 .5rem">${esc(t.region||t.place||"")} · ${fmtDateFull(j.date||t.doneAt||t.date)} · 📏 ${metricKm==null?"—":Number(metricKm).toFixed(2)} km · ⬆ ${metricUp==null?"—":metricUp} m · ⏱ ${metricHours==null?"—":Number(metricHours).toFixed(2)+" ó"}${ppl?" · 👥 "+esc(ppl):""}${t.gpx||t.coords?" · 🧭 útvonal rögzítve":""}</p>
     <label class="f" for="mm-title">Cím</label><input class="input" id="mm-title" value="${esc(j.title||t.title)}">
     <label class="f" style="margin-top:.6rem" for="mm-story">Mesélj a túráról — nem kötelező</label><textarea class="input" id="mm-story" rows="4" placeholder="Mi volt a legjobb? ${fresh?"":"A korábbi szöveg megmarad."}">${esc(j.note||"")}</textarea>
     <label class="f" style="margin-top:.7rem">⭐ Értékeld a túrát</label>
@@ -4995,9 +5035,7 @@ function openMemoryEditor(t, fresh){
       r.querySelector("#mm-save").onclick=()=>{ const files=[...(r.querySelector("#mm-ph").files||[])]; const old=(j.photos||[]).filter(p=>p&&(p.indexOf("data:")===0||(p.length<200&&p!==t.img)));
         const finalize=(extra)=>{ const photos=[...new Set([...(j.photos&&j.photos.length>1?j.photos:(old.length?old:[])), ...extra])].slice(0,9);
           Store.completeTour(t.id, { rating, note:r.querySelector("#mm-story").value, lesson:r.querySelector("#mm-lesson").value,
-            fav:r.querySelector("#mm-fav").value, title:r.querySelector("#mm-title").value.trim()||t.title, photos,
-            km:+(r.querySelector("#mm-km")||{}).value||0 }); const jj=Store.myData().journal.find(x=>x.tourId===t.id);
-          jj.km=+j.km||+t.lengthKm||0; Store.save(); closeModal();
+            fav:r.querySelector("#mm-fav").value, title:r.querySelector("#mm-title").value.trim()||t.title, photos }); closeModal();
           openModal({ title:"📖 Élmény mentve", body:`<p class="muted mt0">A(z) <b>${esc(t.title)}</b> élménye az Élménykönyvedben van — a túra véglegesítve.</p>
             <div class="flex" style="gap:.5rem;justify-content:flex-end"><button class="btn btn-ghost" data-close>Kész</button><a class="btn btn-primary" href="#/naplo" data-close-onclick> Megnézem az élményt</a></div>`,
             footer:`<button class="btn btn-primary btn-block" id="mm-view">📖 Megnézem az élményt</button>`,
@@ -7944,8 +7982,24 @@ function v120Live(t){ return t&&t.liveTrack&&typeof t.liveTrack==="object"?t.liv
 function v120ActiveMs(live,now=v120Now()){ if(!live)return 0; let out=+live.activeMs||0; if(live.status==="running"&&live.segmentStartedAt)out+=Math.max(0,now-+live.segmentStartedAt); return out; }
 function v120TotalMs(live,now=v120Now()){ return !live||!live.startedAt?0:Math.max(0,(live.finishedAt||now)-live.startedAt); }
 function v120Elevation(points){ let gain=0,loss=0,anchor=null; (points||[]).forEach(p=>{if(p.altitude==null)return;if(anchor==null){anchor=p.altitude;return;}const d=p.altitude-anchor;if(Math.abs(d)>=8){if(d>0)gain+=d;else loss-=d;anchor=p.altitude;}}); return {gain:Math.round(gain),loss:Math.round(loss)}; }
+// Distances are stored in metres and durations in milliseconds. 1 km/h = 1/3600 m/ms.
+function v120AverageKmh(distanceM,durationMs){const d=Number(distanceM),ms=Number(durationMs);return Number.isFinite(d)&&d>=0&&Number.isFinite(ms)&&ms>0?d*3600/ms:0;}
+function v120ComputeSummary(live){
+  const points=live&&Array.isArray(live.points)?live.points:[],validPoints=points.filter(p=>p&&Number.isFinite(+p.lat)&&+p.lat>=-90&&+p.lat<=90&&Number.isFinite(+p.lng)&&+p.lng>=-180&&+p.lng<=180);
+  let distanceM=0;for(let i=1;i<validPoints.length;i++)distanceM+=v120Distance(validPoints[i-1],validPoints[i]);
+  const start=Number(live&&live.startedAt),finish=Number(live&&live.finishedAt),startedAt=Number.isFinite(start)&&start>0?start:null,finishedAt=Number.isFinite(finish)&&finish>0?finish:null;
+  const elapsedMs=startedAt!=null&&finishedAt!=null&&finishedAt>=startedAt?finishedAt-startedAt:null;
+  const activeRaw=live&&live.activeMs,active=activeRaw==null||activeRaw===""?NaN:Number(activeRaw),activeMs=Number.isFinite(active)&&active>=0?active:(elapsedMs==null?0:elapsedMs);
+  const altitudes=validPoints.filter(p=>p.altitude!=null&&Number.isFinite(+p.altitude)).map(p=>({lat:+p.lat,lng:+p.lng,altitude:+p.altitude}));
+  const elevation=altitudes.length>=2?v120Elevation(altitudes):null;
+  return {version:1,source:"gps",distanceM,distanceKm:distanceM/1000,elapsedMs,elapsedHours:elapsedMs==null?null:elapsedMs/3600000,
+    activeMs,activeHours:activeMs/3600000,averageActiveKmh:v120AverageKmh(distanceM,activeMs),
+    averageElapsedKmh:elapsedMs==null?null:v120AverageKmh(distanceM,elapsedMs),elevationGainM:elevation?elevation.gain:null,
+    elevationLossM:elevation?elevation.loss:null,pointCount:validPoints.length,startedAt,finishedAt,maxSpeedKmh:live&&live.maxSpeedKmh!=null&&Number.isFinite(+live.maxSpeedKmh)?Math.max(0,+live.maxSpeedKmh):null};
+}
+function v120ActualSummary(live){return live&&live.summary&&live.summary.version===1&&live.summary.source==="gps"?live.summary:v120ComputeSummary(live);}
 function v120Accept(live,point){
-  if(!point||!Number.isFinite(point.lat)||!Number.isFinite(point.lng))return {ok:false,reason:"invalid"};
+  if(!point||!Number.isFinite(point.lat)||point.lat < -90||point.lat > 90||!Number.isFinite(point.lng)||point.lng < -180||point.lng > 180)return {ok:false,reason:"invalid"};
   if(point.accuracy!=null&&point.accuracy>V120_ACCURACY_LIMIT)return {ok:false,reason:"accuracy"};
   const points=live.points||[],prev=points[points.length-1]; if(!prev)return {ok:true,distanceM:0,speedKmh:0};
   const dt=Math.max(0,(point.timestamp-prev.timestamp)/1000),distance=v120Distance(prev,point); if(!dt)return {ok:false,reason:"timestamp"};
@@ -7972,10 +8026,10 @@ function v120MapDraw(points){
   const bounds=plannedLine.concat(rejoinLine).concat(line); if(bounds.length>1)v120Map.fitBounds(L.latLngBounds(bounds).pad(.25));else v120Map.setView(bounds[0],16);
 }
 function v120Stat(root,t){
-  const live=v120Live(t);if(!live||!root)return;const now=v120Now(),active=v120ActiveMs(live,now),total=v120TotalMs(live,now),km=(+live.distanceM||0)/1000;
+  const live=v120Live(t);if(!live||!root)return;const now=v120Now(),active=v120ActiveMs(live,now),total=v120TotalMs(live,now);
   const set=(id,text)=>{const e=root.querySelector(id);if(e)e.textContent=text;};
-  set("#v120-distance",`${km.toFixed(2)} km`);set("#v120-active",v120FormatTime(active));set("#v120-total",v120FormatTime(total));set("#v120-speed",`${(+live.speedKmh||0).toFixed(1)} km/h`);set("#v120-average",`${(active>0?(+live.distanceM||0)/active*3.6:0).toFixed(1)} km/h`);set("#v120-points",String((live.points||[]).length));set("#v120-status",live.status==="running"?"Folyamatban":live.status==="paused"?"Szüneteltetve":"Befejezve");
-  const p=live.points&&live.points.at(-1);set("#v120-position",p?`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`:"Még nincs GPS-pont");set("#v120-accuracy",p&&p.accuracy!=null?`±${Math.round(p.accuracy)} m`:"—");set("#v120-elevation",`${live.elevationGain||0} m`);v120MapDraw(live.points||[]);
+  const metrics=v120ActualSummary(live),shownM=live.status==="finished"?metrics.distanceM:(+live.distanceM||0);set("#v120-distance",`${(shownM/1000).toFixed(2)} km`);set("#v120-active",v120FormatTime(active));set("#v120-total",v120FormatTime(total));set("#v120-speed",`${(+live.speedKmh||0).toFixed(1)} km/h`);set("#v120-average",`${(live.status==="finished"?metrics.averageActiveKmh:v120AverageKmh(+live.distanceM||0,active)).toFixed(1)} km/h`);set("#v120-points",String((live.points||[]).length));set("#v120-status",live.status==="running"?"Folyamatban":live.status==="paused"?"Szüneteltetve":"Befejezve");
+  const p=live.points&&live.points.at(-1);set("#v120-position",p?`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`:"Még nincs GPS-pont");set("#v120-accuracy",p&&p.accuracy!=null?`±${Math.round(p.accuracy)} m`:"—");set("#v120-elevation",metrics.elevationGainM==null?"Nincs adat":`${metrics.elevationGainM} m`);v120MapDraw(live.points||[]);
   const pause=root.querySelector("#v120-pause"),resume=root.querySelector("#v120-resume"),finish=root.querySelector("#v120-finish");if(pause)pause.hidden=live.status!=="running";if(resume)resume.hidden=live.status!=="paused";if(finish)finish.hidden=live.status==="finished";
 }
 function v120HandlePosition(id,pos){const t=v120GetTour(id),live=v120Live(t);if(!t||!live||live.status!=="running")return;const p=v120Point(pos),accepted=v120Accept(live,p);if(!accepted.ok)return;live.points=live.points||[];live.points.push(p);live.distanceM=(+live.distanceM||0)+(accepted.distanceM||0);live.speedKmh=accepted.speedKmh||0;const elev=v120Elevation(live.points);live.elevationGain=elev.gain;live.elevationLoss=elev.loss;live.lastPositionAt=p.timestamp;live.lastError=null;v120Persist(t);v120Stat(document.getElementById("v120-root"),t);}
@@ -7985,7 +8039,7 @@ function v120StartWatch(id){const geo=navigator.geolocation;if(!geo||typeof geo.
 function v120Begin(id){const t=v120GetTour(id);if(!t)return false;const tourId=String(t.id),live=v120Live(t);window.__V120_ACTIVE_ID=t.id;try{sessionStorage.setItem("v120-active-tour",t.id);}catch(e){}if(live&&["running","paused"].includes(live.status)){NAV.to("#/tura-live/"+t.id);return true;}if(v120StartingTourId!=null){toast("A GPS-indítás folyamatban van. Várd meg a helymeghatározást.","📍");return false;}const geo=navigator.geolocation;if(!geo||typeof geo.getCurrentPosition!=="function"){toast("A túra csak valós GPS-szel indítható; ebben a böngészőben nem érhető el a helymeghatározás.","📍");return false;}v120StartingTourId=tourId;let settled=false;const release=()=>{if(v120StartingTourId===tourId)v120StartingTourId=null;};const fail=err=>{if(settled)return;settled=true;release();v120GeoError(err);};try{geo.getCurrentPosition(pos=>{if(settled)return;settled=true;release();const current=v120GetTour(tourId);if(!current){toast("A túraterv már nem érhető el; a GPS nem indult el.","📍");return;}const currentLive=v120Live(current);if(currentLive&&["running","paused"].includes(currentLive.status)){NAV.to("#/tura-live/"+current.id);return;}const started=v120Now(),p=v120Point(pos);current.liveTrack={version:1,status:"running",startedAt:started,finishedAt:null,activeMs:0,segmentStartedAt:started,pausedAt:null,points:[],distanceM:0,speedKmh:0,elevationGain:0,elevationLoss:0,lastPositionAt:null};const accepted=v120Accept(current.liveTrack,p);if(accepted.ok){current.liveTrack.points.push(p);current.liveTrack.lastPositionAt=p.timestamp;}v120Persist(current);toast("🥾 Túra elindítva — GPS-rögzítés folyamatban","📍");NAV.to("#/tura-live/"+current.id);},fail,{enableHighAccuracy:true,maximumAge:0,timeout:15000});}catch(e){fail(e);return false;}return true;}
 function v120Pause(id){const t=v120GetTour(id),live=v120Live(t);if(!live||live.status!=="running")return;const now=v120Now();live.activeMs=v120ActiveMs(live,now);live.status="paused";live.pausedAt=now;live.segmentStartedAt=null;v120Persist(t);v120StopWatch();v120Stat(document.getElementById("v120-root"),t);}
 function v120Resume(id){const t=v120GetTour(id),live=v120Live(t);if(!live||live.status!=="paused")return;live.status="running";live.segmentStartedAt=v120Now();live.pausedAt=null;if(!v120StartWatch(id)){const now=v120Now();live.activeMs=v120ActiveMs(live,now);live.status="paused";live.segmentStartedAt=null;live.pausedAt=now;}v120Persist(t);v120Stat(document.getElementById("v120-root"),t);}
-function v120Finish(id){const t=v120GetTour(id),live=v120Live(t);if(!live||live.status==="finished")return;const now=v120Now();live.activeMs=v120ActiveMs(live,now);live.status="finished";live.finishedAt=now;live.segmentStartedAt=null;v120StopWatch();const pts=live.points||[];if(pts.length){if(!t.coords)t.coords={lat:pts[0].lat,lng:pts[0].lng};}t.status="teljesítve";t.liveTrack=live;v120Persist(t);toast("📱 Helyben mentve — a Felhő-szinkronizálás külön indítható.","✅");v120MapReset();render();}
+function v120Finish(id){const t=v120GetTour(id),live=v120Live(t);if(!live||live.status==="finished")return;const now=v120Now();live.activeMs=v120ActiveMs(live,now);live.status="finished";live.finishedAt=now;live.segmentStartedAt=null;live.summary=v120ComputeSummary(live);v120StopWatch();const pts=live.points||[];if(pts.length){if(!t.coords)t.coords={lat:pts[0].lat,lng:pts[0].lng};}t.status="teljesítve";t.liveTrack=live;v120Persist(t);toast("📱 Helyben mentve — a Felhő-szinkronizálás külön indítható.","✅");v120MapReset();render();}
 function v120LiveHTML(t){if(typeof t==="string")t=v120GetTour(t);if(!t){const active=window.__V120_ACTIVE_ID||sessionStorage.getItem("v120-active-tour");const routeId=String(location.hash||"").split("/")[2];t=v120GetTour(active||routeId);}const l=v120Live(t),finished=l&&l.status==="finished";if(!t||!l)return dash("#/turaim")(`<div class="card panel"><h2>Élő túra nem található</h2><p class="muted">A túra helyi adatait nem sikerült betölteni.</p></div>`);return dash("#/tura/"+t.id)(`<div id="v120-root" class="v120-live"><a class="small muted" href="#/tura/${t.id}" style="display:inline-block;margin-bottom:.7rem;color:var(--sky);font-weight:600">← Túra részletei</a><div class="v120-head card"><div><span class="chip ${finished?"chip-green":"chip-ember"}" id="v120-status">${finished?"Befejezve":l.status==="paused"?"Szüneteltetve":"Folyamatban"}</span><h1>🥾 ${esc(t.title)}</h1><p class="muted mb0">${finished?"Túra összesítő":"Élő GPS-rögzítés — csak valódi helyadat kerül mentésre"}</p></div><div class="small muted">📍 <span id="v120-position">${l.points&&l.points.length?`${l.points.at(-1).lat.toFixed(5)}, ${l.points.at(-1).lng.toFixed(5)}`:"Még nincs GPS-pont"}</span><br>GPS pontosság: <span id="v120-accuracy">—</span></div></div><div class="v120-map card" id="v120-map"><div class="empty"><span class="em-ico">📍</span><h3>GPS-térkép</h3><p>A rögzített útvonal itt jelenik meg.</p></div></div><div class="v120-stats grid g2 smm2"><div class="card stat-tile"><span class="st-ic">📏</span><b id="v120-distance">0.00 km</b><span>Megtett táv</span></div><div class="card stat-tile"><span class="st-ic">⏱️</span><b id="v120-active">00:00</b><span>Aktív idő</span></div><div class="card stat-tile"><span class="st-ic">⚡</span><b id="v120-speed">0.0 km/h</b><span>Aktuális sebesség</span></div><div class="card stat-tile"><span class="st-ic">📊</span><b id="v120-average">0.0 km/h</b><span>Átlagsebesség</span></div><div class="card stat-tile"><span class="st-ic">📍</span><b id="v120-points">${(l.points||[]).length}</b><span>GPS pont</span></div><div class="card stat-tile"><span class="st-ic">⛰️</span><b id="v120-elevation">${l.elevationGain||0} m</b><span>Szintemelkedés</span></div></div>${finished?`<div class="card panel v120-summary"><h2>Összesítő</h2><p class="muted">Kezdés: ${l.startedAt?new Date(l.startedAt).toLocaleString("hu-HU"):"—"}<br>Befejezés: ${l.finishedAt?new Date(l.finishedAt).toLocaleString("hu-HU"):"—"}<br>Teljes idő: <b id="v120-total">${v120FormatTime(v120TotalMs(l))}</b></p><p class="mb0">A rögzített GPS-nyomvonal a túra saját felvételében marad; a tervezett GPX-útvonal változatlan.</p></div>`:""}${!finished?`<div class="v120-controls"><button class="btn btn-soft btn-lg" id="v120-pause">⏸ Szünet</button><button class="btn btn-primary btn-lg" id="v120-resume" hidden>▶ Folytatás</button><button class="btn btn-danger btn-lg" id="v120-finish">🏁 Túra befejezése</button></div>`:`<div class="v120-controls"><a class="btn btn-primary btn-lg" href="#/tura/${t.id}">Túra részletei</a></div>`}</div>`);}
 VIEWS.liveTour=v120LiveHTML;
 VIEWS.liveTour.after=(root,id)=>{const t=v120GetTour(id);if(!t||!v120Live(t))return;const l=v120Live(t);v120MapReset();if(l.status==="running"&&!v120StartWatch(id))v120Pause(id);const pause=root.querySelector("#v120-pause"),resume=root.querySelector("#v120-resume"),finish=root.querySelector("#v120-finish");if(pause)pause.onclick=()=>v120Pause(id);if(resume)resume.onclick=()=>v120Resume(id);if(finish)finish.onclick=()=>confirmDlg("A rögzített track lezáródik és összesítő készül.","Túra befejezése",()=>window.v120Finish(id));v120Stat(root,t);setTimeout(()=>v120MapDraw(v120Live(v120GetTour(id))?.points||[]),250);if(v120Timer)clearInterval(v120Timer);v120Timer=setInterval(()=>{const x=v120GetTour(id);if(x)v120Stat(root,x);},1000);};
@@ -7997,7 +8051,7 @@ window.addEventListener("beforeunload",e=>{try{const d=Store.myData(),active=(d&
 window.v120Begin=v120Begin;
 window.v120HandlePosition=v120HandlePosition;
 window.v120Finish=v120Finish;
-window.__V120={begin:v120Begin,finish:v120Finish,handlePosition:v120HandlePosition,haversine:v120Distance,acceptPoint:v120Accept,activeMs:v120ActiveMs,formatTime:v120FormatTime};
+window.__V120={begin:v120Begin,finish:v120Finish,handlePosition:v120HandlePosition,haversine:v120Distance,acceptPoint:v120Accept,activeMs:v120ActiveMs,totalMs:v120TotalMs,averageKmh:v120AverageKmh,computeSummary:v120ComputeSummary,actualSummary:v120ActualSummary,formatTime:v120FormatTime};
 
 /* ==== v121 ==== */
 /* ============================================================
@@ -8827,17 +8881,29 @@ function v130PlanPoints(t){
 function v130PointArray(live){return(live&&Array.isArray(live.points)?live.points:[]).map(function(p){return[+p.lat,+p.lng];}).filter(function(p){return Number.isFinite(p[0])&&Number.isFinite(p[1]);});}
 function v130Km(m){return((+m||0)/1000).toFixed(2).replace(".",",")+" km";}
 function v130Time(ms){return typeof v120FormatTime==="function"?v120FormatTime(ms):"00:00:00";}
-function v130Elevation(live){var ps=live&&live.points||[];return ps.some(function(p){return p&&p.altitude!=null&&Number.isFinite(+p.altitude);});}
+function v130Elevation(live){var ps=live&&live.points||[];return ps.filter(function(p){return p&&p.altitude!=null&&Number.isFinite(+p.altitude);}).length>=2;}
 function v130Current(t){var l=v130Live(t),p=l&&l.points&&l.points.length?l.points[l.points.length-1]:null;return p||null;}
+
+function v130EnsureGpsJournal(t){
+  var l=v130Live(t);if(!t||!l||l.status!=="finished"||typeof Store.completeTour!=="function")return;
+  if(!(l.summary&&l.summary.version===1&&l.summary.source==="gps")){l.summary=typeof v120ComputeSummary==="function"?v120ComputeSummary(l):null;try{Store.save();}catch(e){}}
+  var s=l.summary;if(!s)return;
+  var d=Store.myData(),j=(d&&d.journal||[]).find(function(x){return x.tourId===t.id;});
+  function same(a,b){if(a==null||b==null)return a==null&&b==null;return Number.isFinite(+a)&&Number.isFinite(+b)&&Math.abs(+a-(+b))<0.000001;}
+  if(j&&j.metricSource==="gps"&&j.actualSummaryVersion===s.version&&same(j.km,s.distanceKm)&&same(j.up,s.elevationGainM)&&same(j.h,s.elapsedHours)&&same(j.activeHours,s.activeHours)&&same(j.averageSpeedKmh,s.averageActiveKmh))return;
+  Store.completeTour(t.id,{doneAt:s.finishedAt?new Date(s.finishedAt).toISOString().slice(0,10):t.doneAt,title:j&&j.title||t.title,
+    rating:j&&j.rating||0,note:j&&j.note||"",photos:j&&j.photos||[],mood:j&&j.mood||"",fav:j&&j.fav,lesson:j&&j.lesson||"",privacy:j&&j.privacy||"privát"});
+}
 
 function v130Summary(root,t){
   var l=v130Live(t);if(!root||!l)return;
   if(l.status==="finished"){
-    t.status="teljesítve";t.projectStatus="TELJESÍTVE";t.doneAt=t.doneAt||new Date(l.finishedAt||Date.now()).toISOString().slice(0,10);t.v130CompletedAt=l.finishedAt||Date.now();try{Store.save();}catch(e){}
+    t.status="teljesítve";t.projectStatus="TELJESÍTVE";t.doneAt=t.doneAt||new Date(l.finishedAt||Date.now()).toISOString().slice(0,10);t.v130CompletedAt=l.finishedAt||Date.now();v130EnsureGpsJournal(t);try{Store.save();}catch(e){}
   }
-  var active=typeof v120ActiveMs==="function"?v120ActiveMs(l):(+l.activeMs||0),total=typeof v120TotalMs==="function"?v120TotalMs(l):Math.max(0,(l.finishedAt||Date.now())-(l.startedAt||Date.now())),actual=+l.distanceM||0,plan=v130Route(t),planned=plan&&Number.isFinite(+plan.distance_km)?+plan.distance_km*1000:(+t.lengthKm||0)*1000,hasElev=v130Elevation(l);
+  var metrics=typeof v120ActualSummary==="function"?v120ActualSummary(l):null,active=l.status==="finished"&&metrics?metrics.activeMs:(typeof v120ActiveMs==="function"?v120ActiveMs(l):(+l.activeMs||0)),total=l.status==="finished"&&metrics&&metrics.elapsedMs!=null?metrics.elapsedMs:(typeof v120TotalMs==="function"?v120TotalMs(l):Math.max(0,(l.finishedAt||Date.now())-(l.startedAt||Date.now()))),actual=metrics?metrics.distanceM:(+l.distanceM||0),plan=v130Route(t),planned=plan&&Number.isFinite(+plan.distance_km)?+plan.distance_km*1000:(+t.lengthKm||0)*1000,hasElev=metrics?metrics.elevationGainM!=null:v130Elevation(l);
   function set(id,text){var e=root.querySelector(id);if(e)e.textContent=text;}
-  set("#v130-distance",v130Km(actual));set("#v130-total-distance",v130Km(actual));set("#v130-total",v130Time(total));set("#v130-active",v130Time(active));set("#v130-summary-active",v130Time(active));set("#v130-average",(active>0?(actual/active*3.6):0).toFixed(1)+" km/h");set("#v130-summary-average",(active>0?(actual/active*3.6):0).toFixed(1)+" km/h");set("#v130-max",(+l.maxSpeedKmh||0).toFixed(1)+" km/h");set("#v130-planned-vs-actual",planned>0?v130Km(planned)+" → "+v130Km(actual):"Nincs tervezett távadat");set("#v130-elevation",hasElev?(Math.round(+l.elevationGain||0)+" m"):
+  var average=metrics?metrics.averageActiveKmh:(typeof v120AverageKmh==="function"?v120AverageKmh(actual,active):0);
+  set("#v130-distance",v130Km(actual));set("#v130-total-distance",v130Km(actual));set("#v130-total",v130Time(total));set("#v130-active",v130Time(active));set("#v130-summary-active",v130Time(active));set("#v130-average",average.toFixed(1)+" km/h");set("#v130-summary-average",average.toFixed(1)+" km/h");set("#v130-max",((metrics&&metrics.maxSpeedKmh)||+l.maxSpeedKmh||0).toFixed(1)+" km/h");set("#v130-planned-vs-actual",planned>0?v130Km(planned)+" → "+v130Km(actual):"Nincs tervezett távadat");set("#v130-elevation",hasElev?(Math.round(metrics?metrics.elevationGainM:(+l.elevationGain||0))+" m"):
     "Nincs adat");set("#v130-points",String((l.points||[]).length));
   var status=root.querySelector("#v130-status");if(status)status.textContent=l.status==="finished"?"TÚRA TELJESÍTVE":l.status==="paused"?"SZÜNETELTETVE":"FOLYAMATBAN";
   var summary=root.querySelector("#v130-summary");if(summary)summary.hidden=l.status!=="finished";
@@ -8853,10 +8919,10 @@ function v130Html(t){
     '<section class="v130-title card"><div><span class="eyebrow">TÚRA MÓD</span><h1>🥾 '+v130Esc(t.title||"Saját túra")+'</h1><p class="muted mb0">'+v130Esc((pstart&&pstart.label)||t.place||"Indulási pont")+' → '+v130Esc((pend&&pend.label)||"Célpont")+'</p></div><div class="small muted">'+(navigator.onLine===false?"📱 Offline":"☁️ Helyi GPS-rögzítés")+'</div></section>'+
     '<div id="v121-offline" class="v121-offline" role="status" hidden>📱 Offline – a túra helyben mentve</div><div id="v121-offroute" class="v121-offroute" role="alert" hidden>⚠️ Letértél a tervezett útvonalról</div>'+
     '<section class="v130-map-wrap card"><div class="v130-map-legend"><span><i class="v130-dot plan"></i> Tervezett útvonal</span><span><i class="v130-dot actual"></i> Megtett útvonal</span><span><i class="v130-dot rejoin"></i> Vissza az útvonalra</span></div><div class="v120-map" id="v120-map"><div class="empty"><span class="em-ico">🗺️</span><h3>GPS-térkép</h3><p>A tervezett útvonal és a valódi GPS-nyomvonal itt jelenik meg.</p></div></div></section>'+
-    '<section class="v130-stats"><div><span>MEGTETT</span><strong id="v130-distance">0,00 km</strong></div><div><span>IDŐ</span><strong id="v130-active">00:00:00</strong></div><div><span>SEBESSÉG</span><strong id="v120-speed">0,0 km/h</strong></div><div><span>ÁTLAG</span><strong id="v130-average">0,0 km/h</strong></div><div><span>GPS PONT</span><strong id="v130-points">0</strong></div><div><span>GPS PONTOSSÁG</span><strong id="v120-accuracy">Nincs adat</strong></div></section>'+
+    '<section class="v130-stats"><div><span>MEGTETT</span><strong id="v130-distance">0,00 km</strong></div><div><span>IDŐ</span><strong id="v130-active">00:00:00</strong></div><div><span>SEBESSÉG</span><strong id="v120-speed">0,0 km/h</strong></div><div><span>ÁTLAG (AKTÍV IDŐ)</span><strong id="v130-average">0,0 km/h</strong></div><div><span>GPS PONT</span><strong id="v130-points">0</strong></div><div><span>GPS PONTOSSÁG</span><strong id="v120-accuracy">Nincs adat</strong></div></section>'+
     '<section class="v130-controls v120-controls"><button class="btn btn-soft btn-lg" id="v120-pause">⏸ SZÜNET</button><button class="btn btn-primary btn-lg" id="v120-resume" hidden>▶ FOLYTATÁS</button><button class="btn btn-danger btn-lg" id="v120-finish"'+(finished?" hidden":"")+'>✅ TÚRA BEFEJEZÉSE</button></section>'+
     '<section class="v130-actions"><button class="btn btn-ghost" id="v130-locate">📍 HOL VAGYOK?</button><button class="btn btn-ghost" id="v130-rejoin">🧭 VISSZA AZ ÚTVONALRA</button><button class="btn btn-ember" id="v130-help">🆘 SEGÍTSÉG</button><button class="btn btn-ghost" id="v130-share" hidden>📍 Hely megosztása</button></section>'+
-    '<section class="v130-summary card" id="v130-summary" hidden><span class="eyebrow">TELJESÍTÉSI ÖSSZEGZÉS</span><h2>🥾 TÚRA TELJESÍTVE</h2><div class="v130-summary-grid"><div><span>Megtettem</span><b id="v130-total-distance">0,00 km</b></div><div><span>Teljes idő</span><b id="v130-total">00:00:00</b></div><div><span>Mozgásban</span><b id="v130-summary-active">00:00:00</b></div><div><span>Átlagsebesség</span><b id="v130-summary-average">0,0 km/h</b></div><div><span>Legnagyobb sebesség</span><b id="v130-max">Nincs adat</b></div><div><span>Szintemelkedés</span><b id="v130-elevation">Nincs adat</b></div></div><p class="small muted">Tervezett → tényleges táv: <b id="v130-planned-vs-actual">Nincs adat</b></p><div class="flex wrap" style="gap:.5rem"><button class="btn btn-primary" id="v130-journal">📖 Élmény mentése</button><a class="btn btn-soft" href="#/tura/'+v130Esc(t.id)+'">Vissza a túratervhez</a></div></section>'+
+    '<section class="v130-summary card" id="v130-summary" hidden><span class="eyebrow">TELJESÍTÉSI ÖSSZEGZÉS</span><h2>🥾 TÚRA TELJESÍTVE</h2><div class="v130-summary-grid"><div><span>Megtettem</span><b id="v130-total-distance">0,00 km</b></div><div><span>Teljes idő</span><b id="v130-total">00:00:00</b></div><div><span>Mozgásban</span><b id="v130-summary-active">00:00:00</b></div><div><span>Átlagsebesség (aktív idő)</span><b id="v130-summary-average">0,0 km/h</b></div><div><span>Legnagyobb sebesség</span><b id="v130-max">Nincs adat</b></div><div><span>Szintemelkedés</span><b id="v130-elevation">Nincs adat</b></div></div><p class="small muted">Tervezett → tényleges táv: <b id="v130-planned-vs-actual">Nincs adat</b></p><div class="flex wrap" style="gap:.5rem"><button class="btn btn-primary" id="v130-journal">📖 Élmény mentése</button><a class="btn btn-soft" href="#/tura/'+v130Esc(t.id)+'">Vissza a túratervhez</a></div></section>'+
     '</main>';
 }
 
