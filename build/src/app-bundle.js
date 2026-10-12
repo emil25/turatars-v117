@@ -7413,11 +7413,11 @@ function localSave(token, snap){ var w=localWho(token); if(!w) return Promise.re
 function localLoad(token){ var w=localWho(token); if(!w) return Promise.reject({error:"unauthorized"});
   var vn=vault(); var s=vn.snaps[w.uid]; return Promise.resolve(s? s : {error:"empty"}); }
 /* ---------- session state (device) ---------- */
-var sess = { token:null, uid:null, email:null, name:null, status:"checking", lastAt:0, err:null, pending:false, provider:null, remoteVersion:null };
+var sess = { token:null, uid:null, email:null, name:null, status:"checking", lastAt:0, err:null, pending:false, provider:null, remoteVersion:null, saveSafety:"unknown" };
 function st(){ return sess; }
  function sset_(){ try{ localStorage.setItem("turatars_v54_state", JSON.stringify({token:sess.token,uid:sess.uid,email:sess.email,provider:sess.provider,remoteVersion:sess.remoteVersion,pending:!!sess.pending})); }catch(e){} }
 function sget_(){ try{ return JSON.parse(localStorage.getItem("turatars_v54_state")||"null"); }catch(e){ return null; } }
-function clearSess(){ sess.token=sess.uid=sess.email=sess.provider=null; sess.remoteVersion=null; sess.pending=false; sess.status="signed-out"; try{ localStorage.removeItem("turatars_v54_state"); }catch(e){} }
+function clearSess(){ cloudBaseline=null;cloudEpoch++;cloudSafetyState("unknown");sess.token=sess.uid=sess.email=sess.provider=null; sess.remoteVersion=null; sess.pending=false; sess.status="signed-out"; try{ localStorage.removeItem("turatars_v54_state"); }catch(e){} }
 // A receipt of the *confirmed* existing snapshot, kept in the existing device settings.
 // Exclude only the generated timestamp; any change to the user's data invalidates it.
 function snapshotDigest(snap){
@@ -7425,17 +7425,114 @@ function snapshotDigest(snap){
   var content=Object.assign({},snap);delete content.ts;
   return Promise.resolve(sha256hex(JSON.stringify(content))).then(function(digest){return /^[a-f0-9]{64}$/.test(digest||"")?digest:null;}).catch(function(){return null;});
 }
+/* V130.1: a fetched version is not a restored baseline. A private lease AND a
+   durable, UID-bound content proof are required, then rechecked against the RPC
+   immediately before every conditional write. Leases never survive a restart. */
+var cloudBaseline=null, cloudOperation=null, cloudEpoch=0;
+function cloudSafetyState(state){ sess.saveSafety=state; }
+function cloudVersion(value){ return typeof value==="number"&&Number.isSafeInteger(value)&&value>=0; }
+function safetyJSON(value){
+  if(Array.isArray(value)) return value.map(safetyJSON);
+  if(value&&typeof value==="object"){ var out=Object.create(null); Object.keys(value).sort().forEach(function(k){out[k]=safetyJSON(value[k]);}); return out; }
+  return value;
+}
+function safetyDigest(snap){
+  var content=Object.assign({},snap); delete content.ts;
+  return snapshotDigest(safetyJSON(content)).then(function(digest){if(!digest)throw {error:"verification_unavailable"};return digest;});
+}
+function writeCloudSafety(proof){
+  var sets=settings(); sets.cloudSafety=proof; setSettings(sets);
+  if(JSON.stringify(settings().cloudSafety)!==JSON.stringify(proof)) throw {error:"storage_full"};
+}
+function invalidateCloudBaseline(state){
+  cloudBaseline=null; cloudEpoch++; cloudSafetyState(state||"unknown");
+  if(getActive().name==="supabase-snapshot") writeCloudSafety({uid:sess.uid,state:state||"unknown"});
+}
+function cloudActor(){ return {uid:sess.uid,token:sess.token,epoch:cloudEpoch}; }
+function checkCloudActor(actor){
+  if(!actor.uid||sess.uid!==actor.uid||sess.token!==actor.token||cloudEpoch!==actor.epoch) throw {error:"signed_out"};
+}
+function cloudFailure(error){
+  cloudBaseline=null; cloudEpoch++; cloudSafetyState(error&&error.error==="version_conflict"?"conflict":error&&error.error==="restore_required"?"restore_required":"error");
+  try{writeCloudSafety({uid:sess.uid,state:sess.saveSafety});}catch(e){}
+}
+function cloudExclusive(work){
+  if(cloudOperation) return Promise.reject({error:"cloud_busy"});
+  var op={}; cloudOperation=op;
+  return Promise.resolve().then(function(){return work(op);}).finally(function(){if(cloudOperation===op)cloudOperation=null;});
+}
+function validCloudSnapshot(remote){
+  var s=remote&&remote.snap;
+  if(!s||!cloudVersion(remote.version)||remote.version===0||s.schema!=="v54.1"||
+      !s.user||!s.data||!s.platform||!s.community||!s.localUserId||s.user.id!==s.localUserId) throw {error:"invalid_snapshot"};
+  if(normEmail(s.linkedEmail)!==sess.email||normEmail(s.user.email)!==sess.email) throw {error:"email_mismatch"};
+}
+function snapshotHasRecords(snap){
+  return [[snap.data,["tours","routes","journal","wishlist","equipment","inbox","teams","challenges","terepi","budget","reports","savedEvents","templates","aiChat"]],
+    [snap.platform,["organizers","events","participants"]],[snap.community,["connections","invites","notifs"]]].some(function(pair){
+    return pair[1].some(function(k){var rows=(pair[0]||{})[k];return Array.isArray(rows)&&rows.length>0;});
+  });
+}
+function confirmCloudBaseline(remote,digest){
+  var local=buildSnapshot(curLocalEmail()), proof={uid:sess.uid,localUserId:local&&local.localUserId,version:remote.version,digest:digest,state:"ready"};
+  if(!proof.uid||!proof.localUserId)throw {error:"invalid_snapshot"};
+  writeCloudSafety(proof); cloudBaseline=proof; sess.remoteVersion=remote.version; cloudSafetyState("ready"); sset_();
+}
+function verifyCloudSave(A,actor,snap){
+  cloudSafetyState("loading");
+  return Promise.resolve().then(function(){return A.load(actor.token);}).then(function(remote){
+    checkCloudActor(actor);
+    if(remote&&remote.error==="empty"&&remote.version===0){
+      if(cloudBaseline){cloudSafetyState("conflict");throw {error:"version_conflict"};}
+      cloudSafetyState("ready"); return 0;
+    }
+    if(!remote||remote.error)throw remote||{error:"cloud_error"};
+    validCloudSnapshot(remote);
+    return safetyDigest(remote.snap).then(function(digest){
+      checkCloudActor(actor);
+      var proof=settings().cloudSafety, baseline=cloudBaseline;
+      if(!baseline||!proof||JSON.stringify(proof)!==JSON.stringify(baseline)||
+          baseline.uid!==actor.uid||baseline.localUserId!==snap.localUserId){
+        cloudSafetyState("restore_required");throw {error:"restore_required"};
+      }
+      if(baseline.version!==remote.version||baseline.digest!==digest){cloudSafetyState("conflict");throw {error:"version_conflict"};}
+      if(snapshotHasRecords(remote.snap)&&!snapshotHasRecords(snap)){cloudSafetyState("restore_required");throw {error:"restore_required"};}
+      cloudSafetyState("ready");return remote.version;
+    });
+  });
+}
 function saveSnapshot(snap){
   if(!sess.token) return Promise.reject({error:"signed_out"});
   if(!snap) return Promise.reject({error:"invalid_snapshot"});
-  var A=getActive(), uid=sess.uid, token=sess.token, expected=sess.remoteVersion;
+  var A=getActive();
+  if(A.name==="supabase-snapshot") return cloudExclusive(function(){
+    var actor=cloudActor(), payload=JSON.parse(JSON.stringify(snap));
+    return verifyCloudSave(A,actor,payload).then(function(expected){
+      return Promise.all([safetyDigest(payload),safetyDigest(buildSnapshot(curLocalEmail()))]).then(function(digests){
+        checkCloudActor(actor);
+        if(digests[0]!==digests[1])throw {error:"local_changed"};
+        return performSnapshotSave(A,payload,expected,actor,digests[0]);
+      });
+    }).catch(function(e){
+      if(sess.uid===actor.uid&&sess.token===actor.token){
+        cloudFailure(e);
+      }
+      throw e;
+    });
+  });
+  return performSnapshotSave(A,snap,sess.remoteVersion,null,null);
+}
+function performSnapshotSave(A,snap,expected,actor,safetyHash){
+  var uid=sess.uid, token=sess.token;
   return snapshotDigest(snap).then(function(digest){
     if(sess.uid!==uid||sess.token!==token)throw {error:"signed_out"};
+    if(actor)checkCloudActor(actor);
     return Promise.resolve(A.save(token,snap,expected)).then(function(result){
       if(!result||result.error||result.ok===false) throw result||{error:"cloud_error"};
-      if(A.name==="supabase-snapshot"&&(result.version==null||!Number.isSafeInteger(Number(result.version))||Number(result.version)<0)) throw {error:"cloud_error"};
+      if(A.name==="supabase-snapshot"&&(!cloudVersion(result.version)||result.version===0||result.version<expected)) throw {error:"cloud_error"};
       // An in-flight save must not change another session after logout/account switching.
       if(sess.token===token&&sess.uid===uid){
+        if(actor){checkCloudActor(actor);confirmCloudBaseline({version:Number(result.version)},safetyHash);}
         if(result.version!=null&&Number.isSafeInteger(Number(result.version)))sess.remoteVersion=Number(result.version);
         sess.status="saved";sess.lastAt=result.at||Date.now();sess.err=null;sset_();
         if(A.name!=="local-vault"&&uid&&digest){var sets=settings();sets.cloudReceipt={uid:uid,digest:digest,version:sess.remoteVersion,at:sess.lastAt};setSettings(sets);}
@@ -7479,6 +7576,7 @@ function syncCloudProfileAfterAuth(result){
   }).catch(function(error){ result.profileError=error&&error.error||"profile_unavailable"; return result; });
 }
 function adoptAuthUser(result, email){
+  cloudBaseline=null;cloudEpoch++;cloudSafetyState("unknown");sess.remoteVersion=null;
   sess.token=result&&result.token||null; sess.email=normEmail((result&&result.email)||email); sess.uid=result&&result.uid||null;
   sess.name=result&&result.name||null; sess.pending=!!(result&&result.pending); sess.provider=(result&&result.provider)||getActive().name;
   sess.status=sess.pending?"pending":"ready"; sset_();
@@ -7521,6 +7619,10 @@ function upsertById(arr, rows){ var m={}, out=(arr||[]).slice(); out.forEach(fun
     if(m[k]!=null) out[m[k]]=mergeFields(out[m[k]],r); else { out.push(r); m[k]=out.length-1; } }); return out; }
 function union(a,b){ var m={}; var o=[]; (a||[]).concat(b||[]).forEach(function(x){ var k=(x&&x.id)?String(x.id):String(x); if(!m[k]){ m[k]=1; o.push(x); } }); return o; }
 function applySnapshot(snap, opts){ try{
+  if(getActive().name==="supabase-snapshot"){
+    if(cloudOperation&&(!opts||opts.cloudOperation!==cloudOperation))return {ok:false,err:"cloud_busy"};
+    invalidateCloudBaseline("restore_required");
+  }
   if(!snap||!snap.snap) return {ok:false, err:"empty"}; var s=snap.snap;
   if(s.schema!=="v54.1") return {ok:false, err:"schema"};
   if(String(s.linkedEmail).toLowerCase()!==normEmail(sess.email)) return {ok:false, err:"email_mismatch"};
@@ -7571,6 +7673,11 @@ function applySnapshot(snap, opts){ try{
     }
   }
   sess.restoredTs=snap.at||"";
+  if(Store.exportData()!==candidate||localStorage.getItem("turavaros_v1")!==candidate){
+    Store.importData(before);
+    if(candidate!==before){try{if(previousBackup===null)localStorage.removeItem("turatars_v54_pre1");else localStorage.setItem("turatars_v54_pre1",previousBackup);}catch(e){}}
+    return {ok:false,err:"restore_verification_failed"};
+  }
   return {ok:true, tours:(merged.tours||[]).length, routes:(merged.routes||[]).length, journal:(merged.journal||[]).length};
 }catch(e){ return {ok:false, err:"exception:"+String(e&&e.message).slice(0,60)}; } }
 function preSave(db){ try{
@@ -7580,6 +7687,8 @@ function preSave(db){ try{
   return localStorage.getItem("turatars_v54_pre1")===raw;
 }catch(e){ return false; } }
 function rollback(){ try{
+  if(cloudOperation)return false;
+  invalidateCloudBaseline("restore_required");
   var pre=JSON.parse(localStorage.getItem("turatars_v54_pre1")||"null"); if(!pre||!pre.db) return false;
   var result=Store.importData(JSON.stringify(pre.db)); return !!(result&&result.ok);
 }catch(e){ return false; } }
@@ -7606,39 +7715,46 @@ function acctModal(prefillEmail, intent){ var em=prefillEmail||((Store.me()||{})
           return Promise.resolve(authLogin(normEmail(e4), p4)).then(function(l){ if(sess.pending){ show("Az e-mail cím még nincs megerősítve."); return false; } return finishIntent(intent, e4); }).catch(function(e2){ show(mapErr(e2)); }); }
         show(mapErr(e1)); }); }; } }); }
 function mapErr(e){ var c; try{ c=String((e&&e.error)||e||""); }catch(x){ c="error"; } try{ if(/fetch|network|Failed/i.test(String(e&&e.message||e))) c="network"; }catch(y){}
-  return ({bad_password:"Hibás e-mail vagy jelszó.", email_already_registered:"Ezzel az e-mail-címmel már van fiók. Jelentkezz be.", signed_out:"A cloud fiók nincs bejelentkezve; a helyi profil mentve maradt.", unauthorized:"A fiók-munkamenet lejárt — lépj be újra.", email_confirmation_required:"Előbb erősítsd meg az e-mail címedet.", expected_version_required:"Előbb töltsd be a felhő aktuális állapotát.", version_conflict:"A felhőben újabb mentés van. Töltsd vissza azt, majd ments újra.", invalid_snapshot:"A helyi mentés hiányos, ezért nem küldtük fel.", credentials_not_allowed:"A mentés tiltott fiókadatot tartalmaz, ezért nem küldtük fel.", email_mismatch:"A helyi és a felhőfiók e-mail címe nem egyezik.", too_large:"A mentés túl nagy ehhez a tárolóhoz — törölj régi GPX-fájlokat.", storage_full:"A böngésző tárhelye tele — a HELYI adataid érintetlenek maradtak.", bad_email:"Az e-mail formátum hibás.", weak_password:"A jelszónak legalább 8 karakter kell lennie.", network:"Nincs kapcsolat — a módosítások helyben mentve."}
+  return ({restore_required:"A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.", cloud_busy:"Már folyamatban van egy felhőművelet. Várd meg a végét.", verification_unavailable:"A biztonságos ellenőrzés most nem végezhető el. A helyi adatok megmaradtak.", local_changed:"A helyi adatok közben megváltoztak. A műveletet nem hajtottuk végre.", bad_password:"Hibás e-mail vagy jelszó.", email_already_registered:"Ezzel az e-mail-címmel már van fiók. Jelentkezz be.", signed_out:"A cloud fiók nincs bejelentkezve; a helyi profil mentve maradt.", unauthorized:"A fiók-munkamenet lejárt — lépj be újra.", email_confirmation_required:"Előbb erősítsd meg az e-mail címedet.", expected_version_required:"Előbb töltsd be a felhő aktuális állapotát.", version_conflict:"A felhőben újabb mentés van. Töltsd vissza azt, majd ments újra.", invalid_snapshot:"A helyi mentés hiányos, ezért nem küldtük fel.", credentials_not_allowed:"A mentés tiltott fiókadatot tartalmaz, ezért nem küldtük fel.", email_mismatch:"A helyi és a felhőfiók e-mail címe nem egyezik.", too_large:"A mentés túl nagy ehhez a tárolóhoz — törölj régi GPX-fájlokat.", storage_full:"A böngésző tárhelye tele — a HELYI adataid érintetlenek maradtak.", bad_email:"Az e-mail formátum hibás.", weak_password:"A jelszónak legalább 8 karakter kell lennie.", network:"Nincs kapcsolat — a módosítások helyben mentve."}
     [c]) || ("A művelet most nem sikerült ("+c+"). A helyi adataid érintetlenek."); }
-function finishIntent(intent, e4){ var A=getActive(); if(A.name!=="supabase-snapshot"){ if(intent==="restore") return doLoad(true); return doSave(true); }
-  return Promise.resolve(A.load(sess.token)).then(function(remote){
-    if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); if(intent==="save") return doSave(true); toast("A fiókodban még nincs mentés","☁️"); return null; }
-    if(!remote||remote.error) throw (remote||{error:"cloud_error"});
-    sess.remoteVersion=Number(remote.version); sset_();
-    if(intent==="restore") return doLoad(true,remote);
-    sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false;
-  }).catch(function(e){ sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; }); }
+function finishIntent(intent, e4){ return intent==="restore"?doLoad(true):doSave(true); }
 function curLocalEmail(){ var u=Store.me(); return u&&u.email? normEmail(u.email): (sess.email||null); }
 function doSave(silentOk){ var em=curLocalEmail(); if(!em){ toast("Előbb jelentkezz be a helyi fiókodba","🔑"); return Promise.resolve(false); }
   sess.status="saving"; renderBlock();
-  var snap=buildSnapshot(em);
+  var snap=buildSnapshot(em), saveUid=sess.uid, saveToken=sess.token;
   if(!snap){ sess.status="error"; sess.err="nincs local user ezzel az emaillel"; renderBlock(); return Promise.resolve(false); }
-    var A=getActive(), saveUid=sess.uid, saveToken=sess.token;
-  if(A.name==="supabase-snapshot" && !Number.isSafeInteger(sess.remoteVersion)){
-      return Promise.resolve(A.load(saveToken)).then(function(remote){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; if(remote&&remote.error==="empty"){ sess.remoteVersion=0; sset_(); return doSave(silentOk); }
-      if(remote&&!remote.error){ sess.remoteVersion=Number(remote.version); sset_(); sess.status="ready"; renderBlock(); toast("A felhőben már van mentés. Előbb állítsd vissza; nem írtuk felül.","⚠️"); return false; }
-        throw (remote||{error:"cloud_error"}); }).catch(function(e){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; });
-  }
-  return saveSnapshot(snap).then(function(r){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; if(r&&r.error){ throw {error:r.error}; }
+  return saveSnapshot(snap).then(function(r){ if(sess.uid!==saveUid||sess.token!==saveToken)return false;
     var sets=settings(); sets.linked=sets.linked||{}; sets.linked[sess.email]=1; setSettings(sets);
     renderBlock(); toast(silentOk? "☁️ Adatok a fiókba mentve (példány: "+((r&&r.size)?Math.round(r.size/1024)+" KB":"kész")+")":"☁️ Szinkronizálva","☁️"); return true; })
-     .catch(function(e){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; var err=(e&&e.error)||(e&&e.message)||""; if(/TypeError|toLowerCase|undefined/.test(err)){ err="internal"; } sess.status="error"; sess.err=err?mapErr(e):'ismeretlen'; renderBlock(); toast(sess.err,"⚠️"); return false; }); }
- function doLoad(auto,preloaded){ var A=getActive();
-  return Promise.resolve(preloaded||A.load(sess.token)).then(function(snap){ if(!snap||snap.error==="empty"){ if(snap&&Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_(); toast("A fiódban még nincs mentés","☁️"); if(auto) return; return null; }
-     if(snap.error){ if(!auto) toast(mapErr(snap),"⚠️"); return null; }
-    if(Number.isSafeInteger(Number(snap.version))) sess.remoteVersion=Number(snap.version); sset_();
-    var res=applySnapshot(snap);
-    if(!res.ok){ if(res.err==="email_mismatch"){ toast("Ez a mentés másik fiókhoz tartozik — a privát adatok így is védve maradnak.","🔒"); } else toast("A visszaállítás nem sikerült — a helyi adatok érintetlenek maradtak. ("+res.err+")","⚠️"); renderBlock(); return null; }
-    toast("📥 Fiókból visszaállítva. (Biztonsági pillanatkép: "+((res.tours||0))+" túra, "+(res.routes||0)+" route) Előző állapot: „vissza az előzőhöz”.", "☁️");
-    try{ App.render(); }catch(e){} renderBlock(); sess.status="restored"; return res; }); }
+    .catch(function(e){ if(sess.uid!==saveUid||sess.token!==saveToken)return false; if(e&&e.error==="cloud_busy")return false;
+      sess.status="error"; sess.err=mapErr(e); renderBlock(); toast(sess.err,"⚠️"); return false; }); }
+function doLoad(auto){ var A=getActive();
+  if(A.name!=="supabase-snapshot")return Promise.resolve(A.load(sess.token)).then(function(snap){return completeRestore(snap,auto,null);});
+  return cloudExclusive(function(op){
+    invalidateCloudBaseline("loading"); var actor=cloudActor(), before=Store.exportData();
+    return Promise.resolve().then(function(){return A.load(actor.token);}).then(function(snap){
+      checkCloudActor(actor);
+      if(snap&&snap.error==="empty"&&snap.version===0){cloudSafetyState("unknown");toast("A fiókodban még nincs mentés","☁️");return null;}
+      if(!snap||snap.error)throw snap||{error:"cloud_error"};
+      validCloudSnapshot(snap);
+      return safetyDigest(snap.snap).then(function(digest){
+        checkCloudActor(actor);if(Store.exportData()!==before)throw {error:"local_changed"};
+        var res=completeRestore(snap,auto,op);
+        if(!res||!res.ok)throw {error:res&&res.err||"restore_failed"};
+        if(sess.uid!==actor.uid||sess.token!==actor.token)throw {error:"signed_out"};
+        confirmCloudBaseline(snap,digest);sess.status="restored";renderBlock();return res;
+      });
+    }).catch(function(e){if(sess.uid===actor.uid&&sess.token===actor.token){cloudFailure(e);sess.status="error";sess.err=mapErr(e);renderBlock();toast(sess.err,"⚠️");}return null;});
+  }).catch(function(e){if(e&&e.error!=="cloud_busy"){cloudFailure(e);sess.status="error";sess.err=mapErr(e);renderBlock();toast(sess.err,"⚠️");}return null;});
+}
+function completeRestore(snap,auto,op){
+  if(!snap||snap.error==="empty"){toast("A fiókodban még nincs mentés","☁️");return null;}
+  if(snap.error){if(!auto)toast(mapErr(snap),"⚠️");return null;}
+  var res=applySnapshot(snap,{cloudOperation:op});
+  if(!res.ok){if(!op){toast(mapErr({error:res.err}),"⚠️");renderBlock();}return res;}
+  toast("📥 Fiókból visszaállítva. (Biztonsági pillanatkép: "+((res.tours||0))+" túra, "+(res.routes||0)+" route) Előző állapot: „vissza az előzőhöz”.", "☁️");
+  try{App.render();}catch(e){}renderBlock();sess.status="restored";return res;
+}
 var _v54Shown=0;
 function v54Busy(){ try{ return _v54Shown || !!document.querySelector("[data-modal]"); }catch(e){ return true; } }
 /* ---------- offer logic ---------- */
@@ -7697,7 +7813,7 @@ function confirmRestore(){ try{ var d=(Store.myData()||{}); if(((d.tours||[]).le
   window.addEventListener("online", banner); window.addEventListener("offline", function(){ sess.status="offline"; banner(); }); banner();
   var t=setInterval(banner, 20000); })();
 /* session resume + first offer on load hook */
-(function(){ var s0=sget_(); if(s0&&s0.email){ sess.token=s0.token||null; sess.email=s0.email; sess.uid=s0.uid||null; sess.pending=!!s0.pending; sess.remoteVersion=Number.isSafeInteger(Number(s0.remoteVersion))?Number(s0.remoteVersion):null; sess.provider=s0.provider||((s0.token&&/^tk_/.test(s0.token))?"local-vault":(SupabaseAdapter?"supabase-snapshot":(base()?"cloud-http":"local-vault")));
+(function(){ var s0=sget_(); if(s0&&s0.email){ sess.token=s0.token||null; sess.email=s0.email; sess.uid=s0.uid||null; sess.pending=!!s0.pending; sess.remoteVersion=cloudVersion(s0.remoteVersion)?s0.remoteVersion:null;cloudSafetyState("unknown"); sess.provider=s0.provider||((s0.token&&/^tk_/.test(s0.token))?"local-vault":(SupabaseAdapter?"supabase-snapshot":(base()?"cloud-http":"local-vault")));
     if(sess.pending&&!sess.token){ sess.status="pending"; renderBlock(); return; }
     if(!sess.token) return;
     sess.status="ready"; getActive().whoami(s0.token).then(function(w){ if(w){ sess.uid=w.uid; sess.email=normEmail(w.email||sess.email); sess.name=w.name||sess.name; if(w.token) sess.token=w.token; if(typeof Store.adoptCloudUser==="function") Store.adoptCloudUser({uid:sess.uid,email:sess.email,name:sess.name}); return loadCloudProfile().catch(function(){ return null; }).then(function(){ sess.status="ready"; sset_(); renderBlock(); try{ if(window.App) App.render(); }catch(e){} }); } else { clearSess(); renderBlock(); } }).catch(function(e){ if(navigator.onLine===false||/network/i.test(String((e&&e.error)||e||""))){ sess.status="offline"; renderBlock(); } else { clearSess(); renderBlock(); } }); } })();

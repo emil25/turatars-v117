@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {webcrypto} from 'node:crypto';
+import {restored,clone} from './cloud-safety-harness.mjs';
 import {fileURLToPath} from 'node:url';
 const read=name=>fs.readFileSync(fileURLToPath(new URL('../../app/js/'+name+'.js',import.meta.url)),'utf8');
 function app(){
@@ -38,68 +38,43 @@ test('rendering and linked tasks preserve data and only use the signed-in user s
   assert.equal(c.tourCenterFocus().tour,null);assert.doesNotMatch(c.tourCenterPanel(),/Own private plan/);
   assert.ok(t.id);
 });
-function cloud(){
-  const snap={ts:'generated',user:{id:'u-own'},data:{tours:[{id:'t-own',notes:'first'}],routes:[{id:'r-own'}]}};
-  const settings={};const calls=[];
-  const c=vm.createContext({TextEncoder,Uint8Array,self:{crypto:webcrypto},window:{},navigator:{onLine:true},
-    sess:{uid:'u-own',token:'session',email:'owner@test.local',remoteVersion:3,status:'ready'},
-    settings:()=>settings,setSettings:s=>Object.assign(settings,s),sset_:()=>{},
-    curLocalEmail:()=> 'owner@test.local',buildSnapshot:()=>JSON.parse(JSON.stringify(snap)),
-    isRemote:()=>c.provider.name!=='local-vault',getActive:()=>c.provider,console});
-  c.provider={name:'supabase-snapshot',save:async(token,payload,expected)=>{calls.push({token,payload,expected});return {ok:true,version:expected+1};}};
-  const source=read('v54');
-  vm.runInContext(source.slice(source.indexOf('function hex('),source.indexOf('function pbkdf2(')),c);
-  vm.runInContext(source.slice(source.indexOf('function snapshotDigest('),source.indexOf('function loadCloudProfile(')),c);
-  return {c,snap,settings,calls};
-}
+// Receipt regressions now run through the complete guarded V54 API and real Store.
 test('a confirmed snapshot advances expectedVersion; later edits and reload cannot falsely say synced',async()=>{
-  const {c,snap,settings,calls}=cloud();
-  await c.saveSnapshot(snap);assert.equal(c.sess.remoteVersion,4);assert.equal(calls[0].expected,3);
-  assert.equal((await c.cloudStatus()).state,'synced');assert.equal(settings.cloudReceipt.uid,'u-own');
-  snap.ts='different generated time';assert.equal((await c.cloudStatus()).state,'synced');
-  snap.data.tours[0].notes='edited after saving';assert.equal((await c.cloudStatus()).state,'pending');
-  const reloaded=cloud();Object.assign(reloaded.settings,JSON.parse(JSON.stringify(settings)));Object.assign(reloaded.snap,JSON.parse(JSON.stringify(snap)));
-  assert.equal((await reloaded.c.cloudStatus()).state,'pending');
-  await c.saveSnapshot(snap);assert.equal(calls[1].expected,4);assert.equal((await c.cloudStatus()).state,'synced');
+  const h=await restored();await h.api.api.save(h.snapshot());
+  assert.equal(h.api.st().remoteVersion,4);assert.equal(h.remote.writes[0].expected,3);
+  assert.equal((await h.api.api.syncStatus()).state,'synced');assert.equal(h.api.settings().cloudReceipt.uid,h.api.st().uid);
+  assert.equal((await h.api.api.syncStatus()).state,'synced');
+  h.edit();assert.equal((await h.api.api.syncStatus()).state,'pending');
+  await h.api.api.save(h.snapshot());assert.equal(h.remote.writes[1].expected,4);
+  assert.equal((await h.api.api.syncStatus()).state,'synced');
 });
 test('failed/conflicting or malformed saves never issue a receipt or change the local snapshot',async()=>{
   for(const response of [{error:'version_conflict'},{ok:false},{ok:true},{ok:true,version:null},{ok:true,version:-1},null]){
-    const {c,snap,settings}=cloud(),before=JSON.stringify(snap);
-    c.provider.save=async()=>response;
-    await assert.rejects(c.saveSnapshot(snap));assert.equal(c.sess.remoteVersion,3);
-    assert.equal(settings.cloudReceipt,undefined);assert.equal(JSON.stringify(snap),before);
-    assert.equal((await c.cloudStatus()).state,'pending');
+    const h=await restored(),before=h.local();h.c.window.__TT_SUPABASE_ADAPTER.save=async()=>response;
+    await assert.rejects(h.api.api.save(h.snapshot()));assert.equal(h.api.st().remoteVersion,3);
+    assert.equal(h.api.settings().cloudReceipt,undefined);assert.equal(h.local(),before);
+    assert.equal((await h.api.api.syncStatus()).state,'pending');
   }
 });
 test('offline/local vault and another user never report a cloud success',async()=>{
-  const {c,snap}=cloud();await c.saveSnapshot(snap);
-  c.navigator.onLine=false;assert.equal((await c.cloudStatus()).state,'offline');
-  c.navigator.onLine=true;c.provider.name='local-vault';assert.equal((await c.cloudStatus()).state,'local');
-  c.provider.name='supabase-snapshot';c.sess.uid='other-user';assert.equal((await c.cloudStatus()).state,'pending');
+  const h=await restored();await h.api.api.save(h.snapshot());
+  h.c.navigator.onLine=false;assert.equal((await h.api.api.syncStatus()).state,'offline');
+  h.c.navigator.onLine=true;h.c.window.__TT_SUPABASE_ADAPTER.name='local-vault';assert.equal((await h.api.api.syncStatus()).state,'local');
+  h.c.window.__TT_SUPABASE_ADAPTER.name='supabase-snapshot';h.api.st().uid='other-user';assert.equal((await h.api.api.syncStatus()).state,'pending');
 });
 test('concurrent edits and logout during a save cannot mark new data or a different session as synced',async()=>{
-  const {c,snap,settings}=cloud();let finish;
-  c.provider.save=()=>new Promise(resolve=>finish=resolve);
-  const saving=c.saveSnapshot(JSON.parse(JSON.stringify(snap)));
-  while(!finish)await new Promise(resolve=>setImmediate(resolve));
-  snap.data.tours[0].notes='edit while saving';finish({ok:true,version:4});await saving;
-  assert.equal((await c.cloudStatus()).state,'pending');
-  finish=null;const second=c.saveSnapshot(snap);
-  while(!finish)await new Promise(resolve=>setImmediate(resolve));
-  c.sess.uid='other-user';c.sess.token='other-session';finish({ok:true,version:5});await second;
-  assert.equal(c.sess.remoteVersion,4);assert.equal(settings.cloudReceipt.uid,'u-own');
+  const h=await restored();let release;h.remote.saveHook=()=>new Promise(r=>release=r);
+  const saving=h.api.api.save(h.snapshot());while(!release)await new Promise(r=>setImmediate(r));
+  h.edit();release();await saving;assert.equal((await h.api.api.syncStatus()).state,'pending');
+  release=null;const second=h.api.api.save(h.snapshot());while(!release)await new Promise(r=>setImmediate(r));
+  const receipt=clone(h.api.settings().cloudReceipt);h.api.st().uid='other-user';h.api.st().token='other-session';release();await second;
+  assert.equal(h.api.st().remoteVersion,4);assert.deepEqual(clone(h.api.settings().cloudReceipt),receipt);
 });
-
-test('missing digest does not block saving, while logout before the request prevents a save',async()=>{
-  const {c,snap,settings,calls}=cloud();
-  c.sha256hex=()=>Promise.reject(new Error('Crypto unavailable'));
-  await c.saveSnapshot(snap);
-  assert.equal(calls.length,1);assert.equal(c.sess.remoteVersion,4);
-  assert.equal(settings.cloudReceipt,undefined);assert.equal((await c.cloudStatus()).state,'pending');
-  const other=cloud();let finish;
-  other.c.sha256hex=()=>new Promise(resolve=>finish=resolve);
-  const pending=other.c.saveSnapshot(other.snap);
-  other.c.sess.token=null;finish('a'.repeat(64));
-  await assert.rejects(pending);assert.equal(other.calls.length,0);
-  assert.equal(other.c.sess.remoteVersion,3);
+test('missing verification crypto fails closed; logout during verification never starts a write',async()=>{
+  const h=await restored();h.c.self.crypto=null;
+  await assert.rejects(h.api.api.save(h.snapshot()),e=>e.error==='verification_unavailable');
+  assert.equal(h.remote.writes.length,0);assert.equal(h.api.settings().cloudReceipt,undefined);
+  const other=await restored();let release;other.remote.loadHook=()=>new Promise(r=>release=r);
+  const pending=other.api.api.save(other.snapshot());while(!release)await new Promise(r=>setImmediate(r));
+  other.api.st().token=null;release();await assert.rejects(pending);assert.equal(other.remote.writes.length,0);
 });

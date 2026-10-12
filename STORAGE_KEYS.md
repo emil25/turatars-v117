@@ -40,6 +40,9 @@
 - `digest`: SHA-256 a meglévő snapshot tartalmáról, a generált `ts` nélkül. Nem tartalmazza a snapshotot, kulcsot vagy tokent.
 - A UI csak azonos UID és egyező aktuális tartalom esetén írja, hogy „Felhőbe mentve”. Módosítás után új mentésre vár; offline/helyi trezor nem jelent cloud sikert.
 - Ez csak mentési állapotjelzés; a jogosultságot és verziókonfliktust továbbra is a meglévő Supabase adapter/RLS kezeli.
+- V130.1: `cloudSafety: {uid, localUserId, version, digest, state}` a sikeresen ellenőrzött restore/mentés tartalmi igazolása. A digest kulcssorrendtől független SHA-256, csak a generált `ts` marad ki. Nem tartalmaz snapshotot vagy credentialt.
+- Az igazolás önmagában nem mentési engedély: ugyanabban az alkalmazásfutásban megerősített baseline, egyező tartós igazolás és minden írás előtt újra lekért, egyező remote tartalom/verzió szükséges. Újratöltéskor meglévő cloud snapshotnál ismét explicit restore kell; a meglévő merge és pre-restore backup megmarad.
+- Restore-kísérlet, rollback, konfliktus és ellenőrzési hiba megszünteti a baseline-t. Ismeretlen állapotban csak igazoltan nem létező snapshot hozható létre `expectedVersion=0` feltétellel. A backend atomikus verzióellenőrzése változatlan.
 
 ## `turatars_appearance_v1` — csak megjelenési beállítás
 - `atlas` vagy `classic`, kizárólag a megjelenésválasztó írja. Nincs benne túra, session vagy felhőadat.

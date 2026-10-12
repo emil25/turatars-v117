@@ -52,10 +52,13 @@ try{
   await page.evaluate(()=>{
     const s=window.__V54.st();s.uid=Store.me().id;s.token='test-session';s.email=Store.me().email;s.provider='supabase-snapshot';s.remoteVersion=0;
     window.__testSaves=[];
+    window.__testRemote=null;
+    window.__TT_SUPABASE_ADAPTER.load=async()=>window.__testRemote?JSON.parse(JSON.stringify(window.__testRemote)):{error:'empty',version:0};
     window.__TT_SUPABASE_ADAPTER.save=async(token,snap,expected)=>{
       window.__testSaves.push({expected,snapshot:JSON.parse(JSON.stringify(snap))});
       if(window.__testSaveFailure)throw {error:window.__testSaveFailure};
       if(window.__testSaveWait)await new Promise(r=>window.__finishTestSave=r);
+      window.__testRemote={snap:JSON.parse(JSON.stringify(snap)),version:expected+1};
       return {ok:true,version:expected+1};
     };
   });
