@@ -96,7 +96,7 @@ function changedBannerForTour(t){ try{ if(!t||!t.eventRef||String(t.eventRef).in
 
 function refreshHere(){ try{ if(document.querySelector("[data-modal]")) return; if(window.App&&App.render) App.render(); }catch(e){} }
 /* ---------- GPX preview (V47 parser újrafelhasználása) ---------- */
-function gpxStats(pr){ var tr=(pr&&pr.track)||[]; var st=(pr&&pr.stats)||{}; return { n:st.n||tr.length, km:st.km!=null?Math.round(st.km*10)/10:null, gain:st.gain!=null?st.gain:null, loss:st.loss!=null?st.loss:null, maxE:st.max!=null?st.max:(function(){ var m=null; tr.forEach(function(pt){ var e=pt&&pt[2]!=null?+pt[2]:null; if(e!=null&&isFinite(e)&&(m===null||e>m)) m=e; }); return m; })() }; }
+function gpxStats(pr){ var tr=(pr&&pr.track)||[]; var st=(pr&&pr.stats)||{}; return { n:st.n||tr.length, km:st.km!=null?Math.round(st.km*10)/10:null, gain:st.hasEle&&st.gain!=null?st.gain:null, loss:st.hasEle&&st.loss!=null?st.loss:null, maxE:st.hasElevationSamples?st.max:null, hasEle:!!st.hasEle }; }
 function miniProfileSVG(track){ try{ var vals=(track||[]).map(function(pt){return pt&&pt.length>2?+pt[2]:null;}).filter(function(v){return v!=null&&!isNaN(v);}); if(vals.length<3) return '<p class="small muted">Elevation profilhoz nincs adat — nem becsüljük.</p>';
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), w=280, h=54; var pts=vals.map(function(v,i){ return (Math.round(i/(vals.length-1)*w))+","+(Math.round(h-(v-mn)/((mx-mn)||1)*(h-6)-3)); }).join(" ");
   return '<svg viewBox="0 0 '+w+" "+h+'" class="e2-prof" role="img" aria-label="Magassági profil"><polyline points="'+pts+'" fill="none" stroke="#1C4A36" stroke-width="2"/></svg><p class="small muted" style="margin:.15rem 0 0">⛰️ '+Math.round(mn)+"–"+Math.round(mx)+" m · 📍 "+vals.length+" pont (minta a teljes trackből)</p>"; }catch(e){ return ""; } }
@@ -132,9 +132,9 @@ function evForm(existing){ var e=existing||{}; var isEdit=!!existing;
      var js=m.querySelector("#e2f_join"); if(js) js.onchange=function(){ var u=m.querySelector("#e2f_urlbox"); if(u) u.style.display = js.value==="external"?"":"none"; };
      var fi=m.querySelector("#e2f_gpxf"); if(fi) fi.onchange=function(){ var f=fi.files&&fi.files[0]; if(!f) return; var rd=new FileReader();
        rd.onload=function(){ try{ var pr=(window.v47parseGPX?window.v47parseGPX(String(rd.result||"")):null); var box=m.querySelector("#e2f_gpxprev");
-         if(!pr||pr.err||!pr.track||pr.track.length<3){ box.innerHTML='<p class="e2-err">⚠️ Hibás vagy túl rövid GPX — nem menthető útvonalként. ("Ehhez nem tudunk valós útvonalat rendelni.")</p>'; m.__gpx=null; return; }
-         var st=gpxStats(pr); m.__gpx={ name:(f.name||"GPX").replace(/\.gpx$/i,"").slice(0,60), pr:pr, stats:st };
-         box.innerHTML='<p class="small" style="margin:.2rem 0">🗺️ <b>'+esc2(m.__gpx.name)+'</b> · 📏 '+(st.km!=null?st.km.toFixed(1).replace(".",","):"—")+' km · ⛰️ +'+(st.gain!=null?Math.round(st.gain):"—")+' m · 🏔️ max '+(st.maxE!=null?Math.round(st.maxE):"—")+' m · 📍 '+st.n+' pont</p>'+miniProfileSVG(pr.track)+'<div class="e2-pminimap"></div>';
+         if(!pr||pr.err||!pr.track||pr.track.length<2){ box.innerHTML='<p class="e2-err">⚠️ Hibás vagy túl rövid GPX — nem menthető útvonalként. ("Ehhez nem tudunk valós útvonalat rendelni.")</p>'; m.__gpx=null; return; }
+         var st=gpxStats(pr); m.__gpx={ name:(f.name||"GPX").replace(/\.gpx$/i,"").slice(0,60), file:f.name||null, pr:pr, stats:st };
+         box.innerHTML='<p class="small" style="margin:.2rem 0">🗺️ <b>'+esc2(m.__gpx.name)+'</b> · 📏 '+(st.km!=null?st.km.toFixed(1).replace(".",","):"—")+' km · ⛰️ '+(st.hasEle?'+'+Math.round(st.gain)+' m szint':'szintadat nincs')+' · 🏔️ max '+(st.maxE!=null?Math.round(st.maxE)+' m':'—')+' · 📍 '+st.n+' pont</p>'+miniProfileSVG(pr.track)+'<div class="e2-pminimap"></div>';
          miniMapInto(box.querySelector(".e2-pminimap"), pr.track);
        }catch(e){ m.__gpx=null; box.innerHTML='<p class="e2-err">⚠️ A GPX feldolgozása most nem sikerült.</p>'; } };
        rd.onerror=function(){ var box=m.querySelector("#e2f_gpxprev"); if(box) box.innerHTML='<p class="e2-err">⚠️ A fájl nem olvasható.</p>'; };
@@ -150,29 +150,27 @@ function evForm(existing){ var e=existing||{}; var isEdit=!!existing;
        var patch={ name:name, date:date, time:g("time")||"", place:place, region:g("region")||"", coords:coords,
          km:numOrNull(g("km")), up:numOrNull(g("up")), h:numOrNull(g("h")), diff:g("diff")||"", desc:g("desc")||"",
          joinMode:jmode, joinUrl:(jmode==="external"?(g("url")||""):""), cap:numOrNull(g("cap")) };
-       if(isEdit){ var ev=ownEvent(existing.id); if(!ev) return; var keyCh=fpOf(patch)!==ev.fp;
+       if(isEdit){ var ev=ownEvent(existing.id); if(!ev) return; var before=Object.assign({},ev); var keyCh=fpOf(patch)!==ev.fp;
          Object.assign(ev, patch); ev.rev=(ev.rev||0)+1; ev.updatedAt=nowISO();
-         if(m.__gpx) attachGpx(ev, m.__gpx);
+         if(m.__gpx&&!attachGpx(ev, m.__gpx)){ Object.keys(ev).forEach(function(k){ delete ev[k]; }); Object.assign(ev,before); if(err){err.textContent="A GPX útvonalat nem sikerült biztonságosan elmenteni; az esemény változatlan maradt.";err.style.display="";} return; }
          if(keyCh){ var dup=P().events.find(function(x){ return x.id!==ev.id && x.fp===fpOf(ev); }); if(dup){ toast("Már van ilyen azonos esemény (név+dátum+helyszín) — a duplikátum elmentve összefűzés helyett jelzéssel","⚠️"); } }
        } else { var fp=fpOf(patch);
          var dupE=P().events.find(function(x){ return x.fp===fp; });
          if(dupE){ toast("Ez az esemény már létezik (név+dátum+helyszín egyezés) — megnyitom","♻️"); closeModal(); if(window.v49OpenEv&&dupE.status!=="hidden") window.v49OpenEv("p2:"+dupE.id); return; }
          var ev2={ id:"evp_"+Math.random().toString(36).slice(2,8), orgId:o.id, status:"published"==="x"?"draft":"draft", fp:fp, rev:0, createdAt:nowISO(), demo:false };
-         Object.assign(ev2, patch); P().events.push(ev2);
-         if(m.__gpx) attachGpx(ev2, m.__gpx);
+         Object.assign(ev2, patch);
+         if(m.__gpx&&!attachGpx(ev2, m.__gpx)){ if(err){err.textContent="A GPX útvonalat nem sikerült biztonságosan elmenteni; az eseményt nem hoztuk létre.";err.style.display="";} return; }
+         P().events.push(ev2);
          toast("Esemény létrehozva — most még PISZKOZAT. A listádból egy koppintással publikálhatod.","🗂️"); }
        Store.save(); closeModal(); refreshHere(); }; } }); }
-function attachGpx(ev, g){ var d=Store.myData(); d.routes=d.routes||[]; var st=g.stats;
-  function rfpOf(t){ try{ var tr=t||[]; if(!tr.length) return null; var f=tr[0], l=tr[tr.length-1]; return [f&&f[0],f&&f[1],f&&f[2],l&&l[0],l&&l[1],l&&l[2],tr.length].join("~"); }catch(e){ return null; } }
-  var fpx=rfpOf(g.pr.track); var ex=fpx && d.routes.find(function(r){ return r.__fp===fpx; });
-  if(ex){ ev.routeId=ex.id; ev.routeSnap={ name:ex.name, distance_km:ex.distance_km, gain:ex.elevation_gain_m, maxE:p52maxOf(ex.track), n:ex.nPts||null }; return; }
-  var rid="rt_"+Math.random().toString(36).slice(2,8);
-  var ps=(g.pr&&g.pr.stats)||{};
-  d.routes.push({ id:rid, name:g.name, distance_km:st.km, elevation_gain_m:ps.hasEle?st.gain:null, elevation_loss_m:ps.hasEle?st.loss:null,
-    max_elevation_m:ps.hasEle?ps.max:null, min_elevation_m:ps.hasEle?ps.min:null,
-    start:ps.start||null, finish:ps.finish||null,
-    track:g.pr.track, nPts:st.n, created_at:nowISO(), source:"gpx-import", raw:(g.pr.raw&&g.pr.raw.length<700000)?g.pr.raw:null, ownerEvent:ev.id, __fp:(function(t){ try{ var f=(t||[])[0], l=(t||[])[(t||[]).length-1]; return f&&l?[f[0],f[1],f[2],l[0],l[1],l[2],t.length].join("~"):null; }catch(e){ return null; } })(g.pr.track) });
-  ev.routeId=rid; ev.routeSnap={ name:g.name, distance_km:st.km!=null?Math.round(st.km*10)/10:null, gain:st.gain!=null?Math.round(st.gain):null, maxE:st.maxE!=null?Math.round(st.maxE):null, n:st.n }; }
+function attachGpx(ev, g){
+  if(!window.v47CommitGPX) return false;
+  var saved=window.v47CommitGPX(g.pr,{name:g.name,file:g.file||null,ownerEvent:ev.id});
+  if(!saved||!saved.ok) return false;
+  var route=saved.route; ev.routeId=route.id;
+  ev.routeSnap={name:route.name,distance_km:route.distance_km,gain:route.elevation_gain_m,maxE:route.max_elevation_m,n:route.nPts||null};
+  return true;
+}
 function p52maxOf(tr){ try{ var m=null; (tr||[]).forEach(function(p){ var e=p&&p.length>2?+p[2]:null; if(e!=null&&isFinite(e)&&(m===null||e>m)) m=e; }); return m; }catch(e){ return null; } }
 
 /* ---------- szervezői regisztráció ---------- */

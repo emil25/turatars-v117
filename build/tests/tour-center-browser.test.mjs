@@ -7,6 +7,7 @@ const browser=await chromium.launch({headless:true,executablePath:process.env.TT
 const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
 // Test-only local user and adapter responses. No production account/data writes.
 await context.route('**/*.supabase.co/**',r=>r.abort());
+await context.addInitScript(()=>localStorage.setItem('turatars_v54_settings_v1',JSON.stringify({offers:{'tour-center@test.local':Date.now()}})));
 const page=await context.newPage();page.setDefaultTimeout(12000);
 await page.addLocatorHandler(page.locator('#v4_later'),async b=>b.click());
 const errors=[],consoleErrors=[];
@@ -38,6 +39,7 @@ try{
   await page.locator('.v129-project [data-center-tab="resztvevok"]').click();
   await page.locator('[data-wstab="resztvevok"].on').waitFor();
   await page.locator('.v129-project [data-center-tab="utvonal"]').click();
+  await page.locator('[data-wstab="utvonal"].on').waitFor();
   await page.locator('#gpx-in').waitFor({state:'attached'});
   await page.locator('.v129-project [data-center-tab="attekintes"]').click();
   await page.locator('#v129-pack-add').waitFor();

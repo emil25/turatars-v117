@@ -96,7 +96,7 @@ function v121RoutePicker(root,id,t){
   const host=root.querySelector(".ws-actions"); if(!host||root.querySelector("#v121-route-picker")) return;
   const b=document.createElement("button"); b.id="v121-route-picker"; b.className="btn btn-soft btn-sm"; b.textContent="🗺️ Meglévő útvonal használata"; host.appendChild(b);
   b.onclick=function(){
-    openModal({title:"🗺️ Válassz útvonalat",body:'<div class="v121-route-list">'+routes.map(function(r){return '<button class="v121-route-choice" data-route="'+v121Esc(r.id)+'"><b>'+v121Esc(r.name||"Útvonal")+'</b><span>'+(Number(r.distance_km||0).toFixed(1))+" km · +"+(Math.round(r.elevation_gain_m||0))+" m · "+(r.nPts||((r.track||[]).length))+" pont</span></button>";}).join("")+'</div>',footer:'<button class="btn btn-ghost btn-block" data-close>Mégse</button>',onOpen:function(m){m.querySelectorAll("[data-route]").forEach(function(x){x.onclick=function(){const r=routes.find(function(q){return q.id===x.dataset.route;});if(r){closeModal();v121AttachRoute(t,r);}};});}});
+    openModal({title:"🗺️ Válassz útvonalat",body:'<div class="v121-route-list">'+routes.map(function(r){return '<button class="v121-route-choice" data-route="'+v121Esc(r.id)+'"><b>'+v121Esc(r.name||"Útvonal")+'</b><span>'+(Number(r.distance_km||0).toFixed(1))+" km · "+(r.elevation_gain_m==null?"szintadat nincs elérhető":"+"+Math.round(r.elevation_gain_m)+" m")+" · "+(r.nPts||((r.track||[]).length))+" pont</span></button>";}).join("")+'</div>',footer:'<button class="btn btn-ghost btn-block" data-close>Mégse</button>',onOpen:function(m){m.querySelectorAll("[data-route]").forEach(function(x){x.onclick=function(){const r=routes.find(function(q){return q.id===x.dataset.route;});if(r){closeModal();v121AttachRoute(t,r);}};});}});
   };
 }
 

@@ -11,6 +11,13 @@ const WS_TABS = [
 ];
 let wsTab = "attekintes";
 const pct = a => a.length ? a.filter(x=>x.checked).length/a.length : 1;
+function wsRouteElevationProfile(track){
+  const samples=(track||[]).map(p=>Array.isArray(p)?p[2]:null).filter(v=>v!=null&&Number.isFinite(+v)).map(Number);
+  if(samples.length<3) return '<p class="muted small mb0">Nincs elég valódi magassági adat profil készítéséhez.</p>';
+  const min=Math.min(...samples),max=Math.max(...samples),span=max-min||1;
+  const points=samples.map((v,i)=>`${i/(samples.length-1)*100},${32-(v-min)/span*28}`).join(" ");
+  return `<svg viewBox="0 0 100 34" style="width:100%;height:120px" preserveAspectRatio="none"><polygon points="0,32 ${points} 100,32" fill="rgba(47,107,74,.18)"/><polyline points="${points}" fill="none" stroke="var(--moss)" stroke-width="1.6"/></svg><div class="meta" style="font-size:.78rem"><span>Min ${Math.round(min)} m</span><span>Max ${Math.round(max)} m</span></div>`;
+}
 
 VIEWS.workspace = (id) => {
   const t = Store.getTour(id);
@@ -102,6 +109,7 @@ function wsOverview(t, catTour, steps){
 }
 
 function wsTabHTML(t, catTour){
+  const routeRecord = t.routeId ? ((Store.myData().routes||[]).find(r=>r&&r.id===t.routeId)||null) : null;
   switch(wsTab){
   case "attekintes": {
     const safeTodo = t.safety.filter(s=>!s.checked).length;
@@ -132,12 +140,7 @@ function wsTabHTML(t, catTour){
       <div>
         <div class="card panel">
           <h3>⛰️ Magassági profil</h3>
-          ${t.gpx?(function(){ const el = t.gpx.elev;
-            return `<svg viewBox="0 0 100 34" style="width:100%;height:120px" preserveAspectRatio="none">
-              <polygon points="0,32 ${el.map((v,i)=>`${i/(el.length-1)*100},${32-v/Math.max(...el)*28}`).join(" ")} 100,32" fill="rgba(47,107,74,.18)"/>
-              <polyline points="${el.map((v,i)=>`${i/(el.length-1)*100},${32-v/Math.max(...el)*28}`).join(" ")}" fill="none" stroke="var(--moss)" stroke-width="1.6"/></svg>
-              <div class="meta" style="font-size:.78rem"><span>Min ${Math.min(...el)*10}–${Math.max(...el)*12} m*</span><span>*becsült skála</span></div>`;})()
-            : '<p class="muted small mb0">Tölts fel GPX-t a magassági profil megjelenítéséhez.</p>'}
+          ${routeRecord ? wsRouteElevationProfile(routeRecord.track) : '<p class="muted small mb0">A magassági profil csak útvonalhoz mentett, valódi GPS-magassági pontokból jelenik meg. Kitalált szintadatot nem becsülünk.</p>'}
         </div>
         <div class="card panel" style="margin-top:14px"><h3>📍 Fontos pontok</h3>
           <div id="wp-list">${t.waypoints.map((w,i)=>`<div class="flex between" style="padding:.25rem 0"><span>#${i+1} ${esc(w.name)}</span><button class="icon-btn" style="width:26px;height:26px" data-rmwp="${i}">✕</button></div>`).join("")||'<p class="muted small mb0">Kattints a térképre pont hozzáadásához.</p>'}</div>
@@ -353,25 +356,19 @@ function wireTab(root, t){
       if(m){ if(t.coords){ m.setView([t.coords.lat,t.coords.lng], 13);
           MapKit.pin(m,t.coords.lat,t.coords.lng,"pin-plan",`🚗 Kiinduló / parkoló<br><b>${esc(t.place)}</b>`);
           }
-          if(t.gpx&&t.gpx.line){ L.polyline(t.gpx.line,{color:"#1C4A36",weight:4}).addTo(m); m.fitBounds(t.gpx.line); }
+          const linkedRoute=t.routeId?((Store.myData().routes||[]).find(r=>r&&r.id===t.routeId)||null):null;
+          const routeLine=linkedRoute&&Array.isArray(linkedRoute.track)?linkedRoute.track.map(p=>[p[0],p[1]]):(t.gpx&&t.gpx.line);
+          if(routeLine&&routeLine.length>1){ L.polyline(routeLine,{color:"#1C4A36",weight:4}).addTo(m); m.fitBounds(routeLine); }
           t.waypoints.forEach(w=>MapKit.pin(m,w.lat,w.lng,"pin-wish",esc(w.name)));
           m.on("click", e=>{ const name=t.waypoints.length? t.waypoints.length+1 : 1; t.waypoints.push({id:Store.uid("wp"),name:"Pont "+name,lat:e.latlng.lat,lng:e.latlng.lng}); Store.save(); render(); });
         }
     }
     const gpx=q("#gpx-in");
-    if(gpx) gpx.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
-      r.onload=()=>{ try{
-        const xml=new DOMParser().parseFromString(r.result,"text/xml");
-        const pts=[...xml.querySelectorAll("trkpt")].map(n=>({lat:+n.getAttribute("lat"),lng:+n.getAttribute("lon"),ele:+(n.children[0]&&n.children[0].textContent||0)}));
-        if(!pts.length) throw 0;
-        const line=pts.map(p=>[p.lat,p.lng]);
-        let dist=0; for(let i=1;i<pts.length;i++){ const d=geo(pts[i-1],pts[i]); if(d<2200) dist+=d; } // szegmentumszűrés
-        const eles=[...pts.map(p=>p.ele).filter(x=>x>100), ...pts.map((_,i)=>20)] // fallback profil
-        ; const prof=eles.slice(0,200).length?[...Array(40)].map((_,i)=>{ const p=pts[Math.floor(i/40*pts.length)]; return p.ele||20; }):[...Array(40)].map((_,i)=>20);
-        Store.updateTour(t.id,{ gpx:{pts, line, elev:prof.length===40?prof:[20,40,60,40,20]}, waypoints: pts.filter((_,i)=>i%Math.ceil(pts.length/6)===0).slice(0,6) });
-        toast("GPX beolvasva — a valódi útvonal a térképed! 🗺","📁"); render();
-      }catch(err){ toast("A GPX fájlt nem tudtam beolvasni — ellenőrizd a formátumot.","⚠️"); } };
-      r.readAsText(f); };
+    if(gpx) gpx.onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+      if(window.v47ImportGPXFile) window.v47ImportGPXFile(f,{tripId:t.id,replace:t.routeId||null});
+      else toast("A közös GPX-import most nem érhető el. Semmilyen útvonaladat nem változott.","⚠️");
+      gpx.value="";
+    };
     const goBtn=q("#nav-go");
     if(goBtn){ if(t.coords) goBtn.href=`https://www.google.com/maps/dir/?api=1&destination=${t.coords.lat},${t.coords.lng}&travelmode=walking`;
       else goBtn.onclick=e=>{ e.preventDefault(); toast("Add meg előbb a helyszínt az Új túra folyamatban.","📍"); }; }

@@ -33,10 +33,10 @@ function v125LoadRoute(i, host){
   if(r.t==="esztena"){ if(stats) stats.textContent="KML pontforrás — GPX szint- és távadat nem érhető el."; return; }
   if(stats) stats.textContent="GPX betöltése a forrásból…";
   fetch(r.url).then(function(res){ if(!res.ok) throw new Error("GPX HTTP "+res.status); return res.text(); }).then(function(txt){
-    var pts=typeof hgyParseGpx==="function"?hgyParseGpx(txt):[];
-    if(pts.length<2) throw new Error("A forrás nem tartalmaz trackpontokat");
-    var st=typeof hgyStats==="function"?hgyStats(pts):null;
-    if(stats) stats.textContent=(st?((Math.round(st.m/10)/100).toFixed(2).replace('.',',')+' km · +'+Math.round(st.up)+' m'):pts.length+' pont')+' · '+pts.length+' GPS pont';
+    var parsed=window.v47parseGPX?window.v47parseGPX(txt):null;
+    if(!parsed||parsed.err||!Array.isArray(parsed.track)||parsed.track.length<2) throw new Error("A forrás GPX nem tartalmaz teljes, érvényes tracket.");
+    var pts=parsed.track.map(function(p){return {lat:p[0],lng:p[1],ele:p[2],time:p[3]};}),st=parsed.stats;
+    if(stats) stats.textContent=(Math.round(st.km*100)/100).toFixed(2).replace('.',',')+' km · '+(st.hasEle?'+'+Math.round(st.gain)+' m szint':'szintadat nincs')+' · '+pts.length+' GPS pont';
     if(mapEl&&typeof MapKit!=="undefined"&&window.L){
       var m=MapKit.make(mapEl,{center:[pts[0].lat,pts[0].lng],zoom:12});
       if(m){ window.L.polyline(pts.map(function(p){return [p.lat,p.lng];}),{color:'#1C4A36',weight:4}).addTo(m); if(m.fitBounds) m.fitBounds(window.L.latLngBounds(pts.map(function(p){return [p.lat,p.lng];})).pad(.15)); }

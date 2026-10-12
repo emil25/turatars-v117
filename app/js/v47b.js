@@ -19,7 +19,7 @@ VIEWS.routes = function(){ var R=rAll();
     (R.length? '<div class="rt-cards">'+R.map(function(r){ var trip=r.linkedTripId?Store.getTour(r.linkedTripId):null;
       return '<article class="card rt-card" data-rt="'+r.id+'">'+
         '<div class="rt-ic">🗺️</div><div class="rt-main"><b>'+escA(r.name)+'</b>'+
-        '<div class="small muted">'+fKm(r.distance_km)+' · ⛰️ +'+fM0(r.elevation_gain_m)+' m'+(trip?' · 🥾 '+escA(trip.title):'')+' · 📥 '+new Date(r.created_at).toLocaleDateString("hu-HU")+'</div>'+
+        '<div class="small muted">'+fKm(r.distance_km)+' · ⛰️ '+(r.elevation_gain_m==null?'nincs szintadat':'+'+fM0(r.elevation_gain_m)+' m')+(trip?' · 🥾 '+escA(trip.title):'')+' · 📥 '+new Date(r.created_at).toLocaleDateString("hu-HU")+'</div>'+
         '<div class="rt-row"><button class="btn btn-soft btn-sm" data-open="'+r.id+'">Megnyitás</button>'+
         (trip?'<a class="btn btn-ember btn-sm" href="#/tura/'+trip.id+'">🥾 Túra</a>':'')+'<span class="spacer"></span><button class="btn btn-ghost btn-sm" data-exp="'+r.id+'">⬇️</button><button class="btn btn-ghost btn-sm" data-del="'+r.id+'">🗑</button></div>'+
         '</div></article>'; }).join("")+'</div>'
@@ -27,7 +27,7 @@ VIEWS.routes = function(){ var R=rAll();
         '<p>Húzz be egy .gpx fájlt — a távolságot, szinteket és profilt a valódi track pontokból számoljuk, semmit nem találunk ki.</p>'+
         '<button class="btn btn-primary" id="rt-import-empty">🗺️ GPX import most</button></div>')+
     '</div>'); };
-function fM0(x){ return x==null?"0":String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g," "); }
+function fM0(x){ return x==null?"nincs adat":String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g," "); }
 VIEWS.routes.after = function(root){ var R=rAll();
   var b=root.querySelector("#rt-import")||root.querySelector("#rt-import-empty");
   if(b) b.onclick=function(){ window.openGPXImport({}); };
@@ -72,12 +72,12 @@ VIEWS.workspace.after = function(root,id){ try{ _wA47 && _wA47(root,id); }catch(
     /* route státusz-sáv a fül végére */
     if(t.routeId && grid && !root.querySelector(".rt-tripcard")){ var r2=rGet(t.routeId);
       if(r2){ var div=document.createElement("div"); div.className="card panel rt-tripcard";
-        div.innerHTML='<h3>🗺️ GPX útvonal: '+escA(r2.name)+'</h3><p class="small mb0">'+fKm(r2.distance_km)+' · ⛰️ +'+fM0(r2.elevation_gain_m)+' m · ⬇️ -'+fM0(r2.elevation_loss_m)+' m · '+((r2.track||[]).length)+' pont (tömörítve) / '+(r2.nPts||0)+' eredeti</p>'+
+        div.innerHTML='<h3>🗺️ GPX útvonal: '+escA(r2.name)+'</h3><p class="small mb0">'+fKm(r2.distance_km)+' · ⛰️ '+(r2.elevation_gain_m==null?'nincs szintadat':'+'+fM0(r2.elevation_gain_m)+' m')+' · ⬇️ '+(r2.elevation_loss_m==null?'nincs adat':'-'+fM0(r2.elevation_loss_m)+' m')+' · '+((r2.track||[]).length)+' pont (tömörítve) / '+(r2.nPts||0)+' eredeti</p>'+
         '<button class="btn btn-soft btn-sm" data-rtx="re">🔄 Új GPX cseréje</button> <button class="btn btn-ghost btn-sm" data-rtx="un">🔗 Leválasztás</button>';
         grid.appendChild(div);
         div.querySelectorAll("[data-rtx]").forEach(function(bb){ bb.onclick=function(){ var a=bb.dataset.rtx;
           if(a==="re"){ window.openGPXImport({tripId:id,replace:t.routeId}); }
-          else { t.routeId=null; var r3=rGet(t.routeId); if(r3){ r3.linkedTripId=null; } Store.save(); toast("Az útvonal leválasztva — a GPX megmaradt a könyvtárban","🔗"); rtRefresh(); render(); } }; }); } }
+          else { var oldRouteId=t.routeId; t.routeId=null; var r3=rGet(oldRouteId); if(r3&&r3.linkedTripId===id){ r3.linkedTripId=null; } Store.save(); toast("Az útvonal leválasztva — a GPX megmaradt a könyvtárban","🔗"); rtRefresh(); render(); } }; }); } }
     /* V45: túra-mód Útvonal gomb → route részletek */
   }catch(e){} };
 
@@ -86,7 +86,7 @@ var _rv47=window.tourReview;
 window.tourReview=function(t){ try{ _rv47&&_rv47(t); var r=t.routeId?rGet(t.routeId):null; if(!r) return;
   var tries=0, iv=setInterval(function(){ tries++; var b=document.getElementById("rvw-body");
     if(b && b.querySelector(".rvw-head")){ clearInterval(iv); if(b.querySelector(".rvw-gpx")) return; b.insertAdjacentHTML("afterbegin",
-      '<div class="rvw-gpx small" style="margin:.2rem 0 .55rem">🗺️ GPX: ez egy '+fKm(r.distance_km)+(r.elevation_gain_m?'-es, +'+fM0(r.elevation_gain_m)+' m szintemelkedés':'')+' útvonal ('+(r.nPts||0)+' pont) — az számítások ezt használják.</div>'); }
+      '<div class="rvw-gpx small" style="margin:.2rem 0 .55rem">🗺️ GPX: ez egy '+fKm(r.distance_km)+(r.elevation_gain_m!=null?'-es, +'+fM0(r.elevation_gain_m)+' m szintemelkedés':'')+' útvonal ('+(r.nPts||0)+' pont) — az számítások ezt használják.</div>'); }
     if(tries>60) clearInterval(iv); },120); }catch(e){} };
 
 /* ---------- V45 túra mód: Útvonal gomb GPX-re ---------- */

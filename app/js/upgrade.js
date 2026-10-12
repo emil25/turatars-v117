@@ -875,50 +875,34 @@ function chalNewModal(){ openModal({ title:"➕ Új helyi kihívás",
 /* ---------- HAGYMÁS INTERAKTÍV ÚTVONALHALÓZAT (beágyazott térkép + GPX import) ---------- */
 const HGY = { filter: "mind" };
 const hgyIcon = t => t==="bringa" ? "🚲" : t==="esztena" ? "🐑" : "🥾";
-function hgyParseGpx(txt){
-  const x=new DOMParser().parseFromString(txt,"application/xml");
-  const nodes=[...x.querySelectorAll("trkpt,rtept,wpt")];
-  return nodes.map(n=>({lat:+n.getAttribute("lat"), lng:+n.getAttribute("lon"),
-    ele:(n.querySelector("ele")&&+n.querySelector("ele").textContent)||null})).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
-}
-function hgyStats(pts){
-  let d=0,up=0,dn=0,min=1e9,max=-1e9;
-  for(let i=1;i<pts.length;i++){ const a=pts[i-1],b=pts[i],R=6371e3,t=Math.PI/180;
-    const h=Math.sin((b.lat-a.lat)*t/2)**2+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin((b.lng-a.lng)*t/2)**2;
-    d+=2*R*Math.asin(Math.sqrt(h));
-    if(a.ele&&b.ele){ if(b.ele>a.ele) up+=b.ele-a.ele; else dn+=a.ele-b.ele; } }
-  pts.forEach(p=>{ if(p.ele){ if(p.ele<min)min=p.ele; if(p.ele>max)max=p.ele; } });
-  return {m:d, up, dn, min:isFinite(min)?min:null, max:isFinite(max)?max:null};
-}
 function hgyImport(i, btn, done){
   const r=HAGYMAS_ROUTES[i];
   if(!Store.me()){ toast("Az importhoz jelentkezz be","🔐"); NAV.to("#/belepes"); return; }
   if(btn){ btn.disabled=true; btn.textContent="…" }
-  fetch(r.url).then(res=>res.text()).then(txt=>{
-    const pts=hgyParseGpx(txt);
-    if(pts.length<3) throw new Error("no pts");
-    const st=hgyStats(pts);
-    const t=Store.newTourFromDraft({
-      title:r.n.replace(/_/g," ").replace(/\s+/g," "),
-      place:"Nagyhagymás útvonalhálózat — "+({bringa:"kerékpár",tura:"túra",esztena:"esztenák"}[r.t]||r.t)+" útvonal",
-      region:"Gyergyó", date:"", lengthKm:Math.round(st.m/100)/10, up:Math.round(st.up), durationH:Math.max(1,Math.round(st.m/100/45*10)/10+Math.round(st.up/350*10)/10),
-      difficulty: st.up>900?"Nehéz": st.up>450?"Közepes":"Könnyű",
-      tags:["hagymás","hálózat","gpx","kilátás"], img: r.t==="bringa"?IMG.legifoto:(r.t==="esztena"?IMG.mezofeny:IMG.kodos),
-      desc:"Importálva a Nagyhagymás Közösségek Közti Fejlesztési Társulás interaktív útvonalai közül (vin: "+ (r.t==="esztena"?"KML legelő-pont":"GPX nyomvonal") +"). A munkaterületen a dátum, szintidő és csomag már a te terved.",
-      coords:{name:"Rajt: "+r.n, lat:pts[0].lat, lng:pts[0].lng},
-      waypoints:[{name:"Rajt",lat:pts[0].lat,lng:pts[0].lng},{name:"Cél",lat:pts.at(-1).lat,lng:pts.at(-1).lng}],
-      gpx:{pts, line:pts.map(p=>[p.lat,p.lng]), elev: (st.min!=null? pts.map(p=>p.ele-(st.min||0)) : pts.map((_,j)=>j%10))},
-      startNote:""
+  fetch(r.url).then(res=>{ if(!res.ok) throw new Error("A GPX-forrás nem érhető el (HTTP "+res.status+")."); return res.text(); }).then(txt=>{
+    if(!window.v47parseGPX||!window.v47CommitGPX||!window.v47CreateTourFromRoute) throw new Error("A közös útvonalkezelő nem érhető el.");
+    const parsed=window.v47parseGPX(txt);
+    if(!parsed||parsed.err||!parsed.track||parsed.track.length<2) throw new Error(parsed&&parsed.err&&window.v47GPXErrorMessage?window.v47GPXErrorMessage(parsed.err):"A forrás GPX nem tartalmaz legalább két használható trackpontot.");
+    const title=r.n.replace(/_/g," ").replace(/\s+/g," ");
+    const fileName=String(r.url).split("/").pop()||title+".gpx";
+    const saved=window.v47CommitGPX(parsed,{name:title,file:fileName,source:"gpx-import",source_url:r.url,source_name:"Nagyhagymás Közösségek Közti Fejlesztési Társulás"});
+    if(!saved||!saved.ok) throw new Error("A valódi GPX-útvonalat nem sikerült elmenteni; túratervet sem hoztunk létre.");
+    const t=window.v47CreateTourFromRoute(saved.route,{
+      title:title,place:"Nagyhagymás útvonalhálózat — "+({bringa:"kerékpár",tura:"túra"}[r.t]||"útvonal"),region:"Gyergyó",durationH:null,difficulty:"",
+      tags:["hagymás","hálózat","gpx"],img:r.t==="bringa"?IMG.legifoto:IMG.kodos,
+      desc:"Importálva a Nagyhagymás Közösségek Közti Fejlesztési Társulás útvonalforrásából.",
+      notes:"GPX forrás: "+r.url
     });
-    toast("Útvonal importálva a te Túraprojekt-listádba 🕹","🧭");
+    if(!t) throw new Error("Az útvonal megmaradt az útvonalkönyvtárban, de a túraterv mentése nem sikerült.");
+    toast(saved.duplicate?"Ez a GPX már megvolt — a meglévő útvonalhoz tartozó tervet nyitjuk meg.":"Valódi GPX-útvonal importálva a túratervedhez.","🧭");
     if(btn){ btn.disabled=false }
     if(typeof done==="function"){ done(t); return; }
     render();
     location.hash="#/tura/"+t.id;
-  }).catch(()=>{
+  }).catch(error=>{
     if(btn){ btn.disabled=false; btn.textContent="🧭 Tervbe importálás" }
-    openModal({ title:"A GPX most nem tölthető le",
-      body:`<p class="muted mt0">A böngésző vagy a szerver most Blokkolta a cross-origin letöltést. Az útvonal így is elérke: a beágyazott térképről (jobb felső új lap), vagy töltsd le tőlük és importáld a workspace GPX-feltöltésénél.</p>`,
+    openModal({ title:"A GPX útvonal nem importálható",
+      body:`<p class="muted mt0">${esc(error&&error.message||"A fájl nem tölthető le vagy nem dolgozható fel.")} Semmilyen félkész túratervet nem mentettünk. A forrás külön is megnyitható.</p>`,
       footer:`<div class="flex" style="gap:.5rem;flex-wrap:wrap"><a class="btn btn-soft btn-sm" target="_blank" rel="noopener" href="${esc(r.url)}">⬇ GPX letöltése</a><button class="btn btn-ghost btn-sm" data-close>Bezárás</button></div>` });
   });
 }
