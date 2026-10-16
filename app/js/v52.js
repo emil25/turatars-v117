@@ -130,11 +130,14 @@ function evForm(existing){ var e=existing||{}; var isEdit=!!existing;
    footer:'<button class="btn btn-ghost" data-close>Mégse</button> <button class="btn btn-primary" id="e2f_save">'+(isEdit?"💾 Mentés":"＋ Esemény létrehozása")+"</button>",
    onOpen:function(m){ var gpxData=m.__gpx=null;
      var js=m.querySelector("#e2f_join"); if(js) js.onchange=function(){ var u=m.querySelector("#e2f_urlbox"); if(u) u.style.display = js.value==="external"?"":"none"; };
-     var fi=m.querySelector("#e2f_gpxf"); if(fi) fi.onchange=function(){ var f=fi.files&&fi.files[0]; if(!f) return; var rd=new FileReader();
+     var fi=m.querySelector("#e2f_gpxf"); if(fi) fi.onchange=function(){ var f=fi.files&&fi.files[0]; if(!f) return; m.__gpx=null;
+       var box=m.querySelector("#e2f_gpxprev"); if(f.size>700000){ var large={status:"error",label:"Hiba",pointCount:0,distanceKm:null,elevation:{available:0,missing:0},timestamps:{valid:0,missing:0},warnings:["A fájl meghaladja a 700 KB-os importkorlátot."],actions:["Válassz legfeljebb 700 KB-os GPX-fájlt."]};
+         box.innerHTML='<p class="e2-err">'+esc2(window.v47GPXErrorMessage?window.v47GPXErrorMessage("large"):"A GPX fájl túl nagy.")+'</p>'+(window.v47GPXValidationHtml?window.v47GPXValidationHtml(large):""); return; }
+       var rd=new FileReader();
        rd.onload=function(){ try{ var pr=(window.v47parseGPX?window.v47parseGPX(String(rd.result||"")):null); var box=m.querySelector("#e2f_gpxprev");
-         if(!pr||pr.err||!pr.track||pr.track.length<2){ box.innerHTML='<p class="e2-err">⚠️ Hibás vagy túl rövid GPX — nem menthető útvonalként. ("Ehhez nem tudunk valós útvonalat rendelni.")</p>'; m.__gpx=null; return; }
+         if(!pr||pr.err||!pr.track||pr.track.length<2){ box.innerHTML='<p class="e2-err">⚠️ '+esc2(window.v47GPXErrorMessage&&pr&&pr.err?window.v47GPXErrorMessage(pr.err):"Hibás vagy túl rövid GPX — nem menthető útvonalként.")+'</p>'+(window.v47GPXValidationHtml&&pr&&pr.validation?window.v47GPXValidationHtml(pr.validation):""); m.__gpx=null; return; }
          var st=gpxStats(pr); m.__gpx={ name:(f.name||"GPX").replace(/\.gpx$/i,"").slice(0,60), file:f.name||null, pr:pr, stats:st };
-         box.innerHTML='<p class="small" style="margin:.2rem 0">🗺️ <b>'+esc2(m.__gpx.name)+'</b> · 📏 '+(st.km!=null?st.km.toFixed(1).replace(".",","):"—")+' km · ⛰️ '+(st.hasEle?'+'+Math.round(st.gain)+' m szint':'szintadat nincs')+' · 🏔️ max '+(st.maxE!=null?Math.round(st.maxE)+' m':'—')+' · 📍 '+st.n+' pont</p>'+miniProfileSVG(pr.track)+'<div class="e2-pminimap"></div>';
+         box.innerHTML=(window.v47GPXValidationHtml?window.v47GPXValidationHtml(pr.validation):"")+'<p class="small" style="margin:.2rem 0">🗺️ <b>'+esc2(m.__gpx.name)+'</b> · 📏 '+(st.km!=null?st.km.toFixed(1).replace(".",","):"—")+' km · ⛰️ '+(st.hasEle?'+'+Math.round(st.gain)+' m szint':'szintadat nincs')+' · 🏔️ max '+(st.maxE!=null?Math.round(st.maxE)+' m':'—')+' · 📍 '+st.n+' pont</p>'+miniProfileSVG(pr.track)+'<div class="e2-pminimap"></div>';
          miniMapInto(box.querySelector(".e2-pminimap"), pr.track);
        }catch(e){ m.__gpx=null; box.innerHTML='<p class="e2-err">⚠️ A GPX feldolgozása most nem sikerült.</p>'; } };
        rd.onerror=function(){ var box=m.querySelector("#e2f_gpxprev"); if(box) box.innerHTML='<p class="e2-err">⚠️ A fájl nem olvasható.</p>'; };

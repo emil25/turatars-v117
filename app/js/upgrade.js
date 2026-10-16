@@ -885,6 +885,13 @@ function hgyImport(i, btn, done){
     if(!window.v47parseGPX||!window.v47CommitGPX||!window.v47CreateTourFromRoute) throw new Error("A közös útvonalkezelő nem érhető el.");
     const parsed=window.v47parseGPX(txt);
     if(!parsed||parsed.err||!parsed.track||parsed.track.length<2) throw new Error(parsed&&parsed.err&&window.v47GPXErrorMessage?window.v47GPXErrorMessage(parsed.err):"A forrás GPX nem tartalmaz legalább két használható trackpontot.");
+    if(parsed.validation&&parsed.validation.status==="warning"){
+      const details=window.v47GPXValidationText?window.v47GPXValidationText(parsed.validation):"Az ellenőrzés figyelmeztetést jelzett.";
+      if(!window.confirm("A GPX importálható, de ellenőrizd ezeket az adatokat:\n\n"+details+"\n\nFolytatod az eredeti, változatlan fájl importját?")){
+        if(btn){ btn.disabled=false; btn.textContent="🧭 Tervbe importálás"; }
+        return;
+      }
+    }
     const title=r.n.replace(/_/g," ").replace(/\s+/g," ");
     const fileName=String(r.url).split("/").pop()||title+".gpx";
     const saved=window.v47CommitGPX(parsed,{name:title,file:fileName,source:"gpx-import",source_url:r.url,source_name:"Nagyhagymás Közösségek Közti Fejlesztési Társulás"});

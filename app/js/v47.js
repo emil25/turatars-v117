@@ -23,7 +23,7 @@ function parseGPX(text){
     var lat=Number(rawLat), lng=Number(rawLng);
     return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat:lat,lng:lng}:null;
   }
-  var all=[], wpts=[], name=null;
+  var all=[], wpts=[], name=null, invalidTrackPoints=0, firstInvalidTrackPoint=null, invalidWaypoints=0, firstInvalidWaypoint=null, invalidElevationCount=0;
   var trk=byLocalName(doc,"trk");
   if(trk.length){ var nm=byLocalName(trk[0],"name"); if(nm.length&&nm[0].textContent) name=nm[0].textContent.trim().slice(0,80); }
   var rte=byLocalName(doc,"rte");
@@ -32,21 +32,26 @@ function parseGPX(text){
   var tp=byLocalName(doc,"trkpt");
   if(!tp.length) tp=byLocalName(doc,"rtept");
   for(var i=0;i<tp.length;i++){
-    var coord=coordinate(tp[i]); if(!coord) return {err:"invalidpoint",point:i+1};
+    var coord=coordinate(tp[i]); if(!coord){ invalidTrackPoints++; if(firstInvalidTrackPoint==null) firstInvalidTrackPoint=i+1; continue; }
     var ele=byLocalName(tp[i],"ele"), tm=byLocalName(tp[i],"time");
-    var rawEle=ele.length?String(ele[0].textContent||"").trim():"", e=rawEle===""?null:Number(rawEle); if(!Number.isFinite(e)) e=null;
+    var rawEle=ele.length?String(ele[0].textContent||"").trim():"", e=rawEle===""?null:Number(rawEle); if(rawEle!==""&&!Number.isFinite(e)) invalidElevationCount++; if(!Number.isFinite(e)) e=null;
     all.push([coord.lat,coord.lng,e,tm.length?String(tm[0].textContent||"").trim()||null:null]);
   }
   var wp=byLocalName(doc,"wpt");
   for(var j=0;j<wp.length;j++){
-    var wc=coordinate(wp[j]); if(!wc) return {err:"invalidpoint",point:"waypoint "+(j+1)};
+    var wc=coordinate(wp[j]); if(!wc){ invalidWaypoints++; if(firstInvalidWaypoint==null) firstInvalidWaypoint=j+1; continue; }
     var wn=byLocalName(wp[j],"name"), we=byLocalName(wp[j],"ele");
     var rawW=we.length?String(we[0].textContent||"").trim():"", wel=rawW===""?null:Number(rawW); if(!Number.isFinite(wel)) wel=null;
     wpts.push({lat:wc.lat,lng:wc.lng,name:(wn.length?String(wn[0].textContent||"").trim().slice(0,60):"wp"+(j+1)),ele:wel});
   }
-  if(!all.length&&wpts.length) return {err:"notrack",wpts:wpts,name:name};
-  if(!all.length) return {err:"notrack",wpts:wpts,name:name};
-  return {pts:all,wpts:wpts,name:name};
+  var validElevationCount=0,validTimestampCount=0,missingTimestampCount=0,invalidTimestampCount=0;
+  all.forEach(function(point){ if(point[2]!=null) validElevationCount++; if(!point[3]) missingTimestampCount++; else if(Number.isFinite(Date.parse(point[3]))) validTimestampCount++; else invalidTimestampCount++; });
+  var diagnostics={trackPointCount:tp.length,validTrackPointCount:all.length,invalidTrackPoints:invalidTrackPoints,waypointCount:wp.length,invalidWaypoints:invalidWaypoints,invalidElevationCount:invalidElevationCount,
+    validElevationCount:validElevationCount,missingElevationCount:all.length-validElevationCount,validTimestampCount:validTimestampCount,missingTimestampCount:missingTimestampCount,invalidTimestampCount:invalidTimestampCount};
+  if(invalidTrackPoints||invalidWaypoints) return {err:"invalidpoint",point:firstInvalidTrackPoint!=null?firstInvalidTrackPoint:"waypoint "+firstInvalidWaypoint,diagnostics:diagnostics};
+  if(!all.length&&wpts.length) return {err:"notrack",wpts:wpts,name:name,diagnostics:diagnostics};
+  if(!all.length) return {err:"notrack",wpts:wpts,name:name,diagnostics:diagnostics};
+  return {pts:all,wpts:wpts,name:name,diagnostics:diagnostics};
 }
 
 /* ---------- statisztikák a track pontokból ---------- */
@@ -140,6 +145,7 @@ function previewModal(pr,ctx){ // pr={name,stats,wpts,raw,fp,file,sizePts,track}
   var st=pr.stats;
   var html='<div class="rt-pv">'+
     '<label class="f" for="rt-name">'+escA("Útvonal neve")+'</label><input class="input" id="rt-name" value="'+escA(pr.name||"Importált útvonal").slice(0,80)+'">'+
+    validationHtml(pr.validation)+
     '<div class="rt-stats">'+
     '<span class="rt-stat">📏 <b>'+fKm(st.km)+'</b></span>'+
     '<span class="rt-stat">⛰️ <b>'+(st.hasEle?"+"+fM(st.gain)+" m":"nincs szintadat")+'</b></span>'+
@@ -153,7 +159,7 @@ function previewModal(pr,ctx){ // pr={name,stats,wpts,raw,fp,file,sizePts,track}
     '<div class="rt-map" id="rt-pv-map"></div>'+
     '<p class="small muted" style="margin:.3rem 0 0">🔒 Privátnak jelölt útvonal — csak nálad látszik.</p>'+
     '<div class="rt-btns">'+
-      '<button class="btn btn-primary" id="rt-keep">'+escA("✓ Mentés az útvonalaim közé")+'</button>'+
+      '<button class="btn btn-primary" id="rt-keep">'+escA(pr.validation&&pr.validation.status==="warning"?"⚠️ Figyelmeztetésekkel mentés":"✓ Mentés az útvonalaim közé")+'</button>'+
       (ctx&&ctx.inboxId?'<button class="btn btn-soft" id="rt-to-inbox">📥 Inbox-elemhez</button>':"")+
       (ctx&&ctx.tripId?'<button class="btn btn-ember" id="rt-to-trip">🥾 A túrához adom</button>'
         :'<button class="btn btn-ember" id="rt-new-trip">🗓️ Új túrát készítek belőle</button>'+
@@ -183,7 +189,7 @@ function commitRoute(pr, nmEl, attachMode, options){ options=options||{}; var en
     distance_km:Math.round(pr.stats.km*10)/10, elevation_gain_m:pr.stats.hasEle?pr.stats.gain:null, elevation_loss_m:pr.stats.hasEle?pr.stats.loss:null,
     max_elevation_m:pr.stats.hasElevationSamples?pr.stats.max:null, min_elevation_m:pr.stats.hasElevationSamples?pr.stats.min:null,
     start:{lat:pr.stats.start.lat,lng:pr.stats.start.lng}, finish:{lat:pr.stats.finish.lat,lng:pr.stats.finish.lng},
-    track:track, nPts:pr.stats.n, wpts:(pr.wpts||[]).slice(0,120), raw:(pr.raw!=null&&pr.raw.length<700000)?pr.raw:null, created_at:new Date().toISOString() };
+    track:track, nPts:pr.stats.n, wpts:(pr.wpts||[]).slice(0,120), raw:(pr.raw!=null&&utf8Size(pr.raw)<=GPX_MAX_BYTES)?pr.raw:null, created_at:new Date().toISOString() };
   if(options.source_url) r.source_url=String(options.source_url);
   if(options.source_name) r.source_name=String(options.source_name);
   if(options.ownerEvent) r.ownerEvent=String(options.ownerEvent);
@@ -224,17 +230,92 @@ function routesPickTrip(cb){ var list=(Store.myData().tours||[]); if(!list.lengt
     onOpen:function(m){ m.querySelectorAll("[data-tid]").forEach(function(b){ b.onclick=function(){ closeModal(); cb(b.dataset.tid); }; }); } }); }
 
 /* ---------- importáló ---------- */
+var GPX_MAX_BYTES=700000;
+function utf8Size(text){ try{ return new TextEncoder().encode(String(text||"")).length; }catch(e){ try{ return new Blob([String(text||"")]).size; }catch(_){ return String(text||"").length; } } }
+function errorValidation(err,diagnostics,bytes){
+  var warnings=[],actions=[],d=diagnostics||{};
+  if(err==="large"){ warnings.push("A fájl meghaladja a 700 KB-os importkorlátot."); actions.push("Válassz legfeljebb 700 KB-os GPX-fájlt."); }
+  else if(err==="xml"){ warnings.push("A fájl XML-tartalma hibás vagy nem olvasható."); actions.push("Ellenőrizd vagy exportáld újra a GPX-fájlt."); }
+  else if(err==="root"){ warnings.push("A fájl XML, de a gyökérelem nem GPX."); actions.push("Válassz GPX-formátumú fájlt."); }
+  else if(err==="invalidpoint"){
+    if(d.invalidTrackPoints) warnings.push(d.invalidTrackPoints+" útvonalpont koordinátája hiányzik vagy érvénytelen.");
+    if(d.invalidWaypoints) warnings.push(d.invalidWaypoints+" waypoint koordinátája hiányzik vagy érvénytelen.");
+    actions.push("Javítsd a GPX koordinátáit az eredeti fájlban, majd importáld újra. A fájlt nem módosítottuk.");
+  } else if(err==="shorttrack"){ warnings.push("Kevesebb mint két érvényes útvonalpont található."); actions.push("Legalább két útvonalpontot tartalmazó GPX szükséges."); }
+  else if(err==="notrack"){ warnings.push("Nem található benne útvonal-track."); actions.push("Válassz olyan GPX-et, amely track- vagy útvonalpontokat tartalmaz."); }
+  else { warnings.push("A fájl biztonságosan nem dolgozható fel."); actions.push("Ellenőrizd a fájlt, majd próbáld újra."); }
+  return {status:"error",label:"Hiba",pointCount:d.validTrackPointCount||0,distanceKm:null,
+    elevation:{available:d.validElevationCount||0,missing:d.missingElevationCount||d.validTrackPointCount||0,invalid:d.invalidElevationCount||0,checked:d.validTrackPointCount||0},
+    timestamps:{valid:d.validTimestampCount||0,missing:d.missingTimestampCount||0,invalid:d.invalidTimestampCount||0,nonMonotonic:0,checked:d.validTrackPointCount||0},duplicateCount:0,jumps:[],warnings:warnings,actions:actions,
+    invalidTrackPoints:d.invalidTrackPoints||0,invalidWaypoints:d.invalidWaypoints||0,fileBytes:bytes==null?null:bytes};
+}
+function validateGPXPoints(points,diagnostics){
+  var warnings=[],actions=[],ele=0,missingEle=0,invalidEle=(diagnostics&&diagnostics.invalidElevationCount)||0;
+  var timeValid=0,timeMissing=0,timeInvalid=0,nonMonotonic=0,duplicates=0,jumps=[],prevTime=null,km=0;
+  for(var i=0;i<points.length;i++){
+    var p=points[i]; if(p[2]==null) missingEle++; else ele++;
+    var rawTime=p[3];
+    if(!rawTime) timeMissing++;
+    else { var parsedTime=Date.parse(rawTime); if(!Number.isFinite(parsedTime)) timeInvalid++;
+      else { timeValid++; if(prevTime!=null&&parsedTime<prevTime) nonMonotonic++; prevTime=parsedTime; } }
+    if(i){
+      var meters=haversine([points[i-1][0],points[i-1][1]],[p[0],p[1]]); km+=meters/1000;
+      if(Math.abs(points[i-1][0]-p[0])<1e-9&&Math.abs(points[i-1][1]-p[1])<1e-9) duplicates++;
+      if(meters>50000) jumps.push({from:i,to:i+1,km:meters/1000});
+    }
+  }
+  if(missingEle){ warnings.push("Magassági adat "+missingEle+" pontnál hiányzik; a hiányzó értékeket nem pótoljuk."); actions.push("A magassági adatok nélkül az útvonal importálható, de a szintprofil részleges vagy nem elérhető."); }
+  if(invalidEle) warnings.push("Magassági adat "+invalidEle+" pontnál érvénytelen; ezeket ismeretlenként kezeljük.");
+  if(timeMissing) warnings.push("Időbélyeg "+timeMissing+" pontnál nincs megadva.");
+  if(timeInvalid) warnings.push("Időbélyeg "+timeInvalid+" pontnál nem értelmezhető.");
+  if(nonMonotonic){ warnings.push("Az időbélyegek "+nonMonotonic+" helyen nem növekvő sorrendűek."); actions.push("Ellenőrizd a GPX időbélyegeit; a pontok sorrendjét nem rendezzük át."); }
+  if(duplicates){ warnings.push(duplicates+" egymást követő pont koordinátája azonos."); actions.push("Ellenőrizd az ismétlődő pontokat; importkor nem töröljük őket."); }
+  if(jumps.length){ var largest=jumps.reduce(function(m,x){return Math.max(m,x.km);},0);
+    warnings.push(jumps.length+" szomszédos pont között 50 km-nél nagyobb ugrás van (a legnagyobb "+largest.toFixed(1).replace(".",",")+" km). Ez ritkán mintavételezett track is lehet.");
+    actions.push("Ellenőrizd a jelzett szakaszt. A gyanús pontokat változtatás nélkül tartjuk meg."); }
+  if(km<=0) warnings.push("A számított útvonaltávolság 0 km; ellenőrizd, hogy a pontok különböznek-e.");
+  if(km>300){ warnings.push("A számított táv "+km.toFixed(1).replace(".",",")+" km, ami szokatlanul hosszú útvonal lehet."); actions.push("Ellenőrizd, hogy a track teljes és a pontok sorrendje megfelelő-e."); }
+  var status=warnings.length?"warning":"ok";
+  if(!actions.length&&warnings.length) actions.push("A figyelmeztetés mellett is importálhatod az eredeti, változatlan útvonalat.");
+  return {status:status,label:status==="ok"?"Rendben":"Figyelmeztetés",pointCount:points.length,distanceKm:km,
+    elevation:{available:ele,missing:missingEle,invalid:invalidEle},timestamps:{valid:timeValid,missing:timeMissing,invalid:timeInvalid,nonMonotonic:nonMonotonic},
+    duplicateCount:duplicates,jumps:jumps,warnings:warnings,actions:actions,fileBytes:null};
+}
+function validationText(v){
+  if(!v) return "";
+  var rows=[v.label+" — "+(v.pointCount||0)+" útvonalpont"+(v.distanceKm!=null?", becsült táv "+v.distanceKm.toFixed(1).replace(".",",")+" km":"")];
+  if(v.status==="error"){ if(v.invalidTrackPoints) rows.push("Érvénytelen útvonalpont: "+v.invalidTrackPoints); if(v.invalidWaypoints) rows.push("Érvénytelen waypoint: "+v.invalidWaypoints); }
+  var e=v.elevation||{},t=v.timestamps||{};
+  if(v.status==="error"&&e.checked===0) rows.push("Magasság és időbélyegek: a fájlhiba miatt nem ellenőrizhetők.");
+  else {
+    rows.push("Magasság: "+(e.available===v.pointCount?"minden pontnál elérhető":e.available?"részleges ("+e.available+" pontnál)":"nem érhető el")+(v.status==="error"?" a hibátlan koordinátájú pontoknál":""));
+    rows.push("Időbélyegek: "+(t.valid||0)+" érvényes, "+(t.missing||0)+" hiányzik"+(t.invalid?", "+t.invalid+" érvénytelen":"")+(v.status==="error"?" a hibátlan koordinátájú pontoknál":"")); }
+  (v.warnings||[]).forEach(function(x){ rows.push("• "+x); }); (v.actions||[]).forEach(function(x){ rows.push("Teendő: "+x); });
+  return rows.join("\n");
+}
+function validationHtml(v){
+  if(!v) return "";
+  var cls=v.status==="error"?"error":v.status==="warning"?"warning":"ok",e=v.elevation||{},t=v.timestamps||{};
+  return '<section class="rt-validation rt-validation-'+cls+'" aria-live="polite" aria-label="GPX ellenőrzés"><strong>'+escA(v.label)+"</strong>"+
+    '<p class="rt-validation-summary">'+escA((v.pointCount||0)+" útvonalpont"+(v.distanceKm!=null?" · Becsült távolság: "+v.distanceKm.toFixed(1).replace(".",",")+" km":""))+'</p>'+
+    (v.status==="error"?((v.invalidTrackPoints||v.invalidWaypoints?'<p>Érvénytelen koordináták: '+escA((v.invalidTrackPoints||0)+" útvonalpont, "+(v.invalidWaypoints||0)+" waypoint")+'</p>':"")+
+      '<p>Magasság és időbélyegek: '+escA(e.checked===0?"a fájlhiba miatt nem ellenőrizhetők":("a hibátlan koordinátájú pontoknál — magasság "+e.available+" elérhető, "+e.missing+" hiányzik; időbélyeg "+t.valid+" érvényes, "+t.missing+" hiányzik"+(t.invalid?", "+t.invalid+" érvénytelen":"")))+'</p>'):
+      '<p>Magasság: '+escA(e.available===v.pointCount?"teljes":e.available?"részleges ("+e.available+" pont)":"nem érhető el")+' · Időbélyeg: '+escA((t.valid||0)+" érvényes, "+(t.missing||0)+" hiányzik"+(t.invalid?", "+t.invalid+" érvénytelen":""))+'</p>')+
+    ((v.warnings||[]).length?'<ul>'+v.warnings.map(function(x){return '<li>'+escA(x)+'</li>';}).join("")+'</ul>':'<p>Az útvonal importálható.</p>')+
+    ((v.actions||[]).length?'<p class="rt-validation-action"><b>Teendő:</b> '+v.actions.map(escA).join(" ")+'</p>':"")+'</section>';
+}
 function inspectedGPX(text,fileName){
   var raw=String(text||"");
   /* Az eredeti GPX a meglévő route.raw mezőben őrzi meg veszteség nélkül az
      összes pontot és metaadatot. Ha ezt a Store biztonságosan nem tudja tárolni,
      inkább utasítsuk vissza az importot, mint hogy a downsample-olt tracket
      teljes útvonalként vagy az eredeti fájl részleges helyettesítőjeként mentsük. */
-  if(raw.length>700000) return {err:"large"};
-  var P=parseGPX(raw); if(P.err) return P;
-  if(!P.pts||P.pts.length<2) return {err:"shorttrack"};
+  var bytes=utf8Size(raw); if(bytes>GPX_MAX_BYTES) return {err:"large",validation:errorValidation("large",null,bytes)};
+  var P=parseGPX(raw); if(P.err){ P.validation=errorValidation(P.err,P.diagnostics,bytes); return P; }
+  if(!P.pts||P.pts.length<2) return {err:"shorttrack",validation:errorValidation("shorttrack",P.diagnostics,bytes)};
   var st=routeStats(P.pts),name=P.name||String(fileName||"Importált útvonal").replace(/\.gpx$/i,"").slice(0,80);
-  return {name:name,stats:st,wpts:P.wpts||[],track:P.pts,raw:raw,fp:fpOf(P.name||fileName,st,raw.length),track_fp:trackFingerprint(P.pts),file:fileName||null,
+  var validation=validateGPXPoints(P.pts,P.diagnostics); validation.fileBytes=bytes;
+  return {name:name,stats:st,wpts:P.wpts||[],track:P.pts,raw:raw,fp:fpOf(P.name||fileName,st,raw.length),track_fp:trackFingerprint(P.pts),file:fileName||null,validation:validation,
     routeForMap:{track:P.pts,wpts:P.wpts||[]}};
 }
 function importMessage(err){
@@ -248,13 +329,24 @@ function importMessage(err){
 }
 function previewGPXText(text,file,ctx,msg){
   var pr=inspectedGPX(text,file&&file.name);
-  if(pr.err){ if(msg) msg.textContent=importMessage(pr.err); else toast(importMessage(pr.err),"⚠️"); return false; }
+  if(pr.err){
+    if(msg){ msg.textContent=importMessage(pr.err); var host=document.getElementById("rt-validation-feedback"); if(host) host.innerHTML=validationHtml(pr.validation); }
+    else openModal({title:"GPX-ellenőrzés",body:'<p class="e2-err">'+escA(importMessage(pr.err))+'</p>'+validationHtml(pr.validation),footer:'<button class="btn btn-ghost btn-block" data-close>Bezárás</button>'});
+    return false;
+  }
   if(ctx&&ctx.source_url) pr.source_url=ctx.source_url;
   closeModal(); if(ctx&&ctx.opened) return true;
   setTimeout(function(){ previewModal(pr,ctx||{}); },120); return true;
 }
 function readGPXFile(file,ctx,msg){
   if(!file) return false;
+  if(file.size>GPX_MAX_BYTES){
+    var tooLarge=errorValidation("large",null,file.size);
+    if(msg){ msg.textContent=importMessage("large"); var host=document.getElementById("rt-validation-feedback"); if(host) host.innerHTML=validationHtml(tooLarge); }
+    else openModal({title:"GPX-ellenőrzés",body:'<p class="e2-err">'+escA(importMessage("large"))+'</p>'+validationHtml(tooLarge),footer:'<button class="btn btn-ghost btn-block" data-close>Bezárás</button>'});
+    return false;
+  }
+  if(msg){ msg.textContent="A fájl ellenőrzése folyamatban…"; var host=document.getElementById("rt-validation-feedback"); if(host) host.innerHTML=""; }
   var rd=new FileReader(); rd.onload=function(){ previewGPXText(String(rd.result||""),file,ctx,msg); };
   rd.onerror=function(){ if(msg) msg.textContent="A fájlt nem sikerült beolvasni. Próbálj meg újra fájlt választani."; else toast("A GPX fájl nem olvasható — nem mentettünk adatot.","⚠️"); };
   rd.readAsText(file); return true;
@@ -262,7 +354,7 @@ function readGPXFile(file,ctx,msg){
 function openImport(ctx){ ctx=ctx||{};
   openModal({ title:"🗺️ GPX import", body:
     '<div class="rt-drop" id="rt-drop"><b>📂 GPX fájl kiválasztása</b><br>Húzd ide a <code>.gpx</code> fájlt<br><label class="btn btn-primary btn-sm" style="margin-top:.7rem"><span>📁 Válassz fájlt</span><input type="file" name="f" accept=".gpx,text/xml,application/gpx+xml" hidden></label></div>'+
-    '<p class="small muted mt0 mb0" id="rt-drop-msg">Valódi GPX-t dolgozunk fel — hibás fájlból nem mentünk részleges útvonalat. Az útvonal privát marad.</p>',
+    '<p class="small muted mt0 mb0" id="rt-drop-msg">Valódi GPX-t dolgozunk fel — az eredeti fájlt nem javítjuk át. Az útvonal privát marad.</p><div id="rt-validation-feedback"></div>',
     footer:'<button class="btn btn-ghost btn-block" data-close>Mégse</button>',
     onOpen:function(m){ var drop=m.querySelector("#rt-drop"), inp=m.querySelector("#rt-drop input[type=file]"), msg=m.querySelector("#rt-drop-msg");
       inp.onchange=function(){ readGPXFile(inp.files[0],ctx,msg); };
@@ -272,10 +364,13 @@ function openImport(ctx){ ctx=ctx||{};
 window.openGPXImport = openImport;
 window.v47ImportGPXFile=function(file,ctx){ return readGPXFile(file,ctx||{},null); };
 window.v47GPXErrorMessage=importMessage;
+window.v47GPXValidationHtml=validationHtml;
+window.v47GPXValidationText=validationText;
 window.v47CommitGPX=function(parsed,options){
   options=options||{}; var pr=parsed&&parsed.track?parsed:null;
   if(!pr||!Array.isArray(pr.track)||!pr.stats) return {ok:false,error:"invalid"};
   if(pr.track.length<2) return {ok:false,error:"shorttrack"};
+  if(pr.raw!=null&&utf8Size(pr.raw)>GPX_MAX_BYTES) return {ok:false,error:"large"};
   pr=Object.assign({},pr,{name:options.name||pr.name||"Importált útvonal",wpts:pr.wpts||[],file:options.file||pr.file||null,
     raw:pr.raw==null?null:String(pr.raw),fp:pr.fp||fpOf(pr.name||options.name,pr.stats,(pr.raw||"").length),track_fp:pr.track_fp||trackFingerprint(pr.track)});
   var previous=rFindTrack(pr),route=commitRoute(pr,pr.name,true,Object.assign({},options,{open:false}));

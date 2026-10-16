@@ -984,6 +984,17 @@ body.in-dash .tm2, .tmode.tm2{display:block}
 .rt-pv .rt-pv-wp{color:var(--bark);font-size:.82rem;margin:.35rem 0 0}
 .rt-pv .rt-dup{margin:.6rem 0 0;font-size:.85rem;color:#8a6d12;background:#F4E7C9;padding:.4rem .6rem;border-radius:10px;display:flex;align-items:center;gap:.5rem;justify-content:space-between}
 .rt-pv .rt-pv-foot{font-size:.7rem;color:#97a08d;margin:.5rem 0 0;opacity:.85}
+.rt-validation{border:1px solid var(--line);border-left:4px solid var(--pine);border-radius:12px;padding:.65rem .8rem;margin:.65rem 0;background:#F4F8F1;color:var(--bark);font-size:.86rem;line-height:1.45;overflow-wrap:anywhere}
+.rt-validation strong{display:block;color:var(--pine);font-size:.98rem}
+.rt-validation p{margin:.3rem 0 0}
+.rt-validation ul{margin:.4rem 0 0;padding-left:1.2rem}
+.rt-validation li+li{margin-top:.2rem}
+.rt-validation .rt-validation-summary{font-weight:650}
+.rt-validation-action{padding-top:.3rem;border-top:1px solid rgba(0,0,0,.08)}
+.rt-validation-warning{border-left-color:#C58A22;background:#FFF8E7}
+.rt-validation-warning strong{color:#80520D}
+.rt-validation-error{border-left-color:#B3372A;background:#FFF2F0}
+.rt-validation-error strong{color:#8C2D22}
 .rvw-gpx{color:var(--pine);font-size:.84rem;font-weight:700}
 .rt-dup{margin-top:2px;padding:.55rem .7rem;border:1px dashed #C9A227;border-radius:10px;font-size:.83rem;background:#FFF8E4;color:#8a6d12}
 .rt-dup .btn{margin-left:.5rem}
