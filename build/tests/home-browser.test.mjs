@@ -21,6 +21,10 @@ page.on('console', m => {
   if(m.type() === 'error' && !/Failed to load resource|net::ERR_/i.test(m.text())) consoleErrors.push(m.text());
 });
 const catalog = () => page.evaluate(() => JSON.stringify({ catalog: V122.catalog(), routes: v125KnownRoutes() }));
+const openHome = async () => {
+  await page.goto(base+'#/', { waitUntil: 'commit' });
+  await page.locator('.home-hero h1').waitFor({state:'visible'});
+};
 const checkLayout = async width => {
   const result = await page.evaluate(() => {
     const content = document.querySelector('.home-content');
@@ -29,7 +33,7 @@ const checkLayout = async width => {
     const outside = [...content.querySelectorAll(':scope > section')].filter(e=>{
       const r=e.getBoundingClientRect(); return r.left < left-1 || r.right > right+1;
     }).map(e=>e.querySelector('h2')?.textContent);
-    const controls = [...document.querySelectorAll('.home-shortcuts a,.home-categories button,.home-content button,.home-content .v125-route-actions a,.home-center-features a,.home-center-actions a,.home-center-preview>a')].filter(e=>e.getClientRects().length);
+    const controls = [...document.querySelectorAll('.home-shortcuts a,.home-categories button,.home-content button,.home-content .v125-route-actions a,.home-center-features a,.home-center-actions a,.home-center-preview>a,.home-current-actions a,.home-current-actions button')].filter(e=>e.getClientRects().length);
     return { width: document.documentElement.scrollWidth, outside,
       heroPadding: parseFloat(getComputedStyle(document.querySelector('.hero-in')).paddingLeft),
       smallControls: controls.filter(e=>e.getBoundingClientRect().height < 43.5).map(e=>e.textContent) };
@@ -41,7 +45,8 @@ const checkLayout = async width => {
 };
 
 try {
-  await page.goto(base+'#/', { waitUntil: 'networkidle' });
+  await openHome();
+  assert.equal(await page.locator('.home-current-tour').count(),0,'Guests must not see personal tour data.');
   const originalCatalog = await catalog();
   const counts = await page.evaluate(() => ({ tours: V122.catalog().tours.length, places: V122.catalog().places.length,
     events: V122.catalog().events.length, known: v125KnownRoutes().length,
@@ -95,7 +100,7 @@ try {
   await page.waitForURL(/#\/regisztracio/);
   await page.locator('#view input[type="email"]').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#view input[type="email"]').count()>0,'Visitors must reach the real registration form');
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await openHome();
   await page.locator('.home-hero-actions a[href="#home-find"]').click();
   await page.waitForFunction(()=>{const r=document.querySelector('#home-find').getBoundingClientRect();return r.top>=0&&r.top<200;});
   assert.equal(await page.evaluate(()=>location.hash),'#/','Homepage section links must not trigger the SPA router');
@@ -130,13 +135,13 @@ try {
   await page.locator('#disc-results .tcard').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#disc-results .tcard').count()>0);
   assert.ok((await page.locator('#disc-results .region').allTextContents()).every(s=>s.includes('Csomád-hegység')));
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await openHome();
   await page.locator('[data-home-place-search="Gyilkos-tó"]').click();
   await page.waitForURL(/#\/felfedezes/);
   await page.locator('#disc-results .tcard').first().waitFor({state:'visible'});
   assert.ok(await page.locator('#disc-results .tcard').count()>0);
   assert.ok((await page.locator('#disc-results h3').allTextContents()).every(s=>s.includes('Gyilkos-tó')));
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await openHome();
 
   for(const width of [768,390,320]) {
     await page.setViewportSize({width,height:844});
@@ -160,14 +165,19 @@ try {
   await page.locator('#modal-root [data-modal]').waitFor({state:'visible'});
   assert.ok(await page.locator('#modal-root [data-modal]').count() === 1);
   await page.locator('#modal-root [data-close]').first().click();
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
-  await page.reload({waitUntil:'networkidle'});
+  await openHome();
+  await page.reload({waitUntil:'commit'});
+  await page.locator('.home-hero h1').waitFor({state:'visible'});
   assert.equal(await catalog(),originalCatalog,'Homepage interactions/reload must not alter catalog data');
 
   // Isolated browser-local fallback user; no Auth account or production data is created.
   await page.evaluate(()=>{ const r=Store.signup('Home regression','home-regression@test.local','local-regression-password','Csíkszereda');
-    if(!r.ok) throw new Error(r.error||'Local test setup failed'); Store.me().onboarded=true; Store.save();
-    const t=Store.newTourFromDraft({title:'Homepage local regression',place:'Csíkszereda'}); window.__homeTourId=t.id; });
+    if(!r.ok) throw new Error(r.error||'Local test setup failed'); Store.me().onboarded=true; Store.save(); });
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.home-current-tour[data-home-current-stage="empty"]').waitFor({state:'visible'});
+  assert.equal(await page.evaluate(()=>Store.myData().tours.length),0,'Rendering the empty signed-in state must not create a tour.');
+  assert.equal(await page.locator('.home-current-actions a[href="#/uj-tura"]').innerText(),'＋ Túraterv készítése');
+  await page.evaluate(()=>{ const t=Store.newTourFromDraft({title:'Homepage local regression',place:'Csíkszereda'}); window.__homeTourId=t.id; });
   for(const route of ['','felfedezes','esemenyek','helyek','tervezes','kozossegi','turaim','uj-tura','utvonalak','naplo','felszereles','naptar','beallitasok','inbox']) {
     await page.goto(base+'#/'+route,{waitUntil:'domcontentloaded'});
     await page.locator('#view').waitFor({state:'visible'});
@@ -176,8 +186,15 @@ try {
   const id = await page.evaluate(()=>Store.myData().tours.find(x=>x.title==='Homepage local regression').id);
   await page.goto(base+'#/tura/'+id,{waitUntil:'domcontentloaded'});
   assert.equal(await page.locator('#v120-start').count(),1,'Existing GPS start remains available');
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await openHome();
   await checkLayout(390);
+  await page.locator('.home-current-tour[data-home-current-stage="plan"]').waitFor({state:'visible'});
+  assert.match(await page.locator('.home-current-title').innerText(),/Homepage local regression/);
+  await page.evaluate(()=>{window.__homeStartCalls=[];window.v120Begin=id=>window.__homeStartCalls.push(id);});
+  await page.locator('[data-home-tour-start]').click();
+  await page.waitForFunction(()=>window.__homeStartCalls?.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.__homeStartCalls),[id],'The homepage start action must call the shared GPS start flow with the selected real tour ID.');
+  assert.ok((await page.locator('[data-home-tour-start]').boundingBox()).height>=44,'The homepage GPS start control must be touch accessible.');
   assert.equal(await page.locator('[data-home-center-main]').getAttribute('href'),'#/vezerlopult');
   assert.match(await page.locator('[data-home-center-main]').innerText(),/Megnyitom a túraközpontomat/);
   assert.deepEqual(await page.locator('.home-center-features a').evaluateAll(links=>links.map(a=>a.getAttribute('href'))),[
@@ -186,8 +203,13 @@ try {
   await page.waitForURL(/#\/vezerlopult/);
   await page.locator('#tour-center-focus').waitFor({state:'visible'});
   assert.ok(await page.locator('#view h1').count()>0,'Signed-in hikers reach their actual dashboard');
-  await page.goto(base+'#/',{waitUntil:'networkidle'});
+  await openHome();
   assert.equal(await catalog(),originalCatalog);
+  await page.evaluate(id=>{const t=Store.getTour(id);t.liveTrack={version:1,status:'paused',startedAt:Date.now()-60000,activeMs:30000,points:[]};Store.save();},id);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.home-current-tour[data-home-current-stage="active"]').waitFor({state:'visible'});
+  assert.equal(await page.locator('.home-current-actions a[href="#/tura-live/'+id+'"]').innerText(),'▶ GPS-túra folytatása');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=390),'Signed-in homepage action must fit the 390 px viewport.');
   if(shotDir) {
     await page.setViewportSize({width:1440,height:1000});
     await page.evaluate(()=>window.scrollTo(0,0));

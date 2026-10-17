@@ -1240,6 +1240,34 @@ function homeRecommendations(kind){
   if(kind === "sunrise") return tours.filter(t=>t.tags.includes("napkelte"));
   return tours.filter(t=>t.h != null && t.h <= 3.5);
 }
+function homeCurrentTour(focus){
+  if(!focus) return "";
+  const t=focus.tour, stage=focus.stage||"empty";
+  const titles={empty:"Készen állsz az első saját túrádra?",plan:"A következő túrád",active:"Túrád folyamatban van",journal:"Őrizd meg a túra élményét",done:"Jöhet a következő kaland"};
+  const hints={empty:"Készíts egy tervet, és indítsd el GPS-rögzítéssel.",plan:"A terved már megvan — indításkor a böngésző helymeghatározást kér.",active:"A mentett GPS-rögzítést innen folytathatod.",journal:"Nézd meg a rögzített adatokat, és írd le a saját élményedet.",done:"A teljesített túrád megmaradt a saját túráid között."};
+  const meta=t?[t.place||t.region||"Helyszín még nincs megadva",t.date?fmtDateFull(t.date):"Dátum még nincs megadva"].join(" · "):"Még nincs elmentett túraterved.";
+  let action="", secondary="";
+  if(stage==="plan"&&t){
+    action=`<button class="btn btn-ember" type="button" data-home-tour-start="${esc(t.id)}">🥾 Túra indítása</button>`;
+    secondary=`<a class="home-current-secondary" href="#/tura/${encodeURIComponent(t.id)}">Terv megnyitása</a>`;
+  }else if(stage==="active"&&t){
+    action=`<a class="btn btn-ember" href="#/tura-live/${encodeURIComponent(t.id)}">▶ GPS-túra folytatása</a>`;
+    secondary=`<a class="home-current-secondary" href="#/tura/${encodeURIComponent(t.id)}">Túra részletei</a>`;
+  }else if(stage==="journal"&&t){
+    action=`<a class="btn btn-primary" href="#/tura-ertekeles/${encodeURIComponent(t.id)}">📊 Túraértékelés</a>`;
+    secondary=`<a class="home-current-secondary" href="#/naplo">Túranapló</a>`;
+  }else if(stage==="done"&&t){
+    action='<a class="btn btn-primary" href="#/uj-tura">＋ Új túra tervezése</a>';
+    secondary='<a class="home-current-secondary" href="#/turaim">Teljesített túráim</a>';
+  }else{
+    action='<a class="btn btn-primary" href="#/uj-tura">＋ Túraterv készítése</a>';
+    secondary='<a class="home-current-secondary" href="#/felfedezes">Valódi útvonalak felfedezése</a>';
+  }
+  return `<section class="home-current-tour" data-home-current-stage="${esc(stage)}" aria-label="Saját túra következő lépése">
+    <div class="home-current-copy"><span class="eyebrow">${esc(titles[stage]||titles.empty)}</span>${t?`<b class="home-current-title">${esc(t.title||"Saját túraterv")}</b>`:""}<p>${esc(meta)}</p><span class="home-current-hint">${esc(hints[stage]||hints.empty)}</span></div>
+    <div class="home-current-actions">${action}${secondary}</div>
+  </section>`;
+}
 function homeTourCenter(u){
   const features=[
     ["🥾","Saját túraprojekt","Dátum, útvonal, időterv és jegyzetek egy túrához rendezve.","uj-tura"],
@@ -1269,12 +1297,14 @@ VIEWS.home = () => {
   const selected=["vh-around-red-lake","vh-balan-piatra-singuratica","vh-harghita-bai-subpadure"].map(id=>tours.find(t=>t.id===id)).filter(Boolean);
   const more=tours.filter(t=>!selected.some(s=>s.id===t.id)).slice(0,3);
   const u = Store.me();
+  const personalFocus=u&&typeof tourCenterFocus==="function"?tourCenterFocus():null;
   return `
   <section class="hero home-hero"><div class="wrap hero-in">
     <div class="home-hero-copy"><span class="kicker">SZÉKELYFÖLDÖN KEZDŐDIK</span>
       <h1>Merre kalandozol <br><i>legközelebb?</i></h1>
       <p class="sub">Fedezd fel, tervezd meg és őrizd meg minden túrádat egy helyen — Székelyföld hágóitól a Fogarasokig.</p>
       <p class="hero-proof">Útvonalak, GPX, időterv, felszerelés, társak és napló — egy helyen.</p>
+      ${homeCurrentTour(personalFocus)}
       <div class="home-hero-actions"><a href="#home-find" class="btn btn-primary">Találj túrát <span aria-hidden="true">↓</span></a><a href="#/tervezes" class="home-text-link">Saját túrát tervezek ↗</a><a href="#home-tour-center" class="home-text-link">Mit tud a Túratárs? ↓</a></div>
       <div class="home-hero-counts"><span><b>${tours.length}</b> forrásolt túra</span><span><b>${typeof v125KnownRouteCount==="function"?v125KnownRouteCount():0}</b> GPX / KML útvonal</span><span><b>${places.length}</b> felfedezhető hely</span></div>
     </div>
@@ -1358,6 +1388,12 @@ VIEWS.home.after = (root) => {
     if(!target) return;
     if(target.tagName==="DETAILS") target.open=true;
     target.scrollIntoView({behavior:"smooth",block:"start"});
+  });
+  root.querySelectorAll("[data-home-tour-start]").forEach(button=>button.onclick=()=>{
+    const id=button.dataset.homeTourStart;
+    if(!Store.getTour(id)){toast("Ez a túraterv már nem érhető el.","🥾");return;}
+    if(typeof window.v120Begin==="function") window.v120Begin(id);
+    else NAV.to("#/tura/"+encodeURIComponent(id));
   });
   const events = v122PublicEvents().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
   root.querySelector("#home-events").innerHTML = events.length ? events.map(homeEventRow).join("") :
