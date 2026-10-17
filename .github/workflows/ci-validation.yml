@@ -1,0 +1,70 @@
+name: V130.9 CI validation
+
+on:
+  push:
+    branches:
+      - feature/v130.9-smart-tour-review
+  pull_request:
+    # pull_request.branches matches the target branch; the job also checks
+    # that the source branch is the V130.9 feature branch.
+    branches:
+      - main
+      - feature/v130.9-smart-tour-review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v130.9-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      (github.event_name != 'pull_request' || github.head_ref == 'feature/v130.9-smart-tour-review') &&
+      (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/feature/v130.9-smart-tour-review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source without retaining credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: build/package-lock.json
+
+      - name: Install locked build dependencies
+        working-directory: build
+        run: npm ci
+
+      - name: Rebundle application source
+        run: node tools/rebundle.mjs
+
+      - name: Typecheck source
+        working-directory: build
+        run: npm run typecheck
+
+      - name: Run unit, adapter, and build-output tests
+        working-directory: build
+        run: npm test
+
+      - name: Create a fresh production build
+        working-directory: build
+        env:
+          VITE_TT_SUPABASE_ENABLED: "true"
+          VITE_SUPABASE_URL: https://reezefgcbdrcnuhcktma.supabase.co
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: build
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser release checks against the fresh build
+        working-directory: build
+        run: npm run test:browser
