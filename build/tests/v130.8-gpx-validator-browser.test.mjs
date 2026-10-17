@@ -5,8 +5,8 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { chromium } = await import('playwright');
-const browserPath = process.env.TT_EDGE_PATH || process.env.V130_EDGE_PATH;
-assert.ok(browserPath, 'Set TT_EDGE_PATH or V130_EDGE_PATH to the installed Chromium/Edge executable.');
+const browserPath = process.env.TT_EDGE_PATH || process.env.V130_EDGE_PATH || chromium.executablePath();
+assert.ok(path.isAbsolute(browserPath), 'Playwright Chromium must resolve to an installed executable.');
 const port = Number(process.env.TT_V1308_PORT || 4176);
 const base = `http://127.0.0.1:${port}/`;
 const preview = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
