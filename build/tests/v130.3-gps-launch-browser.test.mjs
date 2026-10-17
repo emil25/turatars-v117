@@ -67,7 +67,14 @@ async function openTestPage(id, route, options = {}) {
     };
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: options.noGeolocation ? undefined : geo });
   }, { id, options });
-  await page.goto(base + '#/' + route, { waitUntil: 'networkidle' });
+  await page.goto(base + '#/' + route, { waitUntil: 'domcontentloaded' });
+  await page.locator('#view').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => {
+    const view = document.querySelector('#view');
+    return Boolean(view && view.childElementCount > 0);
+  });
+  if (route === 'vezerlopult') await page.locator('button[data-center-gps]').waitFor({ state: 'visible' });
+  if (route.startsWith('tura/')) await page.locator('#v120-start').waitFor({ state: 'visible' });
   await page.locator('[data-modal]').evaluateAll(elements => elements.forEach(element => element.remove()));
   return { context, page };
 }
