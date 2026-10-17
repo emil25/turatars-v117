@@ -91,7 +91,25 @@ const server = createServer(async (request, response) => {
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); response.end('Not found');
   }
 });
-await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+async function listenOnBrowserSafePort() {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const port = 42000 + Math.floor(Math.random() * 7000);
+    try {
+      await new Promise((resolve, reject) => {
+        const onListening = () => { server.off('error', onError); resolve(); };
+        const onError = error => { server.off('listening', onListening); reject(error); };
+        server.once('listening', onListening);
+        server.once('error', onError);
+        server.listen(port, '127.0.0.1');
+      });
+      return;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE') throw error;
+    }
+  }
+  throw new Error('Could not allocate an available browser-safe test port.');
+}
+await listenOnBrowserSafePort();
 const origin = `http://127.0.0.1:${server.address().port}`;
 const appUrl = `${origin}${basePath}`;
 const browser = await chromium.launch({ headless: true, executablePath: edgePath });
@@ -126,7 +144,7 @@ async function startRealLocalGps(page, url) {
   await page.waitForURL(/#\/tura-live\/t-v1302-offline/);
   await page.waitForFunction(() => {
     const db = JSON.parse(localStorage.getItem('turavaros_v1'));
-    return (db.data['u-v1302'].tours[0].liveTrack?.points?.length || 0) >= 2;
+    return (db.data['u-v1302'].tours[0].liveTrack?.points?.length || 0) >= 3;
   });
 }
 
@@ -266,7 +284,16 @@ try {
   await updateContext.setOffline(true);
   const updatedOffline = await updateContext.newPage(); await observe(updatedOffline);
   await updatedOffline.goto(`${appUrl}?design=atlas#/tura-live/t-v1302-offline`, { waitUntil: 'domcontentloaded' });
-  await updatedOffline.waitForFunction(() => window.Store && window.App && document.querySelector('#v120-root'));
+  try {
+    await updatedOffline.waitForFunction(() => window.Store && window.App && document.querySelector('#v120-root'));
+  } catch (error) {
+    console.error('Updated offline app did not boot:', JSON.stringify(await updatedOffline.evaluate(() => ({
+      href: location.href, online: navigator.onLine, readyState: document.readyState,
+      app: typeof window.App, store: typeof window.Store, root: !!document.querySelector('#v120-root'),
+      text: document.body.innerText.slice(0, 600), errors: window.__v1302OwnConsoleErrors,
+    })).catch(() => null)));
+    throw error;
+  }
   const afterUpdateOffline = await updatedOffline.evaluate(() => ({
     data: JSON.parse(localStorage.getItem('turavaros_v1')).data['u-v1302'],
     points: Store.myData().tours[0].liveTrack.points.length,
